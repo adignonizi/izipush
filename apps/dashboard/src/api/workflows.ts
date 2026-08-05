@@ -115,18 +115,21 @@ export async function triggerWorkflow({
   /** Per-step control values for stateless triggers (job-scoped, not persisted). */
   controls?: { steps: Record<string, Record<string, unknown>> };
 }) {
-  return post<{ data: { transactionId?: string } }>(`/events/trigger`, {
-    environment,
-    body: {
-      name,
-      to,
-      payload: { ...(payload ?? {}), __source: (payload as any)?.__source ?? 'dashboard' },
-      context: context ?? undefined,
-      ...(overrides && Object.keys(overrides).length > 0 ? { overrides } : {}),
-      ...(bridgeUrl ? { bridgeUrl } : {}),
-      ...(controls ? { controls } : {}),
-    },
-  });
+  return post<{ data: { transactionId?: string; acknowledged?: boolean; status?: string; error?: string[] } }>(
+    `/events/trigger`,
+    {
+      environment,
+      body: {
+        name,
+        to,
+        payload: { ...(payload ?? {}), __source: (payload as any)?.__source ?? 'dashboard' },
+        context: context ?? undefined,
+        ...(overrides && Object.keys(overrides).length > 0 ? { overrides } : {}),
+        ...(bridgeUrl ? { bridgeUrl } : {}),
+        ...(controls ? { controls } : {}),
+      },
+    }
+  );
 }
 
 export async function createWorkflow({

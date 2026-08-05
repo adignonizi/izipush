@@ -1,8 +1,9 @@
-import { FeatureFlagsKeysEnum } from '@novu/shared';
+import { FeatureFlagsKeysEnum, PermissionsEnum } from '@novu/shared';
 import { motion } from 'motion/react';
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { RiDiscussLine } from 'react-icons/ri';
+import { RiDiscussLine, RiSendPlaneFill } from 'react-icons/ri';
 import { ListTopicSubscriptionsResponse, TopicSubscription } from '@/api/topics';
+import { Button } from '@/components/primitives/button';
 import { Separator } from '@/components/primitives/separator';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/primitives/sheet';
 import { Skeleton } from '@/components/primitives/skeleton';
@@ -13,11 +14,13 @@ import TruncatedText from '@/components/truncated-text';
 import { useFeatureFlag } from '@/hooks/use-feature-flag';
 import { useFormProtection } from '@/hooks/use-form-protection';
 import { itemVariants, listVariants } from '@/utils/animation';
+import { Protect } from '@/utils/protect';
 import { cn } from '../../utils/ui';
 import { AddSubscriberForm } from './add-subscriber-form';
 import { EmptyTopicsIllustration } from './empty-topics-illustration';
 import { useTopic } from './hooks/use-topic';
 import { useTopicSubscriptions } from './hooks/use-topic-subscribers';
+import { SendToTopicModal } from './send-to-topic-modal';
 import { SubscriptionCountBadge } from './subscription-count-badge';
 import { TopicActivity } from './topic-activity';
 import { TopicOverviewForm, TopicOverviewSkeleton } from './topic-overview-form';
@@ -189,6 +192,7 @@ function TopicTabs(props: TopicTabsProps) {
   const { topicKey, readOnly = false } = props;
   const isContextPreferencesEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_CONTEXT_PREFERENCES_ENABLED);
   const [tab, setTab] = useState('overview');
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [subscriberId, setSubscriberId] = useState<string | undefined>(undefined);
   const [contextKeys, setContextKeys] = useState<string[]>(['']);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
@@ -245,6 +249,21 @@ function TopicTabs(props: TopicTabsProps) {
             <RiDiscussLine className="size-5 p-0.5" />
             <TruncatedText className="flex-1 pr-10">Topic - {topicKey}</TruncatedText>
           </div>
+          {!readOnly && (
+            <Protect permission={PermissionsEnum.EVENT_WRITE}>
+              <Button
+                type="button"
+                size="2xs"
+                mode="outline"
+                variant="secondary"
+                leadingIcon={RiSendPlaneFill}
+                className="mr-8 shrink-0"
+                onClick={() => setIsSendModalOpen(true)}
+              >
+                Send
+              </Button>
+            </Protect>
+          )}
         </header>
 
         <TabsList
@@ -290,6 +309,7 @@ function TopicTabs(props: TopicTabsProps) {
         <Separator />
 
         {ProtectionAlert}
+        <SendToTopicModal open={isSendModalOpen} onOpenChange={setIsSendModalOpen} topicKey={topicKey} />
       </Tabs>
     </TooltipProvider>
   );

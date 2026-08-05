@@ -1,7 +1,7 @@
 import { PermissionsEnum } from '@novu/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { ComponentProps, useState } from 'react';
-import { RiDeleteBin2Line, RiFileCopyLine, RiMore2Fill, RiPulseFill } from 'react-icons/ri';
+import { RiDeleteBin2Line, RiFileCopyLine, RiMore2Fill, RiPulseFill, RiSendPlaneFill } from 'react-icons/ri';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ConfirmationModal } from '@/components/confirmation-modal';
 import { CompactButton } from '@/components/primitives/button-compact';
@@ -24,6 +24,7 @@ import { buildRoute, ROUTES } from '../../utils/routes';
 import { cn } from '../../utils/ui';
 import { showErrorToast } from '../primitives/sonner-helpers';
 import { useDeleteTopic } from './hooks/use-delete-topic';
+import { SendToTopicModal } from './send-to-topic-modal';
 import { Topic } from './types';
 
 type TopicRowProps = {
@@ -52,6 +53,7 @@ const TopicTableCell = (props: TopicTableCellProps) => {
 export const TopicRow = ({ topic }: TopicRowProps) => {
   const { currentEnvironment } = useEnvironment();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const { deleteTopic, isDeleting } = useDeleteTopic();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -119,6 +121,17 @@ export const TopicRow = ({ topic }: TopicRowProps) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-44" onClick={stopPropagation}>
               <DropdownMenuGroup>
+                <Protect permission={PermissionsEnum.EVENT_WRITE}>
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setTimeout(() => setIsSendModalOpen(true), 0);
+                    }}
+                  >
+                    <RiSendPlaneFill />
+                    Send to topic
+                  </DropdownMenuItem>
+                </Protect>
                 <DropdownMenuItem
                   className="cursor-pointer"
                   onClick={() => {
@@ -173,6 +186,12 @@ export const TopicRow = ({ topic }: TopicRowProps) => {
         }
         confirmButtonText="Delete topic"
         isLoading={isDeleting}
+      />
+      <SendToTopicModal
+        open={isSendModalOpen}
+        onOpenChange={setIsSendModalOpen}
+        topicKey={topic.key}
+        topicName={topic.name}
       />
     </>
   );
