@@ -11,12 +11,20 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiExcludeController, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { AnalyticsService } from '@novu/application-generic';
+import {
+  AnalyticsService,
+  OAuthHandlerEnum,
+  SubscriberResponseDto,
+  UpdateSubscriberChannel,
+  UpdateSubscriberChannelCommand,
+  UpdateSubscriberChannelRequestDto,
+} from '@novu/application-generic';
 import { BaseRepository, MessageEntity } from '@novu/dal';
 import {
   ButtonTypeEnum,
@@ -96,7 +104,8 @@ export class WidgetsController {
     private getSubscriberPreferenceByLevelUsecase: GetPreferencesByLevel,
     private updatePreferencesUsecase: UpdatePreferences,
     private markAllMessagesAsUsecase: MarkAllMessagesAs,
-    private analyticsService: AnalyticsService
+    private analyticsService: AnalyticsService,
+    private updateSubscriberChannelUsecase: UpdateSubscriberChannel
   ) {}
 
   @ExcludeFromIdempotency()
@@ -111,6 +120,34 @@ export class WidgetsController {
         lastName: body.lastName,
         phone: body.phone,
         hmacHash: body.hmacHash,
+      })
+    );
+  }
+
+  // Permet au SDK client (izipush) d'enregistrer un token push (FCM) sans
+  // jamais detenir la cle secrete d'environnement : le JWT emis par
+  // /session/initialize scope deja l'appel au subscriber concerne, exactement
+  // comme les routes de notifications ci-dessous. Reutilise le meme usecase
+  // que PUT /v1/subscribers/:subscriberId/credentials (route authentifiee par
+  // cle secrete, pour les appels serveur-a-serveur) — seule la source de
+  // l'identite du subscriber change.
+  @UseGuards(AuthGuard('subscriberJwt'))
+  @Put('/credentials')
+  @ExcludeFromIdempotency()
+  async updateCredentials(
+    @SubscriberSession() subscriberSession: SubscriberSession,
+    @Body() body: UpdateSubscriberChannelRequestDto
+  ): Promise<SubscriberResponseDto> {
+    return await this.updateSubscriberChannelUsecase.execute(
+      UpdateSubscriberChannelCommand.create({
+        environmentId: subscriberSession.environmentId,
+        organizationId: subscriberSession.organizationId,
+        subscriberId: subscriberSession.subscriberId,
+        providerId: body.providerId,
+        credentials: body.credentials,
+        integrationIdentifier: body.integrationIdentifier,
+        oauthHandler: OAuthHandlerEnum.EXTERNAL,
+        isIdempotentOperation: true,
       })
     );
   }
