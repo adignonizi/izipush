@@ -2,6 +2,7 @@ import { ApiServiceLevelEnum, FeatureFlagsKeysEnum, GetSubscriptionDto, Permissi
 import { SVGProps } from 'react';
 import {
   RiBarChartBoxLine,
+  RiBookOpenLine,
   RiBuildingLine,
   RiCodeSSlashLine,
   RiDatabase2Line,
@@ -351,6 +352,16 @@ export const LegacySideNavigation = () => {
                 >
                   <RiCodeSSlashLine className="size-4" />
                   <span>Variables</span>
+                </NavigationLink>
+                <NavigationLink
+                  to={
+                    currentEnvironment?.slug
+                      ? buildRoute(ROUTES.SDK_DOCS, { environmentSlug: currentEnvironment?.slug ?? '' })
+                      : undefined
+                  }
+                >
+                  <RiBookOpenLine className="size-4" />
+                  <span>SDK Docs</span>
                 </NavigationLink>
               </NavigationGroup>
             </Protect>

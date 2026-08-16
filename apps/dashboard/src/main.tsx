@@ -74,6 +74,7 @@ import { LocalHandshakePage } from './pages/local-handshake';
 import { LocalWorkflowsPage } from './pages/local-workflows';
 import { RedirectToLegacyStudioAuth } from './pages/redirect-to-legacy-studio-auth';
 import { ResetPasswordPage } from './pages/reset-password';
+import { SdkDocsPage } from './pages/sdk-docs';
 import { TestWorkflowDrawerPage } from './pages/test-workflow-drawer-page';
 import { TestWorkflowRouteHandler } from './pages/test-workflow-route-handler';
 import { TopicsPage } from './pages/topics';
@@ -462,6 +463,14 @@ const router = createBrowserRouter([
                 element: (
                   <ProtectedRoute permission={PermissionsEnum.API_KEY_READ}>
                     <ApiKeysPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.SDK_DOCS,
+                element: (
+                  <ProtectedRoute>
+                    <SdkDocsPage />
                   </ProtectedRoute>
                 ),
               },
