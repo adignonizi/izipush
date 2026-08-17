@@ -128,9 +128,16 @@ export class WidgetsController {
   // jamais detenir la cle secrete d'environnement : le JWT emis par
   // /session/initialize scope deja l'appel au subscriber concerne, exactement
   // comme les routes de notifications ci-dessous. Reutilise le meme usecase
-  // que PUT /v1/subscribers/:subscriberId/credentials (route authentifiee par
-  // cle secrete, pour les appels serveur-a-serveur) — seule la source de
-  // l'identite du subscriber change.
+  // que PATCH /v1/subscribers/:subscriberId/credentials ("append", route
+  // authentifiee par cle secrete, pour les appels serveur-a-serveur) — seule
+  // la source de l'identite du subscriber change.
+  //
+  // isIdempotentOperation=false (append) et NON true (replace) : un meme
+  // subscriber se connecte depuis plusieurs appareils (mobile, Safari, etc.),
+  // chacun avec son propre token FCM. En "replace", le token du dernier
+  // appareil enregistre ecraserait ceux des precedents — l'usecase Novu fait
+  // l'union (dedupliquee) des tokens existants avec le nouveau quand ce flag
+  // est a false, voir update-subscriber-channel.usecase.ts.
   @UseGuards(AuthGuard('subscriberJwt'))
   @Put('/credentials')
   @ExcludeFromIdempotency()
@@ -147,7 +154,7 @@ export class WidgetsController {
         credentials: body.credentials,
         integrationIdentifier: body.integrationIdentifier,
         oauthHandler: OAuthHandlerEnum.EXTERNAL,
-        isIdempotentOperation: true,
+        isIdempotentOperation: false,
       })
     );
   }
