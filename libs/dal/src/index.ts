@@ -14,6 +14,7 @@ export * from './repositories/control-values';
 export * from './repositories/conversation';
 export * from './repositories/conversation-activation';
 export * from './repositories/conversation-activity';
+export * from './repositories/crm';
 export * from './repositories/domain';
 export * from './repositories/domain-route';
 export * from './repositories/environment';
