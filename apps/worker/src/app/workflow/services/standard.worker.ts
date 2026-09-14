@@ -13,7 +13,13 @@ import {
   WorkerOptions,
   WorkflowInMemoryProviderService,
 } from '@novu/application-generic';
-import { CommunityOrganizationRepository, JobRepository } from '@novu/dal';
+import {
+  CommunityOrganizationRepository,
+  CRM_EMAIL_MAX_ATTEMPTS,
+  crmQuotaRetryDelay,
+  isCrmEmailQuotaError,
+  JobRepository,
+} from '@novu/dal';
 import { FeatureFlagsKeysEnum, JobStatusEnum, ObservabilityBackgroundTransactionEnum } from '@novu/shared';
 import {
   HandleLastFailedJob,
@@ -238,7 +244,9 @@ export class StandardWorker extends StandardWorkerService {
       jobId = minimalData.jobId;
 
       hasToBackoff = this.runJob.shouldBackoff(error);
-      const hasReachedMaxAttempts = job.attemptsMade >= this.DEFAULT_ATTEMPTS;
+      // izipush-crm : un email de campagne en attente de fournisseur a droit à plus de relances (voir add-job).
+      const maxAttempts = isCrmEmailQuotaError(error) ? CRM_EMAIL_MAX_ATTEMPTS : this.DEFAULT_ATTEMPTS;
+      const hasReachedMaxAttempts = job.attemptsMade >= maxAttempts;
       const shouldHandleLastFailedJob = hasToBackoff && hasReachedMaxAttempts;
 
       const shouldBeSetAsFailed = !hasToBackoff || shouldHandleLastFailedJob;
@@ -287,6 +295,9 @@ export class StandardWorker extends StandardWorkerService {
 
   private getBackoffStrategies = () => {
     return async (attemptsMade: number, type: string, eventError: Error, eventJob: Job): Promise<number> => {
+      // izipush-crm : relance à la fin de la fenêtre pleine (délai porté par l'erreur).
+      if (isCrmEmailQuotaError(eventError)) return crmQuotaRetryDelay(eventError);
+
       return await this.webhookFilterBackoffStrategy.execute({
         attemptsMade,
         environmentId: eventJob?.data?._environmentId,

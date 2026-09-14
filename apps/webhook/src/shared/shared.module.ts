@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AnalyticsService } from '@novu/application-generic';
 import {
+  CrmProviderUsageRepository,
   DalService,
   ExecutionDetailsRepository,
   IntegrationRepository,
@@ -9,7 +10,13 @@ import {
 } from '@novu/dal';
 
 // izipush-crm : SubscriberRepository pour marquer les adresses en bounce ou en plainte.
-const DAL_MODELS = [ExecutionDetailsRepository, MessageRepository, IntegrationRepository, SubscriberRepository];
+const DAL_MODELS = [
+  ExecutionDetailsRepository,
+  MessageRepository,
+  IntegrationRepository,
+  SubscriberRepository,
+  CrmProviderUsageRepository,
+];
 
 const dalService = new DalService();
 

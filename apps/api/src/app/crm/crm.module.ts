@@ -3,14 +3,18 @@ import {
   CrmAudienceRepository,
   CrmCampaignRepository,
   CrmCampaignRunRepository,
+  CrmEmailProviderRepository,
   CrmEmailTemplateRepository,
   CrmProfileStateRepository,
+  CrmProviderUsageRepository,
   CrmSegmentRepository,
 } from '@novu/dal';
 
 import { SharedModule } from '../shared/shared.module';
 import { CrmCampaignsController } from './campaigns/crm-campaigns.controller';
 import { CrmCampaignsService } from './campaigns/crm-campaigns.service';
+import { CrmEmailProvidersController } from './email-providers/crm-email-providers.controller';
+import { CrmEmailProvidersService } from './email-providers/crm-email-providers.service';
 import { CrmFieldsController } from './fields/crm-fields.controller';
 import { CrmPublicController } from './public/crm-public.controller';
 import { CrmSegmentsController } from './segments/crm-segments.controller';
@@ -30,6 +34,7 @@ import { CrmTemplatesService } from './templates/crm-templates.service';
     CrmCampaignsController,
     CrmTemplatesController,
     CrmPublicController,
+    CrmEmailProvidersController,
   ],
   providers: [
     CrmSegmentRepository,
@@ -41,6 +46,9 @@ import { CrmTemplatesService } from './templates/crm-templates.service';
     CrmEmailTemplateRepository,
     CrmTemplatesService,
     CrmProfileStateRepository,
+    CrmEmailProviderRepository,
+    CrmProviderUsageRepository,
+    CrmEmailProvidersService,
   ],
 })
 export class CrmModule {}

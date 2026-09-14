@@ -30,6 +30,7 @@ import {
   WorkflowRunStatusEnum,
 } from '@novu/application-generic';
 import {
+  CRM_EMAIL_MAX_ATTEMPTS,
   JobEntity,
   JobRepository,
   JobStatusEnum,
@@ -1090,6 +1091,12 @@ export class AddJob {
         type: BackoffStrategiesEnum.WEBHOOK_FILTER_BACKOFF,
       };
       options.attempts = this.standardQueueService.DEFAULT_ATTEMPTS;
+    }
+
+    // izipush-crm — un email de campagne attend qu'un fournisseur ait de la place (voir CrmEmailRouter).
+    if (job.type === StepTypeEnum.EMAIL && job.payload?.__crm) {
+      options.attempts = CRM_EMAIL_MAX_ATTEMPTS;
+      options.backoff = { type: BackoffStrategiesEnum.WEBHOOK_FILTER_BACKOFF };
     }
 
     await this.standardQueueService.add({

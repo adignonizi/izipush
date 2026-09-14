@@ -19,6 +19,7 @@ import {
   SendWebhookMessage,
 } from '@novu/application-generic';
 import {
+  CrmProviderUsageRepository,
   EnvironmentEntity,
   EnvironmentRepository,
   IntegrationEntity,
@@ -47,6 +48,7 @@ import {
 import inlineCss from 'inline-css';
 
 import { PlatformException } from '../../../shared/utils';
+import { CrmEmailRouter } from '../../services/crm-email-router.service';
 import { SendMessageBase } from './send-message.base';
 import { SendMessageChannelCommand } from './send-message-channel.command';
 import { SendMessageResult, SendMessageStatus } from './send-message-type.usecase';
@@ -70,7 +72,9 @@ export class SendMessageEmail extends SendMessageBase {
     protected moduleRef: ModuleRef,
     private featureFlagService: FeatureFlagsService,
     private getLayoutUseCaseV0: GetLayoutUseCaseV0,
-    private sendWebhookMessage: SendWebhookMessage
+    private sendWebhookMessage: SendWebhookMessage,
+    private crmEmailRouter: CrmEmailRouter,
+    private crmProviderUsage: CrmProviderUsageRepository
   ) {
     super(
       messageRepository,
@@ -90,6 +94,14 @@ export class SendMessageEmail extends SendMessageBase {
     const email: string | undefined = command.overrides?.email?.toRecipient || subscriber?.email;
 
     const overrideSelectedIntegration = command.overrides?.email?.integrationIdentifier;
+
+    // izipush-crm — emails de campagne répartis entre les fournisseurs selon leurs limites d'envoi.
+    // Hors du try : « tous les fournisseurs sont pleins » doit remonter pour que le job soit relancé plus tard.
+    const crmRoute =
+      command.payload?.__crm && !overrideSelectedIntegration
+        ? await this.crmEmailRouter.pick(command.environmentId, command.organizationId)
+        : undefined;
+
     try {
       integration = await this.getIntegration({
         organizationId: command.organizationId,
@@ -97,7 +109,7 @@ export class SendMessageEmail extends SendMessageBase {
         channelType: ChannelTypeEnum.EMAIL,
         userId: command.userId,
         recipientEmail: email,
-        identifier: overrideSelectedIntegration as string,
+        identifier: (overrideSelectedIntegration ?? crmRoute?.identifier) as string,
         filterData: {
           tenant: command.job.tenant,
         },
@@ -610,10 +622,14 @@ export class SendMessageEmail extends SendMessageBase {
         }
       );
 
+      this.countProviderUsage(command, integration, 'sent');
+
       return {
         status: SendMessageStatus.SUCCESS,
       };
     } catch (error) {
+      this.countProviderUsage(command, integration, 'failed');
+
       await this.sendErrorStatus(
         message,
         'error',
@@ -663,6 +679,17 @@ export class SendMessageEmail extends SendMessageBase {
         errorMessage: DetailEnum.PROVIDER_ERROR,
       };
     }
+  }
+
+  /** izipush-crm — compteurs quotidiens par fournisseur (page de suivi) ; ne doit jamais bloquer un envoi. */
+  private countProviderUsage(
+    command: SendMessageChannelCommand,
+    integration: IntegrationEntity,
+    counter: 'sent' | 'failed'
+  ): void {
+    this.crmProviderUsage
+      .increment(command.environmentId, String(integration._id), counter, integration.providerId)
+      .catch((error) => Logger.warn({ err: error }, 'Compteur fournisseur email non mis à jour', LOG_CONTEXT));
   }
 
   @Instrument()

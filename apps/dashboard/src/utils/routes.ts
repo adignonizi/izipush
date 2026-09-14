@@ -52,6 +52,7 @@ export const ROUTES = {
   CRM_CAMPAIGNS: '/env/:environmentSlug/crm/campaigns',
   CRM_TEMPLATES: '/env/:environmentSlug/crm/templates',
   CRM_TEMPLATE_EDIT: '/env/:environmentSlug/crm/templates/:templateId',
+  CRM_EMAIL_PROVIDERS: '/env/:environmentSlug/crm/email-providers',
   ENVIRONMENTS: '/env/:environmentSlug/environments',
   ACTIVITY_FEED: '/env/:environmentSlug/activity-feed',
   ACTIVITY_WORKFLOW_RUNS: '/env/:environmentSlug/activity/workflow-runs',

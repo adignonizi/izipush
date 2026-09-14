@@ -23,6 +23,7 @@ import {
   WorkflowRunStatusEnum,
 } from '@novu/application-generic';
 import {
+  isCrmEmailQuotaError,
   JobEntity,
   JobRepository,
   JobStatusEnum,
@@ -789,7 +790,8 @@ export class RunJob {
   }
 
   public shouldBackoff(error: Error): boolean {
-    return error?.message?.includes(EXCEPTION_MESSAGE_ON_WEBHOOK_FILTER);
+    // izipush-crm : un email de campagne sans fournisseur disponible est relancé, pas abandonné.
+    return !!error?.message?.includes(EXCEPTION_MESSAGE_ON_WEBHOOK_FILTER) || isCrmEmailQuotaError(error);
   }
 
   /**

@@ -55,6 +55,7 @@ import {
 import { JobTopicNameEnum } from '@novu/shared';
 import { ACTIVE_WORKERS, workersToProcess } from '../../config/worker-init.config';
 import { SharedModule } from '../shared/shared.module';
+import { CrmEmailRouter } from './services/crm-email-router.service';
 import {
   Digest,
   ExecuteBridgeJob,
@@ -229,7 +230,8 @@ const USE_CASES = [
   ResolveChannelEndpoints,
 ];
 
-const PROVIDERS: Provider[] = [RedisThrottleService, MsTeamsTokenService, WebexTokenService];
+// izipush-crm : CrmEmailRouter répartit les emails de campagne entre les fournisseurs.
+const PROVIDERS: Provider[] = [RedisThrottleService, MsTeamsTokenService, WebexTokenService, CrmEmailRouter];
 const activeWorkersToken: any = {
   provide: 'ACTIVE_WORKERS',
   useFactory: (...args: any[]) => {

@@ -45,6 +45,8 @@ import {
 import {
   AgentIntegrationRepository,
   ControlValuesRepository,
+  CrmEmailProviderRepository,
+  CrmProviderUsageRepository,
   DalService,
   EnvironmentRepository,
   EnvironmentVariableRepository,
@@ -88,6 +90,9 @@ const DAL_MODELS = [
   TenantRepository,
   WorkflowOverrideRepository,
   ControlValuesRepository,
+  // izipush-crm : réglages et compteurs des fournisseurs email.
+  CrmEmailProviderRepository,
+  CrmProviderUsageRepository,
 ];
 
 const dalService = {

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Scope } from '@nestjs/common';
 import { AnalyticsService, IMailHandler, ISmsHandler, MailFactory, SmsFactory } from '@novu/application-generic';
 import {
+  CrmProviderUsageRepository,
   IntegrationEntity,
   IntegrationQuery,
   IntegrationRepository,
@@ -26,7 +27,8 @@ export class Webhook {
     private integrationRepository: IntegrationRepository,
     private messageRepository: MessageRepository,
     private analyticsService: AnalyticsService,
-    private subscriberRepository: SubscriberRepository
+    private subscriberRepository: SubscriberRepository,
+    private crmProviderUsage: CrmProviderUsageRepository
   ) {}
 
   async execute(command: WebhookCommand): Promise<IWebhookResult[]> {
@@ -65,7 +67,7 @@ export class Webhook {
       throw new NotFoundException(`Provider with ${integration.providerId} can not handle webhooks`);
     }
 
-    const events = await this.parseEvents(command, integration.providerId, channel);
+    const events = await this.parseEvents(command, integration.providerId, channel, String(integration._id));
 
     this.analyticsService.track('[Webhook] - Provider Webhook events parsed', '', {
       _organization: command.organizationId,
@@ -81,7 +83,8 @@ export class Webhook {
   private async parseEvents(
     command: WebhookCommand,
     providerId: string,
-    channel: ChannelTypeEnum
+    channel: ChannelTypeEnum,
+    integrationId: string
   ): Promise<IWebhookResult[]> {
     const { body } = command;
     const messageIdentifiers: string[] = this.provider.getMessageId(body);
@@ -90,7 +93,7 @@ export class Webhook {
 
     for (let eventIndex = 0; eventIndex < messageIdentifiers.length; eventIndex++) {
       const messageIdentifier = messageIdentifiers[eventIndex];
-      const event = await this.parseEvent(messageIdentifier, command, providerId, channel, eventIndex);
+      const event = await this.parseEvent(messageIdentifier, command, providerId, channel, eventIndex, integrationId);
 
       if (event === undefined) {
         continue;
@@ -107,7 +110,8 @@ export class Webhook {
     command: WebhookCommand,
     providerId: string,
     channel: ChannelTypeEnum,
-    eventIndex: number
+    eventIndex: number,
+    integrationId: string
   ): Promise<IWebhookResult | undefined> {
     const message = await this.messageRepository.findOne({
       identifier: messageIdentifier,
@@ -151,7 +155,7 @@ export class Webhook {
       channel,
     });
 
-    await this.applyCrmSuppression(message, String(event.status));
+    await this.applyCrmSuppression(message, String(event.status), integrationId);
 
     return parsedEvent;
   }
@@ -160,8 +164,20 @@ export class Webhook {
    * izipush-crm — bounce, plainte ou spam : l'adresse n'est plus visée par les emails de campagne.
    * Désabonnement signalé par le fournisseur : le client ne reçoit plus de marketing.
    */
-  private async applyCrmSuppression(message: MessageEntity, status: string): Promise<void> {
+  private async applyCrmSuppression(message: MessageEntity, status: string, integrationId: string): Promise<void> {
     if (message.channel !== ChannelTypeEnum.EMAIL) return;
+
+    const counter =
+      status === EmailEventStatusEnum.BOUNCED
+        ? 'bounced'
+        : status === EmailEventStatusEnum.COMPLAINT || status === EmailEventStatusEnum.SPAM
+          ? 'complaints'
+          : undefined;
+    if (counter) {
+      await this.crmProviderUsage
+        .increment(message._environmentId, integrationId, counter, message.providerId)
+        .catch((error) => Logger.warn(`Compteur fournisseur email non mis à jour : ${error?.message}`));
+    }
 
     const suppressing: string[] = [
       EmailEventStatusEnum.BOUNCED,
