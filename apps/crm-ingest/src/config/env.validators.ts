@@ -44,6 +44,16 @@ export const envValidators = {
   REDIS_DB_INDEX: num({ default: 0 }),
   CRM_DERIVE_CONCURRENCY: num({ default: 20 }),
 
+  /** API Novu et clé secrète de l'environnement : les campagnes déclenchent les workflows par l'API publique. */
+  NOVU_API_URL: url({ default: 'http://localhost:3000' }),
+  NOVU_SECRET_KEY: str({ default: '' }),
+  /** Exécutions de campagne et figeages de segments menés en parallèle. */
+  CRM_CAMPAIGN_CONCURRENCY: num({ default: 2 }),
+  /** Fréquence du planificateur (échéances, figeages, reprises, purge). */
+  CRM_TICK_MS: num({ default: 15_000 }),
+  /** Durée de conservation de la liste d'une exécution après son déclenchement. */
+  CRM_RUN_TOPIC_RETENTION_DAYS: num({ default: 30 }),
+
   /** Secret partagé avec Keycloak (signature HMAC-SHA256 du corps). Vide = pas de vérification. */
   KEYCLOAK_WEBHOOK_SECRET: str({ default: '' }),
   /** Jeton des routes d'administration (relecture de la file d'erreurs). Vide = routes désactivées. */

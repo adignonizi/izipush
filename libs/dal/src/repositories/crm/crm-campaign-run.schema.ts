@@ -12,7 +12,7 @@ const crmCampaignRunSchema = new Schema<CrmCampaignRunDBModel>(
     scheduledFor: { type: Schema.Types.Date, required: true },
     status: { type: Schema.Types.String, required: true },
     audienceSize: Schema.Types.Number,
-    excluded: { optOut: { type: Schema.Types.Number, default: 0 } },
+    excludedCount: Schema.Types.Number,
     topicKey: Schema.Types.String,
     transactionId: Schema.Types.String,
     error: Schema.Types.String,

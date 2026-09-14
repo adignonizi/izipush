@@ -2,14 +2,31 @@ import { Module } from '@nestjs/common';
 import { cacheService, InvalidateCacheService } from '@novu/application-generic';
 import {
   CrmActivityDailyRepository,
+  CrmAudienceRepository,
+  CrmCampaignRepository,
+  CrmCampaignRunRepository,
   CrmEventRepository,
   CrmProfileStateRepository,
+  CrmSegmentRepository,
   DalService,
   ensureCrmIndexes,
   SubscriberRepository,
+  TopicRepository,
+  TopicSubscribersRepository,
 } from '@novu/dal';
 
-const DAL_MODELS = [CrmEventRepository, CrmActivityDailyRepository, CrmProfileStateRepository, SubscriberRepository];
+const DAL_MODELS = [
+  CrmEventRepository,
+  CrmActivityDailyRepository,
+  CrmProfileStateRepository,
+  CrmSegmentRepository,
+  CrmCampaignRepository,
+  CrmCampaignRunRepository,
+  CrmAudienceRepository,
+  SubscriberRepository,
+  TopicRepository,
+  TopicSubscribersRepository,
+];
 
 const dalService = new DalService();
 

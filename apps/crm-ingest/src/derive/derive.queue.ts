@@ -3,6 +3,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { CrmEventRepository } from '@novu/dal';
 import { Job, Queue, Worker } from 'bullmq';
 
+import { redisConnection } from '../shared/redis-connection';
 import { DeriveService } from './derive.service';
 
 const QUEUE_NAME = 'crm-derive';
@@ -29,13 +30,7 @@ export class DeriveQueue implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    const connection = {
-      host: process.env.REDIS_HOST,
-      port: Number(process.env.REDIS_PORT),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: Number(process.env.REDIS_DB_INDEX),
-      maxRetriesPerRequest: null,
-    };
+    const connection = redisConnection();
 
     this.queue = new Queue(QUEUE_NAME, { connection });
     this.worker = new Worker(QUEUE_NAME, (job) => this.handle(job), {

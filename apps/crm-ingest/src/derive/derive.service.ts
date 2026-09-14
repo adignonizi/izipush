@@ -9,6 +9,7 @@ import {
   SubscriberRepository,
 } from '@novu/dal';
 
+import { OnEventCampaigns } from '../campaigns/on-event-campaigns.service';
 import { computeProfileUpdate, computeTransactionFacts } from './profile-rules';
 
 const BATCH_SIZE = 200;
@@ -28,7 +29,8 @@ export class DeriveService {
     private activity: CrmActivityDailyRepository,
     private profileState: CrmProfileStateRepository,
     private subscribers: SubscriberRepository,
-    private invalidateCache: InvalidateCacheService
+    private invalidateCache: InvalidateCacheService,
+    private onEvent: OnEventCampaigns
   ) {}
 
   async process(subscriberId: string): Promise<void> {
@@ -60,6 +62,9 @@ export class DeriveService {
     if (profile.clearPushCredentials) set.channels = [];
 
     if (Object.keys(set).length) await this.writeSubscriber(subscriber, set);
+
+    // Avant de marquer les événements traités : un échec relance le recalcul, sans double envoi (transactionId).
+    await this.onEvent.handle(subscriberId, pending);
 
     await this.profileState.setFieldsAt(this.environmentId, this.organizationId, subscriberId, profile.fieldsAt);
     await this.events.markDerived(

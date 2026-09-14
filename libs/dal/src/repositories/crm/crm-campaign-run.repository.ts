@@ -33,6 +33,12 @@ export class CrmCampaignRunRepository extends BaseRepositoryV2<
     return toCrmEntity<CrmCampaignRunEntity>(doc);
   }
 
+  async findRun(id: string): Promise<CrmCampaignRunEntity | null> {
+    const doc = await this.MongooseModel.findById(id).lean();
+
+    return doc ? toCrmEntity<CrmCampaignRunEntity>(doc) : null;
+  }
+
   async listByCampaign(environmentId: string, campaignId: string, limit: number): Promise<CrmCampaignRunEntity[]> {
     const docs = await this.MongooseModel.find({ _environmentId: environmentId, campaignId })
       .sort({ scheduledFor: -1 })

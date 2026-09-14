@@ -22,7 +22,8 @@ export class CrmCampaignRunEntity {
   /** Clients visés, après exclusions. */
   audienceSize?: number;
 
-  excluded?: { optOut: number };
+  /** Clients du segment écartés au lancement (supprimés, ou refus du marketing). */
+  excludedCount?: number;
 
   /** Topic de l'exécution : campaign:{campaignId}:{runId}. */
   topicKey?: string;

@@ -13,6 +13,8 @@ export type CrmAudienceOptions = {
   batchSize?: number;
   /** Filtre supplémentaire sur les subscribers (ex. un seul client pour une campagne « sur événement »). */
   extraFilter?: Record<string, unknown>;
+  /** Un seul client : restreint aussi l'agrégation d'activité (pas de lecture de toute la fenêtre). */
+  subscriberId?: string;
 };
 
 type SubscriberRow = { _id: unknown; subscriberId: string };
@@ -55,6 +57,9 @@ export class CrmAudienceRepository {
     }
 
     const pipeline = compileActivityPipeline(new Types.ObjectId(environmentId), compiled.activityConditions, now);
+    if (options.subscriberId) {
+      (pipeline[0] as { $match: Record<string, unknown> }).$match.subscriberId = options.subscriberId;
+    }
     const activeIds = CrmActivityDaily.aggregate<{ _id: string }>(pipeline as never[])
       .allowDiskUse(true)
       .cursor({ batchSize });
@@ -74,7 +79,8 @@ export class CrmAudienceRepository {
     profileFilter: Record<string, unknown>,
     options: CrmAudienceOptions
   ): Record<string, unknown> {
-    const parts = [profileFilter, ALWAYS_EXCLUDED, options.extraFilter ?? {}].filter(
+    const onlyOne = options.subscriberId ? { subscriberId: options.subscriberId } : {};
+    const parts = [profileFilter, ALWAYS_EXCLUDED, options.extraFilter ?? {}, onlyOne].filter(
       (part) => Object.keys(part).length
     );
 
