@@ -54,6 +54,10 @@ export const envValidators = {
   /** Durée de conservation de la liste d'une exécution après son déclenchement. */
   CRM_RUN_TOPIC_RETENTION_DAYS: num({ default: 30 }),
 
+  /** Lien de désinscription posé sur chaque profil : URL publique de l'API et secret partagé avec elle. */
+  CRM_PUBLIC_API_URL: url({ default: 'http://localhost:3000' }),
+  CRM_UNSUBSCRIBE_SECRET: str({ default: '' }),
+
   /** Secret partagé avec Keycloak (signature HMAC-SHA256 du corps). Vide = pas de vérification. */
   KEYCLOAK_WEBHOOK_SECRET: str({ default: '' }),
   /** Jeton des routes d'administration (relecture de la file d'erreurs). Vide = routes désactivées. */

@@ -27,3 +27,4 @@ export * from './crm-segment.entity';
 export * from './crm-segment.repository';
 export * from './crm-segment.schema';
 export * from './crm-subscriber.indexes';
+export * from './crm-unsubscribe';

@@ -95,6 +95,7 @@ export const CRM_EVENT_NAMES = [
   'kyc.rejected',
   'transaction.completed',
   'transaction.failed',
+  'consent.marketing_updated',
 ] as const;
 
 export type CrmEventName = (typeof CRM_EVENT_NAMES)[number];

@@ -111,6 +111,8 @@ function changesFor(event: ProfileEvent): FieldChange[] {
         ...latest('data.kyc_status', 'rejected'),
         ...latest('data.kyc_rejection_reason', text(data.reason) ?? null),
       ];
+    case 'consent.marketing_updated':
+      return latest('data.marketing_optin', typeof data.optIn === 'boolean' ? data.optIn : undefined);
     default:
       return [];
   }

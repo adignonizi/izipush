@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { buildSubscriberKey, InvalidateCacheService } from '@novu/application-generic';
 import {
+  buildUnsubscribeUrl,
   CrmActivityDailyRepository,
   CrmEventEntity,
   CrmEventRepository,
@@ -47,6 +48,9 @@ export class DeriveService {
     const fieldsAt = await this.profileState.getFieldsAt(this.environmentId, subscriberId);
     const profile = computeProfileUpdate(pending, fieldsAt);
     const set: Record<string, unknown> = { ...profile.set };
+
+    const unsubscribeUrl = this.unsubscribeUrlFor(subscriber);
+    if (unsubscribeUrl) set['data.unsubscribe_url'] = unsubscribeUrl;
 
     const activityKeys = uniqueActivityKeys(pending);
     for (const { day, product } of activityKeys) {
@@ -107,6 +111,19 @@ export class DeriveService {
     });
 
     return this.subscribers.findBySubscriberId(this.environmentId, subscriberId);
+  }
+
+  /** Lien de désinscription marketing, posé une fois sur le profil (variable {{subscriber.data.unsubscribe_url}}). */
+  private unsubscribeUrlFor(subscriber: SubscriberEntity): string | undefined {
+    const secret = process.env.CRM_UNSUBSCRIBE_SECRET;
+    if (!secret) return undefined;
+
+    const url = buildUnsubscribeUrl(process.env.CRM_PUBLIC_API_URL, secret, {
+      environmentId: this.environmentId,
+      subscriberId: subscriber.subscriberId,
+    });
+
+    return subscriber.data?.unsubscribe_url === url ? undefined : url;
   }
 
   private get environmentId(): string {

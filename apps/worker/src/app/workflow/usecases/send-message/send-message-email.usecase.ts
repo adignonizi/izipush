@@ -381,6 +381,20 @@ export class SendMessageEmail extends SendMessageBase {
         : payload;
     }
 
+    // izipush-crm — emails de campagne : adresse exclue (bounce, plainte) et désinscription en un clic.
+    const crmData = (subscriber?.data ?? {}) as Record<string, unknown>;
+    if (command.payload?.__crm) {
+      if (crmData.email_suppressed === true) return await this.skipSuppressedEmail(message, command);
+
+      if (typeof crmData.unsubscribe_url === 'string') {
+        mailData.headers = {
+          ...mailData.headers,
+          'List-Unsubscribe': `<${crmData.unsubscribe_url}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        };
+      }
+    }
+
     return await this.sendMessage(integration, mailData, message, command);
   }
 
@@ -498,6 +512,39 @@ export class SendMessageEmail extends SendMessageBase {
   }
 
   @Instrument()
+  /** izipush-crm — adresse marquée « exclue » par le CRM après un bounce ou une plainte : pas d'email de campagne. */
+  private async skipSuppressedEmail(
+    message: MessageEntity,
+    command: SendMessageChannelCommand
+  ): Promise<SendMessageResult> {
+    await this.sendErrorStatus(
+      message,
+      'warning',
+      'crm_email_suppressed',
+      'Adresse email exclue par le CRM (bounce ou plainte)',
+      command
+    );
+    await this.createExecutionDetails.execute(
+      CreateExecutionDetailsCommand.create({
+        ...CreateExecutionDetailsCommand.getDetailsFromJob(command.job),
+        messageId: message._id,
+        detail: DetailEnum.MESSAGE_BLOCKED,
+        source: ExecutionDetailsSourceEnum.INTERNAL,
+        status: ExecutionDetailsStatusEnum.FAILED,
+        isTest: false,
+        isRetry: false,
+      })
+    );
+
+    return {
+      status: SendMessageStatus.SKIPPED,
+      deliveryLifecycleState: {
+        status: DeliveryLifecycleStatusEnum.SKIPPED,
+        detail: DeliveryLifecycleDetail.SUBSCRIBER_PREFERENCE,
+      },
+    };
+  }
+
   private async sendMessage(
     integration: IntegrationEntity,
     mailData: IEmailOptions,

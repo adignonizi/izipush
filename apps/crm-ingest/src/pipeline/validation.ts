@@ -40,6 +40,7 @@ const SCHEMAS: Record<CrmEventName, z.ZodTypeAny> = {
   'kyc.rejected': anyData,
   'transaction.completed': transaction,
   'transaction.failed': transaction,
+  'consent.marketing_updated': z.object({ optIn: z.boolean() }).passthrough(),
 };
 
 /** Valide et normalise les données (montant en nombre, identifiants en chaîne). */

@@ -1,8 +1,15 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Scope } from '@nestjs/common';
 import { AnalyticsService, IMailHandler, ISmsHandler, MailFactory, SmsFactory } from '@novu/application-generic';
-import { IntegrationEntity, IntegrationQuery, IntegrationRepository, MessageRepository } from '@novu/dal';
+import {
+  IntegrationEntity,
+  IntegrationQuery,
+  IntegrationRepository,
+  MessageEntity,
+  MessageRepository,
+  SubscriberRepository,
+} from '@novu/dal';
 import { ChannelTypeEnum, providers } from '@novu/shared';
-import { IEmailProvider, ISmsProvider } from '@novu/stateless';
+import { EmailEventStatusEnum, IEmailProvider, ISmsProvider } from '@novu/stateless';
 import { IWebhookResult } from '../../dtos/webhooks-response.dto';
 import { WebhookTypes } from '../../interfaces/webhook.interface';
 import { CreateExecutionDetails } from '../execution-details/create-execution-details.usecase';
@@ -18,7 +25,8 @@ export class Webhook {
     private createExecutionDetails: CreateExecutionDetails,
     private integrationRepository: IntegrationRepository,
     private messageRepository: MessageRepository,
-    private analyticsService: AnalyticsService
+    private analyticsService: AnalyticsService,
+    private subscriberRepository: SubscriberRepository
   ) {}
 
   async execute(command: WebhookCommand): Promise<IWebhookResult[]> {
@@ -143,7 +151,44 @@ export class Webhook {
       channel,
     });
 
+    await this.applyCrmSuppression(message, String(event.status));
+
     return parsedEvent;
+  }
+
+  /**
+   * izipush-crm — bounce, plainte ou spam : l'adresse n'est plus visée par les emails de campagne.
+   * Désabonnement signalé par le fournisseur : le client ne reçoit plus de marketing.
+   */
+  private async applyCrmSuppression(message: MessageEntity, status: string): Promise<void> {
+    if (message.channel !== ChannelTypeEnum.EMAIL) return;
+
+    const suppressing: string[] = [
+      EmailEventStatusEnum.BOUNCED,
+      EmailEventStatusEnum.COMPLAINT,
+      EmailEventStatusEnum.SPAM,
+    ];
+    const set = suppressing.includes(status)
+      ? { email_suppressed: true }
+      : status === EmailEventStatusEnum.UNSUBSCRIBED
+        ? { marketing_optin: false }
+        : undefined;
+    if (!set) return;
+
+    const target = { _environmentId: message._environmentId, _id: message._subscriberId };
+    const dotted = Object.fromEntries(Object.entries(set).map(([key, value]) => [`data.${key}`, value]));
+    const withData = await this.subscriberRepository.update(
+      { ...target, data: { $type: 'object' } } as Parameters<SubscriberRepository['update']>[0],
+      { $set: dotted }
+    );
+
+    // Subscriber sans objet data : écrire « data.x » échouerait, on crée l'objet d'un bloc.
+    if (!withData.matched) {
+      await this.subscriberRepository.update(
+        { ...target, data: { $in: [null] } } as Parameters<SubscriberRepository['update']>[0],
+        { $set: { data: set } }
+      );
+    }
   }
 
   private getHandler(integration: IntegrationEntity, type: WebhookTypes): ISmsHandler | IMailHandler | null {

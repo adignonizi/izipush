@@ -63,6 +63,17 @@ describe('computeProfileUpdate', () => {
   });
 });
 
+describe('consentement marketing', () => {
+  it('consent.marketing_updated pose data.marketing_optin', () => {
+    const update = computeProfileUpdate(
+      [{ eventName: 'consent.marketing_updated', occurredAt: at('2026-09-01T00:00:00.000Z'), data: { optIn: false } }],
+      {}
+    );
+
+    expect(update.set).to.deep.equal({ 'data.marketing_optin': false });
+  });
+});
+
 describe('computeTransactionFacts', () => {
   it('cumuls à vie arrondis, premières et dernière transactions', () => {
     const set = computeTransactionFacts(
