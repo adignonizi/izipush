@@ -35,7 +35,11 @@ export class OnEventCampaigns {
   ) {}
 
   async handle(subscriberId: string, events: CrmEventEntity[], now = new Date()): Promise<void> {
-    const recent = events.filter((event) => now.getTime() - new Date(event.occurredAt).getTime() <= MAX_EVENT_AGE_MS);
+    // L'import initial (scripts/import-izichange.mjs) rejoue l'historique : il ne déclenche jamais de campagne.
+    const recent = events.filter(
+      (event) =>
+        now.getTime() - new Date(event.occurredAt).getTime() <= MAX_EVENT_AGE_MS && event.data?.imported !== true
+    );
     if (!recent.length) return;
 
     const environmentId = process.env.CRM_ENVIRONMENT_ID;

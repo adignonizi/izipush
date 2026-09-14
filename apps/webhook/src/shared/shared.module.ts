@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AnalyticsService } from '@novu/application-generic';
 import {
+  CrmEngagementRepository,
   CrmProviderUsageRepository,
   DalService,
   ExecutionDetailsRepository,
@@ -16,6 +17,7 @@ const DAL_MODELS = [
   IntegrationRepository,
   SubscriberRepository,
   CrmProviderUsageRepository,
+  CrmEngagementRepository,
 ];
 
 const dalService = new DalService();

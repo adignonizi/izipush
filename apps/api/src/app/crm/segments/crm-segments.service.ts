@@ -38,6 +38,22 @@ export class CrmSegmentsService {
     return segment;
   }
 
+  /** Figeage en échec : crm-ingest reprend la photographie (les membres déjà écrits le sont à nouveau, sans doublon). */
+  async retryFreeze(user: UserSessionData, segmentId: string): Promise<CrmSegmentEntity> {
+    const segment = await this.get(user, segmentId);
+    if (!segment.frozen || segment.status !== 'failed') {
+      throw new ConflictException('Seul un segment figé dont le figeage a échoué peut être relancé');
+    }
+
+    await this.segments.updateSegment(user.environmentId, segmentId, {
+      status: 'freezing',
+      error: '',
+      lockedUntil: null,
+    });
+
+    return this.get(user, segmentId);
+  }
+
   /** Un segment figé part en « freezing » : crm-ingest photographie la liste puis le passe en « ready ». */
   async create(user: UserSessionData, body: CrmSegmentBody): Promise<CrmSegmentEntity> {
     const name = requiredName(body.name);

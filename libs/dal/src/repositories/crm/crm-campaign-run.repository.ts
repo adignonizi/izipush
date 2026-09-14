@@ -48,6 +48,20 @@ export class CrmCampaignRunRepository extends BaseRepositoryV2<
     return docs.map((doc) => toCrmEntity<CrmCampaignRunEntity>(doc));
   }
 
+  /** Exécutions déclenchées depuis une date, toutes campagnes confondues (rapport). */
+  async listTriggeredSince(environmentId: string, since: Date, limit: number): Promise<CrmCampaignRunEntity[]> {
+    const docs = await this.MongooseModel.find({
+      _environmentId: environmentId,
+      status: 'triggered',
+      triggeredAt: { $gte: since },
+    })
+      .sort({ triggeredAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return docs.map((doc) => toCrmEntity<CrmCampaignRunEntity>(doc));
+  }
+
   async updateRun(id: string, set: RunSet): Promise<void> {
     await this.MongooseModel.updateOne({ _id: id }, { $set: set });
   }

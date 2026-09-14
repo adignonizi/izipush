@@ -21,6 +21,8 @@ const crmCampaignRunSchema = new Schema<CrmCampaignRunDBModel>(
     startedAt: Schema.Types.Date,
     triggeredAt: Schema.Types.Date,
     topicPurgedAt: Schema.Types.Date,
+    stats: Schema.Types.Mixed,
+    statsFinalAt: Schema.Types.Date,
   },
   { ...schemaOptions, collection: 'crm_campaign_runs' }
 );

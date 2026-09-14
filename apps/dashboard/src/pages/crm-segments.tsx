@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RiAddLine, RiDeleteBin2Line } from 'react-icons/ri';
+import { RiAddLine, RiDeleteBin2Line, RiRefreshLine } from 'react-icons/ri';
 import type { CrmSegment } from '@/api/crm';
 import { ConfirmationModal } from '@/components/confirmation-modal';
 import { CreateSegmentDialog } from '@/components/crm/create-segment-dialog';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/primitives/badge';
 import { Button } from '@/components/primitives/button';
 import { showErrorToast, showSuccessToast } from '@/components/primitives/sonner-helpers';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/primitives/table';
-import { useCrmFields, useCrmSegments, useDeleteCrmSegment } from '@/hooks/use-crm';
+import { useCrmFields, useCrmSegments, useDeleteCrmSegment, useRetryCrmSegmentFreeze } from '@/hooks/use-crm';
 
 // izipush-crm — liste et création des segments.
 
@@ -18,6 +18,16 @@ export function CrmSegmentsPage() {
   const { data: segments = [], isLoading } = useCrmSegments();
   const { data: fields } = useCrmFields();
   const remove = useDeleteCrmSegment();
+  const retry = useRetryCrmSegmentFreeze();
+
+  const retryFreeze = async (segment: CrmSegment) => {
+    try {
+      await retry.mutateAsync(segment._id);
+      showSuccessToast('Figeage relancé');
+    } catch (error) {
+      showErrorToast((error as Error).message, 'Figeage non relancé');
+    }
+  };
   const [creating, setCreating] = useState(false);
   const [toDelete, setToDelete] = useState<CrmSegment>();
 
@@ -82,6 +92,18 @@ export function CrmSegmentsPage() {
                   </TableCell>
                   <TableCell>{formatDate(segment.createdAt)}</TableCell>
                   <TableCell className="text-right">
+                    {segment.frozen && segment.status === 'failed' && (
+                      <Button
+                        variant="secondary"
+                        mode="ghost"
+                        size="xs"
+                        title="Relancer le figeage"
+                        disabled={retry.isPending}
+                        onClick={() => retryFreeze(segment)}
+                      >
+                        <RiRefreshLine className="size-4" />
+                      </Button>
+                    )}
                     <Button variant="secondary" mode="ghost" size="xs" onClick={() => setToDelete(segment)}>
                       <RiDeleteBin2Line className="size-4" />
                     </Button>

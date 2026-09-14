@@ -1,7 +1,12 @@
-import { Controller, Get, HttpStatus, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Res } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { buildSubscriberKey, InvalidateCacheService } from '@novu/application-generic';
-import { CrmProfileStateRepository, SubscriberRepository, verifyUnsubscribeToken } from '@novu/dal';
+import {
+  CrmEngagementRepository,
+  CrmProfileStateRepository,
+  SubscriberRepository,
+  verifyUnsubscribeToken,
+} from '@novu/dal';
 import type { Response } from 'express';
 
 type Outcome = 'unsubscribed' | 'invalid' | 'unavailable';
@@ -9,6 +14,7 @@ type Outcome = 'unsubscribed' | 'invalid' | 'unavailable';
 /**
  * izipush-crm — désinscription marketing sans connexion, depuis le lien des emails.
  * GET : page de confirmation. POST : désinscription en un clic (RFC 8058, en-tête List-Unsubscribe-Post).
+ * Aussi : ouverture des notifications push de campagne, signalée par le SDK mobile.
  */
 @ApiExcludeController()
 @Controller('/crm/public')
@@ -16,7 +22,8 @@ export class CrmPublicController {
   constructor(
     private subscribers: SubscriberRepository,
     private profileState: CrmProfileStateRepository,
-    private invalidateCache: InvalidateCacheService
+    private invalidateCache: InvalidateCacheService,
+    private engagement: CrmEngagementRepository
   ) {}
 
   @Get('/unsubscribe')
@@ -34,6 +41,13 @@ export class CrmPublicController {
     const outcome = await this.unsubscribe(token);
 
     res.status(outcome === 'unsubscribed' ? HttpStatus.OK : HttpStatus.BAD_REQUEST).json({ outcome });
+  }
+
+  /** Toujours 204 : la réponse ne dit pas si le message existe. Seuls les push de campagne sont comptés. */
+  @Post('/push-opened')
+  @HttpCode(204)
+  async pushOpened(@Body() body: { messageId?: unknown }): Promise<void> {
+    if (typeof body?.messageId === 'string') await this.engagement.recordPushOpen(body.messageId);
   }
 
   private async unsubscribe(token: string): Promise<Outcome> {

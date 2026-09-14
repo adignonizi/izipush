@@ -48,6 +48,11 @@ export class DeriveQueue implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  /** Jobs en attente, en cours, retardés, en échec : pour la page « Suivi ». */
+  counts(): Promise<Record<string, number>> {
+    return this.queue.getJobCounts('waiting', 'active', 'delayed', 'failed');
+  }
+
   async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
     await this.queue?.close();

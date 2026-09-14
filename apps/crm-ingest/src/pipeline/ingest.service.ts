@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CrmEventRepository } from '@novu/dal';
 
 import { DeriveQueue } from '../derive/derive.queue';
+import { IngestCounters } from '../health/ingest-counters.service';
 import { CrmEnvelope, isSupportedEvent, isTransactionEvent } from './envelope';
 import { activityDay, activityProduct, validateEventData } from './validation';
 
@@ -11,7 +12,8 @@ export type IngestOutcome = 'accepted' | 'duplicate' | 'ignored';
 export class IngestService {
   constructor(
     private events: CrmEventRepository,
-    private deriveQueue: DeriveQueue
+    private deriveQueue: DeriveQueue,
+    private counters: IngestCounters
   ) {}
 
   /**
@@ -19,8 +21,13 @@ export class IngestService {
    * Lève CrmValidationError si les données sont inexploitables ; toute autre erreur est transitoire.
    */
   async ingest(envelope: CrmEnvelope): Promise<IngestOutcome> {
-    if (!isSupportedEvent(envelope.eventName)) return 'ignored';
+    if (!isSupportedEvent(envelope.eventName)) {
+      this.counters.add('ignored', envelope.eventName);
 
+      return 'ignored';
+    }
+
+    // Données invalides : CrmValidationError, compté comme rejet par la source (file d'erreurs RabbitMQ).
     const data = validateEventData(envelope.eventName, envelope.data);
     const activityKeys = isTransactionEvent(envelope.eventName)
       ? { day: activityDay(envelope.occurredAt), product: activityProduct(data) }
@@ -42,6 +49,9 @@ export class IngestService {
     // Même pour un doublon : si le premier passage a échoué avant la mise en file, l'événement attend encore.
     await this.deriveQueue.enqueue(envelope.userId);
 
-    return inserted ? 'accepted' : 'duplicate';
+    const outcome = inserted ? 'accepted' : 'duplicate';
+    this.counters.add(outcome, envelope.eventName);
+
+    return outcome;
   }
 }

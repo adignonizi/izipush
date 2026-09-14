@@ -1,5 +1,6 @@
 import type { EnvironmentId, OrganizationId } from '@novu/shared';
 import type { ChangePropsValueType } from '../../types/helpers';
+import type { CrmChannelStats } from './crm-report.repository';
 
 /** resolving : calcul de l'audience · triggering : déclenchement · triggered : remis à Novu · failed : échec. */
 export type CrmCampaignRunStatus = 'resolving' | 'triggering' | 'triggered' | 'failed';
@@ -42,6 +43,11 @@ export class CrmCampaignRunEntity {
 
   /** Date de suppression du topic de l'exécution (30 jours après le déclenchement). */
   topicPurgedAt?: Date;
+
+  /** Résultats d'envoi, gardés une fois définitifs (48 h après le déclenchement) pour ne plus les recalculer. */
+  stats?: CrmChannelStats[];
+
+  statsFinalAt?: Date;
 
   createdAt?: string;
 

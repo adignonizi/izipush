@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
 import { DalServiceHealthIndicator } from '@novu/application-generic';
+import { CrmOpsRepository } from '@novu/dal';
 
 import { CampaignQueue } from './campaigns/campaign.queue';
 import { CampaignRunner } from './campaigns/campaign-runner.service';
@@ -12,6 +13,8 @@ import { TopicWriter } from './campaigns/topic-writer.service';
 import { DeriveQueue } from './derive/derive.queue';
 import { DeriveService } from './derive/derive.service';
 import { HealthController } from './health/health.controller';
+import { IngestCounters } from './health/ingest-counters.service';
+import { StatusReporter } from './health/status-reporter.service';
 import { IngestService } from './pipeline/ingest.service';
 import { SharedModule } from './shared/shared.module';
 import { DeadLetterController } from './sources/dead-letter.controller';
@@ -34,6 +37,9 @@ import { RabbitMqConsumer } from './sources/rabbitmq.consumer';
     CampaignScheduler,
     CampaignQueue,
     OnEventCampaigns,
+    CrmOpsRepository,
+    IngestCounters,
+    StatusReporter,
   ],
 })
 export class IngestModule {}

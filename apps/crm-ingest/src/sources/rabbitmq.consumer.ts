@@ -1,12 +1,15 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { CrmOpsRepository } from '@novu/dal';
 import { Channel, ChannelModel, ConsumeMessage, connect } from 'amqplib';
 
+import { IngestCounters } from '../health/ingest-counters.service';
 import { adaptRabbit } from '../pipeline/adapters';
 import { IngestService } from '../pipeline/ingest.service';
 import { CrmValidationError } from '../pipeline/validation';
 
 const RECONNECT_DELAY_MS = 5000;
 const TRANSIENT_RETRY_DELAY_MS = 2000;
+const DEAD_LETTER_PREVIEW_CHARS = 2000;
 
 /**
  * Consomme notre propre file, liée à l'exchange topic existant d'Izichange : les autres
@@ -20,7 +23,11 @@ export class RabbitMqConsumer implements OnModuleInit, OnModuleDestroy {
   private channel?: Channel;
   private stopping = false;
 
-  constructor(private ingest: IngestService) {}
+  constructor(
+    private ingest: IngestService,
+    private ops: CrmOpsRepository,
+    private counters: IngestCounters
+  ) {}
 
   async onModuleInit(): Promise<void> {
     void this.connectWithRetry();
@@ -34,6 +41,30 @@ export class RabbitMqConsumer implements OnModuleInit, OnModuleDestroy {
 
   isConnected(): boolean {
     return Boolean(this.channel);
+  }
+
+  /** État de nos files, pour la page « Suivi » (compte des messages en attente). */
+  async stats(): Promise<{
+    connected: boolean;
+    queue: string;
+    messages?: number;
+    consumers?: number;
+    deadLetters?: number;
+  }> {
+    if (!this.channel) return { connected: false, queue: this.queue };
+
+    const [queue, deadLetters] = await Promise.all([
+      this.channel.checkQueue(this.queue),
+      this.channel.checkQueue(this.deadLetterQueue),
+    ]);
+
+    return {
+      connected: true,
+      queue: this.queue,
+      messages: queue.messageCount,
+      consumers: queue.consumerCount,
+      deadLetters: deadLetters.messageCount,
+    };
   }
 
   /** Remet dans notre file jusqu'à `limit` messages de la file d'erreurs. */
@@ -130,6 +161,19 @@ export class RabbitMqConsumer implements OnModuleInit, OnModuleDestroy {
   private deadLetter(channel: Channel, message: ConsumeMessage, reason: string): void {
     this.logger.warn(`Message rejeté vers la file d'erreurs : ${reason}`);
     channel.nack(message, false, false);
+
+    const content = message.content.toString('utf8');
+    const parsed = safeJson(content);
+    this.counters.add('invalid', typeof parsed?.eventType === 'string' ? parsed.eventType : message.fields.routingKey);
+    this.ops
+      .recordDeadLetter({
+        reason,
+        routingKey: message.fields.routingKey,
+        eventId: typeof parsed?.eventId === 'string' ? parsed.eventId : undefined,
+        eventType: typeof parsed?.eventType === 'string' ? parsed.eventType : undefined,
+        preview: content.slice(0, DEAD_LETTER_PREVIEW_CHARS),
+      })
+      .catch((error) => this.logger.warn(`Rejet non journalisé : ${(error as Error).message}`));
   }
 
   private get queue(): string {
@@ -145,6 +189,16 @@ function bindings(): string[] {
   return process.env.AMQP_BINDINGS.split(',')
     .map((pattern) => pattern.trim())
     .filter(Boolean);
+}
+
+function safeJson(content: string): Record<string, unknown> | null {
+  try {
+    const value = JSON.parse(content);
+
+    return value && typeof value === 'object' ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function sleep(ms: number): Promise<void> {

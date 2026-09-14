@@ -181,3 +181,7 @@ export async function getCrmCampaignRuns({
 }: WithEnvironment & { campaignId: string }): Promise<CrmCampaignRun[]> {
   return (await get<{ data: CrmCampaignRun[] }>(`/crm/campaigns/${campaignId}/runs`, { environment, signal })).data;
 }
+
+export async function retryCrmSegmentFreeze({ environment, segmentId }: WithEnvironment & { segmentId: string }) {
+  return (await post<{ data: CrmSegment }>(`/crm/segments/${segmentId}/retry-freeze`, { environment })).data;
+}

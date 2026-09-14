@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Scope } from '@nestjs/common';
 import { AnalyticsService, IMailHandler, ISmsHandler, MailFactory, SmsFactory } from '@novu/application-generic';
 import {
+  CrmEngagementRepository,
   CrmProviderUsageRepository,
   IntegrationEntity,
   IntegrationQuery,
@@ -28,7 +29,8 @@ export class Webhook {
     private messageRepository: MessageRepository,
     private analyticsService: AnalyticsService,
     private subscriberRepository: SubscriberRepository,
-    private crmProviderUsage: CrmProviderUsageRepository
+    private crmProviderUsage: CrmProviderUsageRepository,
+    private crmEngagement: CrmEngagementRepository
   ) {}
 
   async execute(command: WebhookCommand): Promise<IWebhookResult[]> {
@@ -156,6 +158,7 @@ export class Webhook {
     });
 
     await this.applyCrmSuppression(message, String(event.status), integrationId);
+    await this.recordCrmEngagement(message, String(event.status));
 
     return parsedEvent;
   }
@@ -164,6 +167,19 @@ export class Webhook {
    * izipush-crm — bounce, plainte ou spam : l'adresse n'est plus visée par les emails de campagne.
    * Désabonnement signalé par le fournisseur : le client ne reçoit plus de marketing.
    */
+  /** izipush-crm — ouvertures et clics des emails de campagne, pour les rapports. */
+  private async recordCrmEngagement(message: MessageEntity, status: string): Promise<void> {
+    if (message.channel !== ChannelTypeEnum.EMAIL || !message.payload?.__crm) return;
+
+    const kind =
+      status === EmailEventStatusEnum.OPENED ? 'opened' : status === EmailEventStatusEnum.CLICKED ? 'clicked' : null;
+    if (!kind) return;
+
+    await this.crmEngagement
+      .record(message, kind)
+      .catch((error) => Logger.warn(`Engagement email non enregistré : ${error?.message}`));
+  }
+
   private async applyCrmSuppression(message: MessageEntity, status: string, integrationId: string): Promise<void> {
     if (message.channel !== ChannelTypeEnum.EMAIL) return;
 

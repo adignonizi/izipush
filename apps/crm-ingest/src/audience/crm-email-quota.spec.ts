@@ -20,14 +20,7 @@ describe('limites des fournisseurs email', () => {
   });
 
   it('limite vide = 0 (compté sans limite), durée de vie un peu plus longue que la fenêtre', () => {
-    expect(crmQuotaArgs({ perMinute: 100, perHour: null })).to.deep.equal([
-      100,
-      120_000,
-      0,
-      3_660_000,
-      0,
-      86_460_000,
-    ]);
+    expect(crmQuotaArgs({ perMinute: 100, perHour: null })).to.deep.equal([100, 120_000, 0, 3_660_000, 0, 86_460_000]);
   });
 
   it('l’erreur « tous pleins » est reconnue par le worker et porte son délai', () => {

@@ -12,6 +12,7 @@ import {
   getCrmFields,
   getCrmSegments,
   previewCrmSegment,
+  retryCrmSegmentFreeze,
   setCrmCampaignState,
 } from '@/api/crm';
 import { useEnvironment } from '@/context/environment/hooks';
@@ -130,6 +131,16 @@ export function useDeleteCrmCampaign() {
 
   return useMutation({
     mutationFn: (campaignId: string) => deleteCrmCampaign({ environment: currentEnvironment!, campaignId }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRetryCrmSegmentFreeze() {
+  const { currentEnvironment } = useEnvironment();
+  const invalidate = useInvalidate(QueryKeys.fetchCrmSegments);
+
+  return useMutation({
+    mutationFn: (segmentId: string) => retryCrmSegmentFreeze({ environment: currentEnvironment!, segmentId }),
     onSuccess: invalidate,
   });
 }

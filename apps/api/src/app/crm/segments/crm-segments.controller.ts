@@ -29,6 +29,12 @@ export class CrmSegmentsController {
     return this.segments.preview(user, body.audience);
   }
 
+  @Post('/:segmentId/retry-freeze')
+  @HttpCode(200)
+  retryFreeze(@UserSession() user: UserSessionData, @Param('segmentId') segmentId: string) {
+    return this.segments.retryFreeze(user, segmentId);
+  }
+
   @Get('/:segmentId')
   get(@UserSession() user: UserSessionData, @Param('segmentId') segmentId: string) {
     return this.segments.get(user, segmentId);

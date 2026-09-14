@@ -14,6 +14,7 @@ import {
   RiLineChartLine,
   RiMailLine,
   RiMegaphoneLine,
+  RiPulseLine,
   RiRobot2Line,
   RiRouteFill,
   RiSendPlaneLine,
@@ -327,6 +328,26 @@ export const LegacySideNavigation = () => {
               >
                 <RiSendPlaneLine className="size-4" />
                 <span>Fournisseurs email</span>
+              </NavigationLink>
+              <NavigationLink
+                to={
+                  currentEnvironment?.slug
+                    ? buildRoute(ROUTES.CRM_REPORTS, { environmentSlug: currentEnvironment.slug })
+                    : undefined
+                }
+              >
+                <RiBarChartBoxLine className="size-4" />
+                <span>Rapports</span>
+              </NavigationLink>
+              <NavigationLink
+                to={
+                  currentEnvironment?.slug
+                    ? buildRoute(ROUTES.CRM_MONITORING, { environmentSlug: currentEnvironment.slug })
+                    : undefined
+                }
+              >
+                <RiPulseLine className="size-4" />
+                <span>Suivi</span>
               </NavigationLink>
             </NavigationGroup>
             <Protect
