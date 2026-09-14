@@ -83,6 +83,22 @@ export const CRM_ACTIVITY_METRICS: { key: CrmActivityMetric; label: string }[] =
   { key: 'txFailed', label: 'Transactions échouées' },
 ];
 
+/** Événements reçus d'Izichange et traités par crm-ingest ; déclencheurs possibles d'une campagne « sur événement ». */
+export const CRM_EVENT_NAMES = [
+  'account.registered',
+  'account.profile_updated',
+  'account.email_updated',
+  'account.deleted',
+  'account.logged_in',
+  'kyc.submitted',
+  'kyc.approved',
+  'kyc.rejected',
+  'transaction.completed',
+  'transaction.failed',
+] as const;
+
+export type CrmEventName = (typeof CRM_EVENT_NAMES)[number];
+
 export function findCrmProfileField(key: string): CrmFieldDefinition | undefined {
   return CRM_PROFILE_FIELDS.find((field) => field.key === key);
 }
