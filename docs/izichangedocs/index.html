@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>izipush SDK — Documentation</title>
+<style>
+:root{
+  --canvas:#F9FAFB; --surface:#FFFFFF; --ink:#18181B; --steel:#52525B; --slate:#94A3B8;
+  --border:#E4E4E7; --accent:#4F46E5; --accent-wash:#EEF2FF;
+  --warn-bg:#FFFBEB; --warn-border:#FDE68A; --warn-ink:#78350F;
+  --code-bg:#0d1117; --code-ink:#e6edf3; --radius:.85rem;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--canvas); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px; line-height:1.65;
+}
+.wrap{max-width:900px; margin:0 auto; padding:3rem 1.5rem 6rem}
+a{color:var(--accent)}
+code, pre{font-family:"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+code{background:var(--accent-wash); color:var(--accent); padding:.12em .4em; border-radius:.35em; font-size:.88em}
+
+header.top{border-bottom:1px solid var(--border); background:var(--surface)}
+.top-in{max-width:900px; margin:0 auto; padding:1.5rem}
+.eyebrow{font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600; margin:0 0 .4rem}
+h1{font-size:2rem; letter-spacing:-.02em; margin:0 0 .3rem}
+.lede{color:var(--steel); font-size:1.02rem; margin:.6rem 0 0; max-width:65ch}
+
+section{margin:2.6rem 0}
+.sec-num{font-size:.72rem; color:var(--accent); font-weight:700; letter-spacing:.08em}
+h2{font-size:1.35rem; letter-spacing:-.01em; margin:.3rem 0 .2rem}
+.sec-sub{color:var(--steel); margin:0 0 1.2rem; max-width:70ch; font-size:.95rem}
+
+.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.4rem 1.6rem; margin:1rem 0}
+.card h3{font-size:.92rem; margin:0 0 .5rem}
+.card p{margin:.4rem 0}
+
+.warn{background:var(--warn-bg); border:1px solid var(--warn-border); color:var(--warn-ink); border-radius:var(--radius); padding:1rem 1.2rem; font-size:.9rem; margin:1rem 0}
+.warn strong{display:block; margin-bottom:.25rem}
+
+ol, ul{padding-left:1.3rem; color:#3f3f46}
+li{margin:.35rem 0}
+
+pre{
+  background:var(--code-bg); color:var(--code-ink); border-radius:var(--radius);
+  padding:1.1rem 1.3rem; overflow-x:auto; font-size:.82rem; line-height:1.6; margin:.8rem 0;
+}
+pre code{background:none; color:inherit; padding:0; font-size:1em}
+.pre-title{font-size:.7rem; letter-spacing:.08em; text-transform:uppercase; color:var(--slate); margin:1.2rem 0 -.3rem}
+
+table{width:100%; border-collapse:collapse; margin:1rem 0; font-size:.85rem}
+th, td{text-align:left; padding:.6rem .7rem; border-bottom:1px solid var(--border)}
+th{color:var(--ink); background:#FAFAFA; font-weight:600}
+td:first-child{font-family:monospace; white-space:nowrap}
+td:last-child{color:var(--steel)}
+
+footer{border-top:1px solid var(--border); margin-top:3rem; padding-top:1.5rem; color:var(--slate); font-size:.8rem}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <p class="eyebrow">Izichange — izipush</p>
+    <h1><code style="background:none;color:inherit;padding:0;font-size:1em">@gittestmag/izipush-sdk</code></h1>
+    <p class="lede">
+      Un seul package pour brancher le push (Android, iOS, Web) sur Novu. Gère la permission de
+      notification, le token push, son enregistrement, son renouvellement et son affichage —
+      l'app hôte n'a que 1 à 2 fonctions à appeler.
+    </p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <span class="sec-num">01</span>
+    <h2>Comment le SDK parle à Novu</h2>
+    <p class="sec-sub">Aucun serveur intermédiaire, et jamais la clé secrète d'environnement côté client.</p>
+
+    <p>
+      Le SDK utilise le flux public de Novu — le même que le widget notification center — plutôt
+      que les routes protégées par clé secrète :
+    </p>
+    <ol>
+      <li><code>POST /v1/widgets/session/initialize</code> — avec l'identifiant <strong>public</strong>
+        de l'environnement (<code>applicationIdentifier</code>, sans risque à embarquer côté client),
+        obtient un JWT scopé à un seul subscriber.</li>
+      <li><code>PUT /v1/widgets/credentials</code> — authentifié par ce JWT, enregistre le token push.
+        Le JWT empêche un appelant de toucher aux credentials d'un subscriber autre que le sien.</li>
+    </ol>
+
+    <div class="warn">
+      <strong>Mode sécurisé (HMAC)</strong>
+      Si le mode sécurisé est actif sur l'environnement ciblé (recommandé — déjà le cas en
+      production), l'étape 1 exige un <code>hmacHash</code>, calculé côté backend de l'app hôte —
+      jamais côté client. Sans lui, n'importe qui connaissant un <code>subscriberId</code> pourrait
+      obtenir une session en son nom et détourner ses notifications.
+    </div>
+
+    <p class="pre-title">Backend de l'app hôte (Node)</p>
+    <pre><code>import { createHmac } from 'crypto';
+
+// subscriberId = l'identifiant interne de l'utilisateur/terminal authentifié
+const hmacHash = createHmac('sha256', process.env.NOVU_API_KEY)
+  .update(subscriberId)
+  .digest('hex');
+
+// à renvoyer à l'app, avec applicationIdentifier et novuApiUrl (voir plus bas)
+res.json({ hmacHash });</code></pre>
+  </section>
+
+  <section>
+    <span class="sec-num">02</span>
+    <h2>Installation</h2>
+    <pre><code>npm install @gittestmag/izipush-sdk</code></pre>
+    <p style="color:var(--steel); font-size:.85rem">Nécessite un accès au registre GitHub Packages de l'organisation.</p>
+    <p class="pre-title">Puis, selon la plateforme</p>
+    <pre><code># React Native
+npm install @react-native-firebase/app @react-native-firebase/messaging @notifee/react-native
+
+# Web
+npm install firebase</code></pre>
+  </section>
+
+  <section>
+    <span class="sec-num">03</span>
+    <h2>Intégration React Native (Android + iOS)</h2>
+    <p class="sec-sub">Metro résout automatiquement <code>dist/index.native.js</code> — même API que le web, config propre à la plateforme.</p>
+
+    <div class="card">
+      <h3>Prérequis</h3>
+      <ul>
+        <li>Un projet Firebase avec une app Android et une app iOS enregistrées.</li>
+        <li><code>google-services.json</code> (Android) dans <code>android/app/</code>.</li>
+        <li><code>GoogleService-Info.plist</code> (iOS) ajouté au projet Xcode.</li>
+        <li>Permission Android : <code>android.permission.POST_NOTIFICATIONS</code>.</li>
+      </ul>
+    </div>
+
+    <p class="pre-title">index.js — avant AppRegistry, jamais dans un composant</p>
+    <pre><code>import { AppRegistry } from 'react-native';
+import App from './App';
+import { name as appName } from './app.json';
+import { registerBackgroundHandler } from '@gittestmag/izipush-sdk';
+
+registerBackgroundHandler({
+  novuApiUrl: 'https://&lt;host-izipush&gt;/api',
+  applicationIdentifier: '&lt;identifiant public de l’environnement Novu&gt;',
+});
+
+AppRegistry.registerComponent(appName, () => App);</code></pre>
+
+    <p class="pre-title">Après authentification de l'utilisateur</p>
+    <pre><code>import { initPush } from '@gittestmag/izipush-sdk';
+
+const { hmacHash } = await backend.getPushSession(currentUser.id);
+
+const subscription = await initPush(currentUser.id, {
+  novuApiUrl: 'https://&lt;host-izipush&gt;/api',
+  applicationIdentifier: '&lt;identifiant public de l’environnement Novu&gt;',
+  hmacHash,
+});
+
+if (subscription === null) {
+  // permission refusée — proposer de réactiver dans les paramètres
+}</code></pre>
+
+    <table>
+      <thead><tr><th>Champ</th><th>Obligatoire</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>novuApiUrl</td><td>Oui</td><td>URL de base de l'API Novu</td></tr>
+        <tr><td>applicationIdentifier</td><td>Oui</td><td>Identifiant public de l'environnement</td></tr>
+        <tr><td>hmacHash</td><td>Selon l'environnement</td><td>Calculé côté backend (voir section 01)</td></tr>
+        <tr><td>androidChannelId</td><td>Non</td><td>Défaut <code>izipush-default</code></td></tr>
+        <tr><td>androidChannelName</td><td>Non</td><td>Défaut <code>Notifications</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <span class="sec-num">04</span>
+    <h2>Intégration Web (React)</h2>
+    <p class="sec-sub">Les bundlers web résolvent <code>dist/index.js</code>. Une asymétrie avec le mobile : le service worker.</p>
+
+    <div class="card">
+      <h3>Prérequis</h3>
+      <ul>
+        <li>Le même projet Firebase, avec une app Web enregistrée.</li>
+        <li>Une clé VAPID (console Firebase &gt; Cloud Messaging &gt; Web Push certificates).</li>
+        <li>Le service worker packagé, copié dans le dossier public de l'app — un navigateur ne
+          peut recevoir de push app fermée/onglet en arrière-plan que via un fichier statique
+          servi à sa racine :
+          <pre><code>cp node_modules/@gittestmag/izipush-sdk/web/firebase-messaging-sw.js public/firebase-messaging-sw.js</code></pre>
+        </li>
+      </ul>
+    </div>
+
+    <p class="pre-title">Après authentification de l'utilisateur</p>
+    <pre><code>import { initPush } from '@gittestmag/izipush-sdk';
+
+const { hmacHash } = await backend.getPushSession(currentUser.id);
+
+const subscription = await initPush(currentUser.id, {
+  novuApiUrl: 'https://&lt;host-izipush&gt;/api',
+  applicationIdentifier: '&lt;identifiant public de l’environnement Novu&gt;',
+  hmacHash,
+  firebaseConfig: {
+    apiKey: '...',
+    projectId: '...',
+    messagingSenderId: '...',
+    appId: '...',
+  },
+  vapidKey: '...',
+});</code></pre>
+
+    <table>
+      <thead><tr><th>Champ</th><th>Obligatoire</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>novuApiUrl</td><td>Oui</td><td>URL de base de l'API Novu</td></tr>
+        <tr><td>applicationIdentifier</td><td>Oui</td><td>Identifiant public de l'environnement</td></tr>
+        <tr><td>hmacHash</td><td>Selon l'environnement</td><td>Calculé côté backend (voir section 01)</td></tr>
+        <tr><td>firebaseConfig</td><td>Oui</td><td>Config du projet Firebase (console Firebase)</td></tr>
+        <tr><td>vapidKey</td><td>Oui</td><td>Clé VAPID publique</td></tr>
+        <tr><td>serviceWorkerUrl</td><td>Non</td><td>Défaut <code>firebase-messaging-sw.js</code></td></tr>
+        <tr><td>icon / badge</td><td>Non</td><td>Icônes des notifications au premier plan</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <span class="sec-num">05</span>
+    <h2>API commune</h2>
+    <p>
+      <code>initPush(userId: string, config: IzipushConfig): Promise&lt;{ subscriberId; topic } | null&gt;</code>
+      — demande la permission, récupère le token, l'enregistre, et met en place l'affichage.
+      Retourne <code>null</code> si la permission est refusée ou la plateforme non compatible.
+    </p>
+    <p>
+      <code>userId</code> doit être le <strong>même identifiant</strong> que celui utilisé côté
+      métier (ex. le même <code>user_id</code>) — c'est ce qui permet au profil push de converger
+      avec le profil enrichi par ailleurs sur le même abonné.
+    </p>
+  </section>
+
+  <footer>
+    izipush — documentation SDK · <a href="https://github.com/GITTESTMAG/izipush-sdk">github.com/GITTESTMAG/izipush-sdk</a>
+  </footer>
+
+</div>
+</body>
+</html>

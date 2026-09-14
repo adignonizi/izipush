@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture izipush CRM</title>
+<meta name="description" content="Architecture cible d'izipush (fork Novu) devenu CRM : données, flux, modules à construire, faisabilité et points ouverts." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#F5F6FA; --surface:#FFFFFF; --ink:#14171F; --steel:#5B6472; --line:#DCE0E6;
+  --native:#0E8A69; --native-wash:#E4F4EE;
+  --enriched:#B4530A; --enriched-wash:#FBF0E3;
+  --accent:#4338CA; --accent-wash:#ECEAFB;
+  --muted-wash:#EEF0F4;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --canvas:#10121A; --surface:#171A24; --ink:#EEF0F5; --steel:#9099AA; --line:#2A2E3B;
+    --native:#34C98F; --native-wash:rgba(52,201,143,.13);
+    --enriched:#E39544; --enriched-wash:rgba(227,149,68,.13);
+    --accent:#8A82F0; --accent-wash:rgba(138,130,240,.16);
+    --muted-wash:#1E2230;
+  }
+}
+:root[data-theme="dark"]{
+  --canvas:#10121A; --surface:#171A24; --ink:#EEF0F5; --steel:#9099AA; --line:#2A2E3B;
+  --native:#34C98F; --native-wash:rgba(52,201,143,.13);
+  --enriched:#E39544; --enriched-wash:rgba(227,149,68,.13);
+  --accent:#8A82F0; --accent-wash:rgba(138,130,240,.16);
+  --muted-wash:#1E2230;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--canvas); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:16px; line-height:1.6;
+}
+.wrap{max-width:1040px; margin:0 auto; padding:clamp(2rem,5vw,4rem) clamp(1.25rem,4vw,2.5rem) 5rem}
+
+code{font-family:"IBM Plex Mono",Menlo,Consolas,monospace; font-size:.84em; background:var(--accent-wash); color:var(--accent); padding:.08em .38em; border-radius:.3em; word-break:break-word}
+pre{font-family:"IBM Plex Mono",Menlo,Consolas,monospace; font-size:.8rem; line-height:1.55; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:1rem 1.1rem; overflow-x:auto; margin:1rem 0}
+pre code{background:none; color:var(--ink); padding:0; font-size:inherit}
+
+header.page{margin-bottom:2.2rem}
+.kicker{
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 .8rem; display:flex; align-items:center; gap:.55rem;
+}
+.kicker::before{content:""; width:7px; height:7px; border-radius:2px; background:var(--accent); display:inline-block}
+h1{
+  font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:clamp(1.5rem,3.4vw,2.15rem);
+  letter-spacing:-.01em; margin:0 0 .9rem; text-wrap:balance;
+}
+.lede{color:var(--steel); font-size:1.02rem; max-width:70ch; margin:0}
+.lede strong{color:var(--ink); font-weight:600}
+.meta{display:flex; flex-wrap:wrap; gap:.5rem 1.4rem; margin-top:1.2rem; font-family:"IBM Plex Mono",monospace; font-size:.76rem; color:var(--steel)}
+.meta b{color:var(--ink); font-weight:600}
+
+.legend{
+  display:flex; flex-wrap:wrap; gap:1rem 1.6rem; align-items:center; margin-top:1.4rem; padding:.9rem 1.1rem;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); font-size:.84rem;
+}
+.legend-item{display:flex; align-items:center; gap:.5rem; color:var(--steel)}
+
+.tag{display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:600; letter-spacing:.04em; padding:.12rem .45rem; border-radius:.35rem; white-space:nowrap; vertical-align:.1em}
+.tag.native{background:var(--native-wash); color:var(--native)}
+.tag.enriched{background:var(--enriched-wash); color:var(--enriched)}
+.tag.new{background:var(--accent-wash); color:var(--accent)}
+.tag.later{background:var(--muted-wash); color:var(--steel)}
+
+nav.toc{
+  margin:2.2rem 0 0; padding:1.1rem 1.2rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+}
+nav.toc h2{font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--steel); margin:0 0 .6rem}
+nav.toc ol{margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.25rem 1.4rem; counter-reset:toc}
+nav.toc li{counter-increment:toc; font-size:.9rem}
+nav.toc li::before{content:counter(toc,decimal-leading-zero); font-family:"IBM Plex Mono",monospace; font-size:.74rem; color:var(--accent); margin-right:.55rem}
+nav.toc a{color:var(--ink); text-decoration:none}
+nav.toc a:hover{color:var(--accent); text-decoration:underline}
+
+section.block{margin-top:3.6rem; scroll-margin-top:1rem}
+.block-head{display:flex; align-items:baseline; gap:.8rem; margin-bottom:.3rem}
+.num{
+  font-family:"IBM Plex Mono",monospace; font-size:.78rem; font-weight:600; color:var(--accent);
+  background:var(--accent-wash); border-radius:.4rem; padding:.15rem .5rem; flex:none;
+}
+h2{font-family:"IBM Plex Mono",monospace; font-size:1.16rem; font-weight:600; margin:0; letter-spacing:-.005em}
+h3{font-family:"IBM Plex Mono",monospace; font-size:.95rem; font-weight:600; margin:2rem 0 .5rem}
+.sub{color:var(--steel); font-size:.94rem; margin:.5rem 0 1.3rem; max-width:72ch}
+p{max-width:74ch}
+a{color:var(--accent)}
+ul.plain, ol.plain{padding-left:1.2rem; max-width:76ch}
+ul.plain li, ol.plain li{margin:.3rem 0}
+
+.table-frame{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow-x:auto; margin:1rem 0}
+table{border-collapse:collapse; width:100%; font-size:.86rem; min-width:640px}
+th, td{text-align:left; vertical-align:top; padding:.62rem .85rem; border-bottom:1px solid var(--line)}
+th{font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.08em; text-transform:uppercase; color:var(--steel); font-weight:600; background:var(--muted-wash)}
+tr:last-child td{border-bottom:none}
+td code{font-size:.8em}
+td.name{white-space:nowrap}
+
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1rem; margin:1.2rem 0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:1rem 1.1rem}
+.card h4{font-family:"IBM Plex Mono",monospace; font-size:.86rem; margin:0 0 .45rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap}
+.card p{font-size:.88rem; color:var(--steel); margin:0}
+.card p + p{margin-top:.5rem}
+.card p strong{color:var(--ink)}
+
+.steps{list-style:none; margin:1rem 0; padding:0; counter-reset:step; max-width:80ch}
+.steps > li{counter-increment:step; position:relative; padding:0 0 1rem 2.6rem; border-left:1.5px solid var(--line); margin-left:.8rem}
+.steps > li:last-child{border-left-color:transparent; padding-bottom:0}
+.steps > li::before{
+  content:counter(step); position:absolute; left:-.85rem; top:-.05rem; width:1.7rem; height:1.7rem; border-radius:50%;
+  background:var(--surface); border:1.5px solid var(--accent); color:var(--accent);
+  font-family:"IBM Plex Mono",monospace; font-size:.74rem; font-weight:600; display:grid; place-items:center;
+}
+.steps > li b{font-weight:600}
+.steps > li .note{display:block; color:var(--steel); font-size:.88rem; margin-top:.15rem}
+
+.pipeline{display:flex; flex-wrap:wrap; align-items:stretch; gap:.4rem; margin:1.2rem 0}
+.stage{flex:1 1 150px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:.75rem .85rem; position:relative}
+.stage .k{font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent)}
+.stage b{display:block; font-size:.92rem; margin:.15rem 0 .25rem}
+.stage span{display:block; font-size:.8rem; color:var(--steel); line-height:1.45}
+.arrow{align-self:center; color:var(--steel); font-family:"IBM Plex Mono",monospace; font-size:.9rem}
+
+.callout{border-left:3px solid var(--enriched); background:var(--enriched-wash); padding:.8rem 1rem; border-radius:0 var(--radius) var(--radius) 0; margin:1.2rem 0; font-size:.9rem; max-width:80ch}
+.callout.info{border-left-color:var(--accent); background:var(--accent-wash)}
+.callout strong{font-weight:600}
+
+figure{margin:1.2rem 0 0}
+.diagram-frame{background:var(--surface); border:1px solid var(--line); border-radius:calc(var(--radius) + 4px); padding:1.1rem; overflow-x:auto}
+svg{display:block; width:100%; height:auto; min-width:720px}
+figcaption{color:var(--steel); font-size:.82rem; margin-top:.75rem; max-width:76ch; line-height:1.55}
+
+.open-list{counter-reset:open; list-style:none; padding:0; margin:1rem 0; display:grid; gap:.7rem}
+.open-list li{counter-increment:open; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:.8rem 1rem .8rem 3rem; position:relative; font-size:.9rem}
+.open-list li::before{content:counter(open); position:absolute; left:1rem; top:.8rem; font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--enriched)}
+.open-list li b{font-weight:600}
+.open-list .who{display:block; font-family:"IBM Plex Mono",monospace; font-size:.7rem; color:var(--steel); margin-top:.3rem; letter-spacing:.04em}
+
+.tag.v1{background:var(--ink); color:var(--canvas)}
+.ev{list-style:none; margin:.4rem 0 0; padding:0; display:flex; flex-direction:column; gap:.55rem}
+.ev li{display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .5rem; font-size:.86rem; padding-bottom:.55rem; border-bottom:1px dashed var(--line)}
+.ev li:last-child{border-bottom:none; padding-bottom:0}
+.ev li > span:first-child{flex:1 1 auto}
+.ev em{flex-basis:100%; font-style:normal; color:var(--steel); font-size:.8rem}
+.ev em::before{content:"→ "}
+.cards-4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.ev-cards{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+footer{margin-top:4rem; padding-top:1.4rem; border-top:1px solid var(--line); color:var(--steel); font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <p class="kicker">izipush · architecture CRM · V1</p>
+    <h1>izipush CRM — architecture cible</h1>
+    <p class="lede">
+      izipush, le fork de Novu, devient un <strong>CRM complet</strong> : il connaît les clients d'Izichange
+      et leur activité, construit des segments, porte les templates email, lance des campagnes push et email,
+      et rend compte de chaque envoi jusqu'au client. Izichange n'a qu'un rôle :
+      <strong>émettre ses événements</strong>. Tout le reste vit dans le fork.
+    </p>
+    <div class="meta">
+      <span>Statut <b>proposition à valider</b></span>
+      <span>Mise à jour <b>14 sept. 2026</b></span>
+      <span>Volumétrie de référence <b>1 M de clients</b></span>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="tag native">NATIF NOVU</span>existe déjà, utilisé tel quel</span>
+      <span class="legend-item"><span class="tag enriched">NOVU ENRICHI</span>existe, on l'étend</span>
+      <span class="legend-item"><span class="tag new">NOUVEAU</span>à construire dans le fork</span>
+      <span class="legend-item"><span class="tag later">HORS V1</span>reporté</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Sommaire">
+    <h2>Sommaire</h2>
+    <ol>
+      <li><a href="#perimetre">Périmètre V1</a></li>
+      <li><a href="#vue">Vue d'ensemble</a></li>
+      <li><a href="#principes">Principes structurants</a></li>
+      <li><a href="#donnees">Modèle de données</a></li>
+      <li><a href="#ingestion">Ingestion des événements</a></li>
+      <li><a href="#segments">Flux · segments</a></li>
+      <li><a href="#campagnes">Flux · campagnes</a></li>
+      <li><a href="#email">Flux · envoi email multi-fournisseur</a></li>
+      <li><a href="#suivi">Suivi, rapports &amp; monitoring</a></li>
+      <li><a href="#consentement">Consentement, désinscription, suppression</a></li>
+      <li><a href="#reprise">Reprise de l'existant</a></li>
+      <li><a href="#modules">Modules à construire</a></li>
+      <li><a href="#faisabilite">Faisabilité &amp; volumétrie</a></li>
+      <li><a href="#ouvert">Points ouverts</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============================================================ -->
+  <section class="block" id="perimetre">
+    <div class="block-head"><span class="num">01</span><h2>Périmètre V1</h2></div>
+    <p class="sub">Ce que la V1 doit savoir faire, et ce qui est volontairement laissé pour après.</p>
+
+    <div class="cards">
+      <div class="card">
+        <h4>Canaux <span class="tag native">NATIF</span></h4>
+        <p>Push (FCM / APNs via le SDK izipush), email, in-app. Les workflows Novu portent le contenu et l'enchaînement des étapes.</p>
+      </div>
+      <div class="card">
+        <h4>Segments <span class="tag new">NOUVEAU</span></h4>
+        <p>Construits par filtres sur le profil et l'activité. Case <strong>« figer »</strong> : la liste est photographiée à la création ; sinon elle est recalculée à chaque exécution.</p>
+      </div>
+      <div class="card">
+        <h4>Templates email <span class="tag new">NOUVEAU</span></h4>
+        <p>Éditeur glisser-déposer <strong>templatical</strong> intégré au dashboard. Les étapes email des workflows référencent un template.</p>
+      </div>
+      <div class="card">
+        <h4>Campagnes <span class="tag new">NOUVEAU</span></h4>
+        <p>Un segment + un workflow + un déclencheur : immédiat, programmé à une date, récurrent (cron) ou sur événement.</p>
+      </div>
+      <div class="card">
+        <h4>Rapports <span class="tag enriched">ENRICHI</span></h4>
+        <p>Historique des exécutions de chaque campagne, et pour chaque client : ce qui est parti, sur quel canal, et s'il l'a vu.</p>
+      </div>
+      <div class="card">
+        <h4>Multi-fournisseur &amp; monitoring <span class="tag new">NOUVEAU</span></h4>
+        <p>Plusieurs fournisseurs email avec leurs limites d'envoi, aiguillage automatique, et un écran de suivi des quotas, de la délivrabilité et des erreurs.</p>
+      </div>
+      <div class="card">
+        <h4>Consentement <span class="tag enriched">ENRICHI</span></h4>
+        <p>Séparation transactionnel / marketing, lien de désinscription dans chaque email marketing.</p>
+      </div>
+      <div class="card">
+        <h4>Hors V1 <span class="tag later">REPORTÉ</span></h4>
+        <p>Plafonds de fréquence (x messages par jour/semaine), groupe de contrôle, validation à deux / droits de lancement, envoi à l'heure locale de chaque client, A/B test.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="vue">
+    <div class="block-head"><span class="num">02</span><h2>Vue d'ensemble</h2></div>
+    <p class="sub">Trois entrées côté Izichange, un seul système côté izipush, des fournisseurs d'envoi interchangeables.</p>
+
+    <figure>
+      <div class="diagram-frame">
+        <svg viewBox="0 0 960 510" role="img" aria-label="Les services Izichange publient leurs événements dans RabbitMQ et Keycloak envoie ses webhooks ; les deux arrivent au service crm-ingest d'izipush. Les apps Izichange utilisent le SDK izipush pour enregistrer les appareils auprès de l'API. Les exports initiaux sont importés une fois dans Mongo. Le fork Novu comprend crm-ingest, le dashboard, l'API, le worker et le service webhook, qui partagent Mongo et Redis. Le worker envoie vers FCM et plusieurs fournisseurs email, qui renvoient les statuts de livraison au service webhook.">
+          <defs>
+            <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><polygon points="0,0 7,3 0,6" fill="currentColor"/></marker>
+            <marker id="arm" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><polygon points="0,0 7,3 0,6" fill="currentColor" opacity=".55"/></marker>
+          </defs>
+
+          <g font-family="IBM Plex Mono, monospace" font-size="10.5" letter-spacing="1.5" fill="var(--steel)">
+            <text x="20" y="28">IZICHANGE</text>
+            <text x="760" y="28">FOURNISSEURS</text>
+          </g>
+
+          <rect x="390" y="40" width="320" height="452" rx="12" fill="var(--accent-wash)" stroke="var(--accent)" stroke-opacity=".45"/>
+          <text x="406" y="62" font-family="IBM Plex Mono, monospace" font-size="10.5" letter-spacing="1.5" fill="var(--accent)">IZIPUSH · FORK NOVU</text>
+
+          <!-- left -->
+          <g font-size="12.5">
+            <rect x="20" y="74" width="200" height="56" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="36" y="98" font-weight="600" fill="var(--ink)">Services Izichange</text>
+            <text x="36" y="116" font-size="11" fill="var(--steel)">transactions, KYC…</text>
+
+            <rect x="20" y="150" width="200" height="52" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="36" y="172" font-weight="600" fill="var(--ink)">Keycloak</text>
+            <text x="36" y="190" font-size="11" fill="var(--steel)">inscription, profil, connexion</text>
+
+            <rect x="20" y="250" width="200" height="56" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="36" y="274" font-weight="600" fill="var(--ink)">Apps mobile &amp; web</text>
+            <text x="36" y="292" font-size="11" fill="var(--steel)">SDK izipush intégré</text>
+
+            <rect x="20" y="410" width="200" height="56" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-dasharray="4 3"/>
+            <text x="36" y="434" font-weight="600" fill="var(--ink)">Exports initiaux</text>
+            <text x="36" y="452" font-size="11" fill="var(--steel)">tables users + transactions</text>
+          </g>
+
+          <rect x="248" y="77" width="112" height="48" rx="8" fill="var(--surface)" stroke="var(--enriched)"/>
+          <text x="304" y="98" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11.5" font-weight="600" fill="var(--enriched)">RabbitMQ</text>
+          <text x="304" y="114" text-anchor="middle" font-size="10" fill="var(--steel)">exchange existant</text>
+
+          <!-- izipush -->
+          <g font-size="12">
+            <rect x="410" y="76" width="280" height="50" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.6"/>
+            <text x="426" y="98" font-weight="600" fill="var(--ink)">crm-ingest</text>
+            <text x="426" y="114" font-size="10.5" fill="var(--steel)">événements → profils &amp; activité à jour</text>
+
+            <rect x="410" y="140" width="280" height="44" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="426" y="160" font-weight="600" fill="var(--ink)">Dashboard</text>
+            <text x="426" y="175" font-size="10.5" fill="var(--steel)">segments · templates · campagnes · rapports…</text>
+
+            <rect x="410" y="198" width="280" height="54" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="426" y="218" font-weight="600" fill="var(--ink)">API</text>
+            <text x="426" y="233" font-size="10.5" fill="var(--steel)">CRUD CRM · aperçu d'audience · rapports</text>
+            <text x="426" y="246" font-size="10.5" fill="var(--steel)">routes publiques : SDK, désinscription</text>
+
+            <rect x="410" y="266" width="280" height="74" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="426" y="287" font-weight="600" fill="var(--ink)">Worker</text>
+            <text x="426" y="302" font-size="10.5" fill="var(--steel)">exécution des campagnes</text>
+            <text x="426" y="316" font-size="10.5" fill="var(--steel)">fan-out Novu · envoi</text>
+            <text x="426" y="330" font-size="10.5" fill="var(--steel)">aiguillage fournisseurs email</text>
+
+            <rect x="410" y="354" width="280" height="44" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="426" y="374" font-weight="600" fill="var(--ink)">Webhook</text>
+            <text x="426" y="389" font-size="10.5" fill="var(--steel)">statuts de livraison des fournisseurs</text>
+
+            <text x="410" y="420" font-family="IBM Plex Mono, monospace" font-size="9.5" letter-spacing="1.2" fill="var(--steel)">STOCKAGE PARTAGÉ</text>
+            <rect x="410" y="428" width="170" height="50" rx="8" fill="var(--surface)" stroke="var(--native)"/>
+            <text x="426" y="450" font-weight="600" fill="var(--native)">MongoDB</text>
+            <text x="426" y="466" font-size="10.5" fill="var(--steel)">profils, activité, CRM, Novu</text>
+            <rect x="592" y="428" width="98" height="50" rx="8" fill="var(--surface)" stroke="var(--native)"/>
+            <text x="606" y="450" font-weight="600" fill="var(--native)">Redis</text>
+            <text x="606" y="466" font-size="10.5" fill="var(--steel)">files, quotas</text>
+          </g>
+
+          <!-- providers -->
+          <g font-size="12">
+            <rect x="760" y="210" width="180" height="46" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="776" y="232" font-weight="600" fill="var(--ink)">FCM / APNs</text>
+            <text x="776" y="247" font-size="10.5" fill="var(--steel)">push</text>
+            <rect x="760" y="270" width="180" height="46" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="776" y="292" font-weight="600" fill="var(--ink)">Email · fournisseur A</text>
+            <text x="776" y="307" font-size="10.5" fill="var(--steel)">limites paramétrées</text>
+            <rect x="760" y="330" width="180" height="46" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="776" y="352" font-weight="600" fill="var(--ink)">Email · fournisseur B…</text>
+            <text x="776" y="367" font-size="10.5" fill="var(--steel)">limites paramétrées</text>
+          </g>
+
+          <g color="var(--ink)" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="220" y1="101" x2="245" y2="101" marker-end="url(#ar)"/>
+            <line x1="360" y1="101" x2="407" y2="101" marker-end="url(#ar)"/>
+            <path d="M220 176 H380 V113 H407" marker-end="url(#ar)"/>
+            <path d="M220 278 H392 V225 H407" marker-end="url(#ar)"/>
+            <path d="M220 438 H300 V453 H407" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+            <line x1="550" y1="184" x2="550" y2="195" marker-end="url(#ar)"/>
+            <line x1="690" y1="292" x2="757" y2="233" marker-end="url(#ar)"/>
+            <line x1="690" y1="303" x2="757" y2="293" marker-end="url(#ar)"/>
+            <line x1="690" y1="314" x2="757" y2="353" marker-end="url(#ar)"/>
+          </g>
+          <path d="M850 376 V386 H693" fill="none" stroke="currentColor" stroke-opacity=".55" stroke-width="1.3" stroke-dasharray="1 4" color="var(--ink)" marker-end="url(#arm)"/>
+
+          <g font-size="10" fill="var(--steel)">
+            <text x="232" y="170">webhook HTTP</text>
+            <text x="232" y="270">SDK : appareils, ouvertures</text>
+            <text x="232" y="428">import (une seule fois)</text>
+            <text x="700" y="404">statuts : délivré, bounce…</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        Aucune clé secrète Novu ne quitte un backend : les apps passent par les routes publiques (JWT subscriber),
+        les services Izichange passent par RabbitMQ et les webhooks Keycloak. API, worker et webhook sont les services Novu existants,
+        dans lesquels on ajoute les modules CRM ; seul <code>crm-ingest</code> est une nouvelle application du monorepo (§05).
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="principes">
+    <div class="block-head"><span class="num">03</span><h2>Principes structurants</h2></div>
+    <p class="sub">Les décisions qui conditionnent tout le reste.</p>
+
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>Décision</th><th>Pourquoi</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Tout dans MongoDB</b>, pas de Postgres dans izipush</td>
+            <td>Novu est entièrement construit sur Mongo (couche d'accès, schémas, agrégations). Une deuxième base obligerait à synchroniser les clients entre deux systèmes et à faire des jointures inter-bases pour chaque segment. Une seule base, une seule vérité.</td>
+          </tr>
+          <tr>
+            <td><b>Le profil client = le subscriber Novu</b></td>
+            <td><code>subscriberId</code> = <code>user_id</code> Izichange. Les templates lisent <code>{{subscriber.firstName}}</code> directement, les filtres d'étape Novu lisent <code>subscriber.data.*</code> sans rien ajouter. Plus de table <code>users</code> à part.</td>
+          </tr>
+          <tr>
+            <td><b>L'activité est séparée du profil</b></td>
+            <td>Le subscriber est relu à chaque étape de chaque workflow et mis en cache ; y écrire à chaque transaction viderait le cache en permanence. Et une activité rangée par jour dans le profil ne peut pas être indexée pour la segmentation.</td>
+          </tr>
+          <tr>
+            <td><b>Le journal est la source de vérité, les agrégats sont recalculés</b></td>
+            <td>Chaque agrégat (jour, cumul) est <b>réécrit</b> (<code>$set</code>) à partir du journal, jamais incrémenté (<code>$inc</code>). Un événement reçu deux fois ou un plantage en cours de traitement ne peut donc pas fausser un total : rejouer donne toujours le même résultat.</td>
+          </tr>
+          <tr>
+            <td><b>Pas de replica set requis</b></td>
+            <td>Sans transactions multi-documents, chaque écriture est soit atomique sur un seul document, soit rejouable (index uniques, recalcul). Novu retombe déjà sans transaction sur un Mongo seul (<code>base-repository.ts</code>). Le passage à un replica set reste recommandé plus tard, pour la disponibilité.</td>
+          </tr>
+          <tr>
+            <td><b>Le contenu vit dans le workflow, la campagne dit qui et quand</b></td>
+            <td>On ne duplique pas le moteur d'envoi de Novu : une campagne résout une audience, l'écrit dans un topic, puis déclenche un workflow existant. Fan-out, étapes, canaux et retries restent ceux de Novu.</td>
+          </tr>
+          <tr>
+            <td><b>Tout le code CRM dans le fork, dans des modules isolés</b></td>
+            <td>Modules préfixés <code>crm</code>, collections préfixées <code>crm_</code>, modifications du cœur Novu réduites aux points d'accroche (choix du fournisseur, champs d'intégration). Les mises à jour de Novu restent fusionnables.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="donnees">
+    <div class="block-head"><span class="num">04</span><h2>Modèle de données</h2></div>
+    <p class="sub">Toutes les collections sont dans la base Novu et portent <code>_environmentId</code> (et donc tous les index le commencent). Seules les collections <code>crm_*</code> sont nouvelles.</p>
+
+    <h3>Client &amp; activité</h3>
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>Collection</th><th>Grain</th><th>Contenu</th><th>Index clés</th><th>Rétention</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="name"><code>subscribers</code> <span class="tag enriched">ENRICHI</span></td>
+            <td>1 par client</td>
+            <td>Natifs : <code>firstName</code>, <code>lastName</code>, <code>email</code>, <code>phone</code>, <code>locale</code>, <code>timezone</code>, <code>channels</code> (tokens push).<br>
+              <code>data.*</code> : <code>country_code</code>, <code>kyc_status</code>, <code>account_created_at</code>, <code>{produit}_activated_at</code>, <code>first_tx_at</code>, <code>last_tx_at</code>, <code>lifetime_tx</code>, <code>lifetime_vol_usd</code>, <code>marketing_optin</code>, <code>email_suppressed</code>, <code>isDeleted</code>.</td>
+            <td>Un index par champ de <code>data.*</code> segmentable : <code>country_code</code>, <code>kyc_status</code>, <code>last_tx_at</code>, <code>lifetime_vol_usd</code>…</td>
+            <td>Permanent</td>
+          </tr>
+          <tr>
+            <td class="name"><code>crm_events</code> <span class="tag new">NOUVEAU</span></td>
+            <td>1 par événement reçu</td>
+            <td><code>event_id</code>, <code>event_name</code>, <code>subscriberId</code>, <code>occurred_at</code>, <code>payload</code> (pour une transaction : produit, type, montant en USD).</td>
+            <td><code>event_id</code> <b>unique</b> · <code>{subscriberId, occurred_at}</code></td>
+            <td>TTL ~180 j</td>
+          </tr>
+          <tr>
+            <td class="name"><code>crm_activity_daily</code> <span class="tag new">NOUVEAU</span></td>
+            <td>1 par client × jour × produit</td>
+            <td><code>subscriberId</code>, <code>day</code>, <code>product</code>, <code>tx</code>, <code>vol_usd</code>.</td>
+            <td><code>{subscriberId, day, product}</code> <b>unique</b> · <code>{day}</code></td>
+            <td>Illimitée</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout info">
+      <strong>Pourquoi garder le daily indéfiniment suffit.</strong> Les requêtes sur une fenêtre (« volume sur 30 jours »)
+      n'ouvrent que les lignes de la fenêtre grâce à l'index sur <code>day</code>, quelle que soit l'ancienneté du reste.
+      Les cumuls à vie (<code>lifetime_*</code>) sont recalculés pour le seul client concerné à chaque événement, et stockés
+      sur son profil : un segment « volume à vie &gt; X » devient un simple filtre indexé.
+    </div>
+
+    <h3>CRM</h3>
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>Collection</th><th>Contenu</th><th>Index clés</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="name"><code>crm_segments</code> <span class="tag new">NOUVEAU</span></td>
+            <td><code>name</code>, <code>conditions</code> (arbre de filtres), <code>frozen</code>, <code>frozen_at</code>, <code>member_count</code>, <code>status</code>.</td>
+            <td><code>{name}</code></td>
+          </tr>
+          <tr>
+            <td class="name"><code>topics</code> <code>segment:{id}</code> <span class="tag native">NATIF</span></td>
+            <td>Membres d'un segment figé : un topic Novu, soit un document d'abonnement par client (liste, comptage, pagination natifs). Pas de collection à nous.</td>
+            <td>Natifs</td>
+          </tr>
+          <tr>
+            <td class="name"><code>crm_fields</code> <span class="tag new">NOUVEAU</span></td>
+            <td>Catalogue des champs proposés dans le constructeur de segments : clé, libellé, source (profil ou activité), type, opérateurs permis, valeurs possibles.</td>
+            <td><code>{key}</code> unique</td>
+          </tr>
+          <tr>
+            <td class="name"><code>crm_email_templates</code> <span class="tag new">NOUVEAU</span></td>
+            <td><code>name</code>, <code>subject</code>, <code>design</code> (JSON templatical), <code>html</code> (rendu), <code>version</code>, <code>updatedBy</code>.</td>
+            <td><code>{name}</code></td>
+          </tr>
+          <tr>
+            <td class="name"><code>crm_campaigns</code> <span class="tag new">NOUVEAU</span></td>
+            <td><code>name</code>, <code>workflowKey</code>, <code>audience</code> (<code>segmentId</code> ou conditions ad hoc), <code>schedule</code> (<code>immediate</code> | <code>scheduled</code> + date | <code>recurring</code> + cron | <code>on_event</code> + nom d'événement), <code>status</code>.</td>
+            <td><code>{status}</code> · <code>{schedule.event_name}</code></td>
+          </tr>
+          <tr>
+            <td class="name"><code>crm_campaign_runs</code> <span class="tag new">NOUVEAU</span></td>
+            <td>1 par exécution : <code>campaignId</code>, <code>runAt</code>, <code>status</code> (<code>resolving</code> → <code>triggering</code> → <code>sending</code> → <code>done</code> | <code>failed</code>), <code>audience_size</code>, <code>excluded</code> (par motif), <code>topicKey</code>, <code>stats</code>.</td>
+            <td><code>{campaignId, runAt}</code></td>
+          </tr>
+          <tr>
+            <td class="name"><code>topics</code> + abonnements <span class="tag native">NATIF</span></td>
+            <td>Un topic par exécution, <code>campaign:{campaignId}:{runId}</code> : la liste exacte des clients visés après exclusions. Supprimé 30 jours après la fin de l'envoi.</td>
+            <td>Natifs</td>
+          </tr>
+          <tr>
+            <td class="name"><code>messages</code>, <code>executiondetails</code> <span class="tag native">NATIF</span></td>
+            <td>Chaque message envoyé et chaque étape de son traitement, par client. Source du détail client dans les rapports.</td>
+            <td>Natifs + <code>{transactionId}</code> si absent</td>
+          </tr>
+          <tr>
+            <td class="name"><code>crm_engagement</code> <span class="tag new">NOUVEAU</span></td>
+            <td>Ouvertures et clics : <code>{messageId, subscriberId, runId, channel, type, at}</code>. Alimenté par le SDK (push ouvert), les webhooks fournisseurs et le suivi de liens email.</td>
+            <td><code>{messageId, type}</code> <b>unique</b> · <code>{runId}</code></td>
+          </tr>
+          <tr>
+            <td class="name"><code>integrations</code> <span class="tag enriched">ENRICHI</span></td>
+            <td>Fournisseurs configurés. Ajout de <code>limits</code> (<code>perSecond</code>, <code>perHour</code>, <code>perDay</code>), <code>weight</code> et <code>routingEnabled</code> sur les intégrations email.</td>
+            <td>Natifs</td>
+          </tr>
+          <tr>
+            <td class="name"><code>crm_provider_usage</code> <span class="tag new">NOUVEAU</span></td>
+            <td>1 par fournisseur × heure : <code>sent</code>, <code>delivered</code>, <code>bounced</code>, <code>complained</code>, <code>failed</code>, <code>latency_p95</code>. Historique de l'écran de monitoring (le temps réel est dans Redis).</td>
+            <td><code>{integrationId, hour}</code> <b>unique</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <strong>Suppression d'un client : on n'utilise pas la suppression native de Novu.</strong> Novu a son propre champ
+      <code>deleted</code> qui fait disparaître le subscriber de toutes ses API (et donc de l'historique des rapports).
+      On pose <code>data.isDeleted = true</code> à la place — voir <a href="#consentement">§10</a>.
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="ingestion">
+    <div class="block-head"><span class="num">05</span><h2>Ingestion des événements · crm-ingest</h2></div>
+    <p class="sub">Un service du monorepo, dans son propre conteneur, qui transforme chaque événement d'Izichange en profil et activité à jour. Il se branche sur les flux qui alimentent déjà MailWizz.</p>
+
+    <figure>
+      <div class="diagram-frame">
+        <svg viewBox="0 0 960 316" role="img" aria-label="Les webhooks Keycloak et la file RabbitMQ d'izipush entrent dans crm-ingest. Chaque événement passe par un adaptateur, une validation, un dédoublonnage, l'écriture au journal, puis le recalcul du client. Un événement invalide part dans la file d'erreurs, un doublon est ignoré. Le recalcul met à jour le profil, l'activité, et déclenche les campagnes sur événement. Un bandeau de supervision suit le flux.">
+          <defs>
+            <marker id="pi" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><polygon points="0,0 7,3 0,6" fill="currentColor"/></marker>
+          </defs>
+
+          <!-- sources -->
+          <g font-size="12">
+            <rect x="20" y="52" width="150" height="50" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="34" y="73" font-weight="600" fill="var(--ink)">Keycloak</text>
+            <text x="34" y="89" font-size="10.5" fill="var(--steel)">webhook HTTP signé</text>
+            <rect x="20" y="126" width="150" height="50" rx="8" fill="var(--surface)" stroke="var(--enriched)"/>
+            <text x="34" y="147" font-weight="600" fill="var(--enriched)">RabbitMQ</text>
+            <text x="34" y="163" font-size="10.5" fill="var(--steel)">notre file, même exchange</text>
+          </g>
+
+          <!-- frame -->
+          <rect x="200" y="20" width="560" height="214" rx="12" fill="var(--accent-wash)" stroke="var(--accent)" stroke-opacity=".45"/>
+          <text x="216" y="42" font-family="IBM Plex Mono, monospace" font-size="10.5" letter-spacing="1.5" fill="var(--accent)">CRM-INGEST</text>
+
+          <g font-size="11.5" text-anchor="middle">
+            <rect x="215" y="88" width="95" height="50" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="262" y="109" font-weight="600" fill="var(--ink)">Adaptateur</text>
+            <text x="262" y="125" font-size="10" fill="var(--steel)">format unique</text>
+
+            <rect x="322" y="88" width="95" height="50" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="369" y="109" font-weight="600" fill="var(--ink)">Validation</text>
+            <text x="369" y="125" font-size="10" fill="var(--steel)">schéma</text>
+
+            <rect x="429" y="88" width="110" height="50" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="484" y="109" font-weight="600" fill="var(--ink)">Dédoublonnage</text>
+            <text x="484" y="125" font-size="10" fill="var(--steel)">event_id unique</text>
+
+            <rect x="551" y="88" width="90" height="50" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="596" y="109" font-weight="600" fill="var(--ink)">Journal</text>
+            <text x="596" y="125" font-size="10" fill="var(--steel)">crm_events</text>
+
+            <rect x="653" y="88" width="95" height="50" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/>
+            <text x="700" y="109" font-weight="600" fill="var(--ink)">Recalcul</text>
+            <text x="700" y="125" font-size="10" fill="var(--steel)">par client</text>
+
+            <rect x="322" y="180" width="95" height="36" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-dasharray="4 3"/>
+            <text x="369" y="202" font-size="10.5" fill="var(--steel)">file d'erreurs</text>
+            <rect x="429" y="180" width="110" height="36" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-dasharray="4 3"/>
+            <text x="484" y="202" font-size="10.5" fill="var(--steel)">doublon : ignoré</text>
+          </g>
+
+          <!-- outputs -->
+          <g font-size="12">
+            <rect x="790" y="40" width="150" height="46" rx="8" fill="var(--surface)" stroke="var(--native)"/>
+            <text x="804" y="61" font-weight="600" fill="var(--ink)">Profil</text>
+            <text x="804" y="76" font-size="10.5" fill="var(--steel)">subscriber</text>
+            <rect x="790" y="100" width="150" height="46" rx="8" fill="var(--surface)" stroke="var(--native)"/>
+            <text x="804" y="121" font-weight="600" fill="var(--ink)">Activité</text>
+            <text x="804" y="136" font-size="10.5" fill="var(--steel)">activity_daily, cumuls</text>
+            <rect x="790" y="160" width="150" height="46" rx="8" fill="var(--surface)" stroke="var(--native)"/>
+            <text x="804" y="181" font-weight="600" fill="var(--ink)">Campagnes</text>
+            <text x="804" y="196" font-size="10.5" fill="var(--steel)">« sur événement »</text>
+          </g>
+
+          <g color="var(--ink)" fill="none" stroke="currentColor" stroke-width="1.3">
+            <path d="M170 77 H190 V104 H212" marker-end="url(#pi)"/>
+            <path d="M170 151 H190 V122 H212" marker-end="url(#pi)"/>
+            <line x1="310" y1="113" x2="319" y2="113" marker-end="url(#pi)"/>
+            <line x1="417" y1="113" x2="426" y2="113" marker-end="url(#pi)"/>
+            <line x1="539" y1="113" x2="548" y2="113" marker-end="url(#pi)"/>
+            <line x1="641" y1="113" x2="650" y2="113" marker-end="url(#pi)"/>
+            <line x1="748" y1="106" x2="787" y2="65" marker-end="url(#pi)"/>
+            <line x1="748" y1="113" x2="787" y2="123" marker-end="url(#pi)"/>
+            <line x1="748" y1="120" x2="787" y2="181" marker-end="url(#pi)"/>
+          </g>
+          <g color="var(--ink)" fill="none" stroke="currentColor" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="3 3">
+            <line x1="369" y1="138" x2="369" y2="177" marker-end="url(#pi)"/>
+            <line x1="484" y1="138" x2="484" y2="177" marker-end="url(#pi)"/>
+          </g>
+          <g font-size="9.5" fill="var(--steel)">
+            <text x="374" y="162">invalide</text>
+            <text x="489" y="162">déjà reçu</text>
+          </g>
+
+          <!-- supervision -->
+          <rect x="200" y="252" width="560" height="44" rx="8" fill="none" stroke="var(--steel)" stroke-opacity=".5" stroke-dasharray="1 4"/>
+          <text x="216" y="279" font-size="11" fill="var(--steel)"><tspan font-family="IBM Plex Mono, monospace" font-weight="600" fill="var(--ink)">Supervision</tspan>  événements/min par type · retard de file · rejets · dernier événement reçu par source</text>
+        </svg>
+      </div>
+      <figcaption>
+        Un adaptateur par source (Keycloak : <code>type/details</code>, RabbitMQ : <code>eventType/data</code>) vers une enveloppe interne
+        unique. Ajouter une source = ajouter un adaptateur. Les erreurs temporaires sont retentées, puis envoyées dans la file d'erreurs, rejouable depuis le dashboard.
+      </figcaption>
+    </figure>
+
+    <div class="cards cards-4">
+      <div class="card"><h4>Branchement sans effort</h4><p>Un exchange topic alimente plusieurs files : on lie <b>notre propre file</b> à l'exchange existant, MailWizz continue de recevoir. Keycloak : notre endpoint en seconde destination.</p></div>
+      <div class="card"><h4>Ordre d'arrivée</h4><p>Chaque champ garde la date de sa dernière mise à jour ; un événement plus ancien ne l'écrase pas (<code>kyc.submitted</code> arrivé après <code>kyc.approved</code> est sans effet).</p></div>
+      <div class="card"><h4>Client inconnu</h4><p>Une transaction peut arriver avant l'inscription : un profil minimal est créé, puis complété à l'arrivée de l'inscription.</p></div>
+      <div class="card"><h4>Totaux reçus ignorés</h4><p><code>volumeJour</code>, <code>nbreOpMois</code>, <code>walletAvailable</code>… ne sont pas utilisés : tout est recalculé depuis les transactions.</p></div>
+    </div>
+
+    <h3>Événements attendus</h3>
+    <p class="sub">Uniquement des <b>actions</b>, publiées au moment où elles se produisent. Jamais d'événement déclenché par le temps (« inactif depuis 30 j »), jamais de total pré-calculé : tout cela se déduit de notre côté.</p>
+
+    <div class="legend" style="margin-top:0">
+      <span class="legend-item"><span class="tag native">EXISTE</span>déjà émis</span>
+      <span class="legend-item"><span class="tag enriched">À COMPLÉTER</span>émis, données manquantes</span>
+      <span class="legend-item"><span class="tag new">À CRÉER</span>nouvel événement</span>
+      <span class="legend-item"><span class="tag v1">V1</span>minimum pour démarrer</span>
+    </div>
+
+    <div class="cards ev-cards">
+      <div class="card">
+        <h4>Compte</h4>
+        <ul class="ev">
+          <li><span><b>Inscription</b> <code>REGISTER</code> <span class="tag v1">V1</span></span><span class="tag enriched">+ PAYS, TÉL., LANGUE</span><em>crée le profil</em></li>
+          <li><span><b>Profil / email modifié</b> <span class="tag v1">V1</span></span><span class="tag native">EXISTE</span><em>met à jour le profil</em></li>
+          <li><span><b>Compte supprimé</b> <span class="tag v1">V1</span></span><span class="tag native">EXISTE</span><em><code>isDeleted</code>, tokens effacés</em></li>
+          <li><span><b>Connexion</b> <code>LOGIN</code></span><span class="tag native">EXISTE</span><em><code>last_login_at</code> (ignoré aujourd'hui)</em></li>
+          <li><span><b>Suspendu / réactivé</b></span><span class="tag new">À CRÉER</span><em>exclusion du marketing</em></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>KYC</h4>
+        <ul class="ev">
+          <li><span><b>Soumis</b> <span class="tag v1">V1</span></span><span class="tag native">EXISTE</span><em><code>kyc_status</code> en cours</em></li>
+          <li><span><b>Validé</b> <span class="tag v1">V1</span></span><span class="tag native">EXISTE</span><em><code>kyc_status</code> validé</em></li>
+          <li><span><b>Rejeté</b> <span class="tag v1">V1</span></span><span class="tag native">EXISTE</span><em><code>kyc_status</code> rejeté + motif</em></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Transactions</h4>
+        <ul class="ev">
+          <li><span><b>Réussie</b> <span class="tag v1">V1</span></span><span class="tag enriched">+ PRODUIT, TYPE</span><em>activité du jour, cumuls, 1<sup>re</sup> transaction par produit</em></li>
+          <li><span><b>Échouée</b></span><span class="tag native">EXISTE</span><em>suivi des échecs, relance</em></li>
+          <li><span><b>Annulée / remboursée</b></span><span class="tag new">À CRÉER</span><em>retirée du volume</em></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Consentement &amp; produits</h4>
+        <ul class="ev">
+          <li><span><b>Préférence marketing</b></span><span class="tag new">À CRÉER</span><em><code>marketing_optin</code></em></li>
+          <li><span><b>Carte créée</b></span><span class="tag new">À CRÉER</span><em><code>card_created_at</code></em></li>
+          <li><span><b>Marchand activé</b></span><span class="tag new">À CRÉER</span><em><code>merchant_onboarded_at</code></em></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <strong>Le minimum V1 existe déjà</strong> : il manque seulement pays / téléphone / langue dans l'inscription et produit / type dans la transaction.
+      Plus besoin des événements « première transaction » : la première qu'on reçoit pour un produit <em>est</em> l'activation.
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="segments">
+    <div class="block-head"><span class="num">06</span><h2>Flux · segments</h2></div>
+    <p class="sub">Un segment = des conditions. Figé ou non, il est résolu de la même façon ; seule la date de résolution change.</p>
+
+    <h3>Construction</h3>
+    <ol class="steps">
+      <li><b>Le constructeur propose les champs</b> de <code>crm_fields</code> : champs du profil (pays, KYC, date d'inscription, cumul à vie…) et champs d'activité (nombre de transactions ou volume sur N jours, par produit ou tous produits).</li>
+      <li><b>Les conditions forment un arbre</b> (ET / OU / NON). Exemple : pays ∈ {CI, SN} ET KYC = validé ET volume crypto sur 30 j &gt; 500 USD.</li>
+      <li><b>Aperçu en direct</b> : le nombre de clients correspondants est calculé à chaque modification.</li>
+      <li><b>Case « figer »</b> cochée : à l'enregistrement, le segment est résolu une fois et ses membres écrits dans le topic Novu <code>segment:{id}</code>, avec <code>frozen_at</code>. Décochée : rien n'est stocké, la résolution a lieu à chaque exécution de campagne.</li>
+    </ol>
+
+    <h3>Résolution d'une audience</h3>
+    <p>Les conditions sont séparées en deux familles, exécutées chacune sur ses index, puis croisées :</p>
+<pre><code>// 1. Conditions d'activité → identifiants (fenêtre indexée sur day)
+crm_activity_daily.aggregate([
+  { $match: { day: { $gte: J-30 }, product: "crypto" } },
+  { $group: { _id: "$subscriberId", vol: { $sum: "$vol_usd" } } },
+  { $match: { vol: { $gt: 500 } } }
+])
+
+// 2. Conditions de profil + garde-fous → filtre sur subscribers
+{ "data.country_code": { $in: ["CI","SN"] }, "data.kyc_status": "validated",
+  "data.isDeleted": { $ne: true }, subscriberId: { $in: &lt;résultat 1&gt; } }</code></pre>
+    <p>On commence par la famille la plus sélective. Les résultats sont lus en flux (curseur) et écrits par lots, jamais chargés en mémoire d'un bloc.</p>
+
+    <div class="callout">
+      <strong>Figer fixe qui on vise, pas qui on a le droit de contacter.</strong> Même pour un segment figé, les garde-fous
+      (client supprimé, consentement retiré, email invalide) sont appliqués <b>au moment de l'exécution</b>.
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="campagnes">
+    <div class="block-head"><span class="num">07</span><h2>Flux · campagnes</h2></div>
+    <p class="sub">Une exécution de campagne est une machine à états : chaque étape peut être rejouée après un plantage sans rien envoyer deux fois.</p>
+
+    <div class="pipeline" role="list">
+      <div class="stage" role="listitem"><span class="k">Déclencheur</span><b>Quand ?</b><span>Clic « lancer », date programmée, cron récurrent (job répétable BullMQ).</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="stage" role="listitem"><span class="k">resolving</span><b>Qui ?</b><span>Membres du segment figé, ou résolution des conditions (§06).</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="stage" role="listitem"><span class="k">resolving</span><b>Exclusions</b><span>Supprimés, sans consentement marketing, sans canal joignable. Comptées par motif.</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="stage" role="listitem"><span class="k">triggering</span><b>Topic du run</b><span><code>campaign:{id}:{runId}</code> rempli par lots ; index unique = reprise sans doublon.</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="stage" role="listitem"><span class="k">sending</span><b>Un seul trigger</b><span>Workflow déclenché sur le topic, <code>transactionId = runId</code>. Novu fait le fan-out.</span></div>
+    </div>
+
+    <ol class="steps">
+      <li><b>Création de <code>crm_campaign_runs</code></b> en <code>resolving</code>. Un run déjà en cours pour la même échéance n'est pas recréé (clé unique campagne + échéance).</li>
+      <li><b>Résolution et exclusions</b>, écriture des membres dans le topic du run. Relancer cette étape réécrit les mêmes membres (index unique), sans doublon.</li>
+      <li><b>Passage en <code>triggering</code></b>, puis un seul appel de déclenchement sur le topic, avec <code>transactionId = runId</code>. Novu rejette un déclenchement dont le <code>transactionId</code> a déjà produit des jobs : une reprise après plantage ne renvoie pas la campagne. Cette vérification n'est pas atomique (lecture puis rejet), c'est donc l'état du run qui garantit qu'un seul worker déclenche.</li>
+      <li><b>Novu exécute le workflow pour chaque membre</b> : étapes, délais, canaux, retries — rien de nouveau ici.</li>
+      <li><b>Passage en <code>done</code></b> quand plus aucun job du run n'est en attente ; les statistiques sont calculées (§09).</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Priorité aux messages critiques.</strong> Les files de Novu n'ont pas de priorité : un OTP déclenché pendant une campagne
+      à 1 M attendrait derrière tous ses jobs. Dans le fork, les jobs des workflows <b>critiques</b> (OTP, reçus, sécurité) sont ajoutés
+      avec une priorité haute BullMQ et doublent la campagne dans la file.
+<pre><code>file standard :  [OTP] ← passe devant    [camp][camp] … [camp]</code></pre>
+      Envoyer une campagne par lots (goutte-à-goutte) est reporté : à évaluer en production.
+    </div>
+
+    <p>Les campagnes <b>sur événement</b> sont le seul cas sans topic : elles sont évaluées client par client dans le job de dérivation (§05, étape 7).</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="email">
+    <div class="block-head"><span class="num">08</span><h2>Flux · envoi email multi-fournisseur</h2></div>
+    <p class="sub">Plusieurs fournisseurs email, chacun avec ses limites ; le worker choisit pour chaque email celui qui a encore du quota.</p>
+
+    <h3>Configuration</h3>
+    <p>À l'ajout (ou la modification) d'un fournisseur email dans le dashboard, trois limites optionnelles —
+      <b>par seconde, par heure, par jour</b> — un poids (répartition entre fournisseurs disponibles) et un interrupteur
+      « participe à l'aiguillage ».</p>
+
+    <h3>À l'envoi</h3>
+    <ol class="steps">
+      <li><b>L'étape email du workflow arrive dans le worker.</b> Novu choisit normalement le fournisseur « principal », ou celui imposé via <code>integrationIdentifier</code>. On insère l'aiguillage à cet endroit.</li>
+      <li><b>L'aiguilleur lit les compteurs Redis</b> de chaque fournisseur éligible (fenêtres seconde / heure / jour) et en tire un parmi ceux qui ont du quota, selon leur poids. La réservation du quota est atomique (script Lua) : deux workers ne peuvent pas dépasser la limite ensemble.</li>
+      <li><b>Tous les fournisseurs sont pleins</b> : le job est replanifié après un délai, pas mis en échec. L'envoi ralentit, il ne se perd pas.</li>
+      <li><b>Un fournisseur répond en erreur</b> de façon répétée : il est mis de côté quelques minutes (disjoncteur) et l'envoi repart sur un autre.</li>
+      <li><b>Chaque envoi incrémente les compteurs</b> du fournisseur, repris par l'écran de monitoring.</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Plusieurs fournisseurs augmentent le débit et la résilience, mais ne protègent pas à eux seuls du spam.</strong>
+      Gmail et Outlook jugent surtout la réputation du <b>domaine d'envoi</b>. Il faut : SPF, DKIM et DMARC configurés sur chaque
+      fournisseur, un <b>sous-domaine dédié au marketing</b> (ex. <code>news.izichange.com</code>) pour ne jamais dégrader la délivrabilité
+      des emails transactionnels, une montée en volume progressive, et l'exclusion automatique des adresses en bounce ou en plainte.
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="suivi">
+    <div class="block-head"><span class="num">09</span><h2>Suivi, rapports &amp; monitoring</h2></div>
+    <p class="sub">Ce que chaque canal permet réellement de mesurer, d'où vient chaque information, et comment on l'affiche.</p>
+
+    <h3>Ce que « vu » veut dire</h3>
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>Canal</th><th>Mesurable</th><th>Source</th><th>Fiabilité</th></tr></thead>
+        <tbody>
+          <tr><td><b>Push</b></td><td>Envoyé · <b>ouvert</b> (le client a touché la notification)</td><td>Novu (envoi) · SDK izipush : à l'ouverture, appel d'une route publique avec l'identifiant du message placé dans la notification</td><td>Ouvert : fiable. « Affiché sans être touché » : non mesurable</td></tr>
+          <tr><td><b>Email</b></td><td>Envoyé · délivré · bounce · plainte · <b>ouvert</b> · <b>cliqué</b></td><td>Novu (envoi) · webhooks fournisseur (<code>/webhooks/…/email/:integrationId</code>, déjà présent dans Novu) · pixel et liens suivis</td><td>Ouvert : surestimé (Apple Mail ouvre tout). Cliqué : fiable</td></tr>
+          <tr><td><b>In-app</b></td><td>Envoyé · <b>vu</b> · <b>lu</b></td><td>Natif Novu</td><td>Fiable</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Onglet Rapports</h3>
+    <ul class="plain">
+      <li><b>Liste des exécutions</b> de chaque campagne : date, statut, audience, exclus (par motif), envoyés, délivrés, ouverts, cliqués, échecs.</li>
+      <li><b>Détail d'une exécution</b> : les mêmes chiffres par canal, et la liste des clients visés (le topic du run), filtrable.</li>
+      <li><b>Détail d'un client</b> : chaque message reçu, les étapes du workflow avec leurs horodatages (<code>executiondetails</code>), et s'il a ouvert, vu ou cliqué.</li>
+      <li>Les statistiques d'un run sont <b>recalculées</b> depuis <code>messages</code> et <code>crm_engagement</code> (par <code>transactionId</code>), jamais incrémentées : elles restent justes même si un webhook arrive deux fois.</li>
+    </ul>
+
+    <h3>Écran de monitoring des fournisseurs</h3>
+    <div class="cards">
+      <div class="card"><h4>Quotas</h4><p>Consommation en temps réel face aux limites (seconde / heure / jour), par fournisseur. Source : compteurs Redis.</p></div>
+      <div class="card"><h4>Débit</h4><p>Emails et push envoyés par minute sur les dernières heures, par fournisseur. Source : <code>crm_provider_usage</code>.</p></div>
+      <div class="card"><h4>Délivrabilité</h4><p>Taux de délivrance, de bounce et de plainte par fournisseur, avec seuils d'alerte (ex. bounce &gt; 5 %, plainte &gt; 0,1 %).</p></div>
+      <div class="card"><h4>Santé</h4><p>Taux d'erreur, latence, état du disjoncteur, dernières erreurs brutes. Pour le push : part de tokens invalides renvoyés par FCM.</p></div>
+    </div>
+    <p>Le worker verse chaque minute les compteurs Redis dans <code>crm_provider_usage</code> (écriture <code>$set</code> de l'heure en cours, rejouable).</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="consentement">
+    <div class="block-head"><span class="num">10</span><h2>Consentement, désinscription, suppression</h2></div>
+
+    <h3>Transactionnel ou marketing</h3>
+    <ul class="plain">
+      <li><b>Workflows transactionnels</b> (OTP, reçus, alertes de sécurité) : marqués <b>critiques</b> dans Novu — le client ne peut pas s'en désabonner. <span class="tag native">NATIF</span></li>
+      <li><b>Workflows marketing</b> : non critiques, soumis aux préférences du client par canal, et à <code>data.marketing_optin</code>. <span class="tag native">NATIF</span> <span class="tag enriched">ENRICHI</span></li>
+    </ul>
+
+    <h3>Désinscription</h3>
+    <ol class="steps">
+      <li>Chaque email marketing contient un lien <code>{{unsubscribe_url}}</code> : une URL publique portant un jeton signé (client + environnement + expiration).</li>
+      <li>L'en-tête <code>List-Unsubscribe</code> avec désinscription en un clic est ajouté aux emails marketing — Gmail et Yahoo l'exigent pour les envois en volume.</li>
+      <li>Au clic, la route publique vérifie la signature et coupe la préférence marketing email du client. Aucune connexion requise.</li>
+      <li>Un bounce définitif ou une plainte pose <code>data.email_suppressed = true</code> : l'adresse est exclue de tout envoi marketing.</li>
+    </ol>
+
+    <h3>Suppression d'un compte</h3>
+    <ul class="plain">
+      <li>L'événement de suppression pose <code>data.isDeleted = true</code>. Le profil, l'activité et l'historique sont <b>conservés</b>.</li>
+      <li>Les tokens push du client sont effacés en même temps : même un déclenchement direct hors campagne ne peut plus atteindre ses appareils.</li>
+      <li>Le client est exclu de toute résolution d'audience, y compris des segments figés.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="reprise">
+    <div class="block-head"><span class="num">11</span><h2>Reprise de l'existant</h2></div>
+    <p class="sub">Izichange fournit une fois l'export brut de ses tables <b>users</b> et <b>transactions</b>. Toute la transformation est faite de notre côté.</p>
+
+    <ol class="steps">
+      <li><b>Date de coupure D</b> (minuit). Izichange commence à publier les événements temps réel à partir de D ; notre file les garde en attente.</li>
+      <li><b>Export des deux tables jusqu'à la veille de D incluse</b>, déposé sur un stockage partagé (S3 ou SFTP) — jamais par email : elles contiennent des données personnelles.</li>
+      <li><b>Chargement brut</b> dans deux collections temporaires (<code>crm_import_users</code>, <code>crm_import_transactions</code>).</li>
+      <li><b>Clients → subscribers</b> : correspondance colonnes → champs (définie à réception de l'export), écriture en masse par lots avec upsert sur <code>subscriberId</code>.</li>
+      <li><b>Transactions → <code>crm_activity_daily</code></b> : agrégation par client, jour et produit (montants déjà en USD), écriture par <code>$merge</code>.</li>
+      <li><b>Faits du profil</b> : <code>first_tx_at</code>, <code>last_tx_at</code>, <code>lifetime_*</code> et <code>{produit}_activated_at</code> calculés depuis le daily et posés sur chaque subscriber.</li>
+      <li><b>Contrôles de rapprochement</b> : nombre de clients, nombre de transactions et volume par mois, comparés à l'export. Les collections temporaires sont supprimées une fois validées.</li>
+      <li><b>Démarrage de la consommation RabbitMQ</b> : le temps réel prend le relais à partir de D.</li>
+    </ol>
+
+    <div class="callout info">
+      <strong>Pas de double comptage possible.</strong> Une journée est alimentée soit par l'import (avant D), soit par les
+      événements (à partir de D), jamais par les deux. Toutes les étapes sont des upserts : le script peut être relancé.
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="modules">
+    <div class="block-head"><span class="num">12</span><h2>Modules à construire</h2></div>
+    <p class="sub">Où atterrit chaque morceau dans le fork.</p>
+
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>Emplacement</th><th>À ajouter</th></tr></thead>
+        <tbody>
+          <tr><td class="name"><code>libs/dal</code></td><td>Schémas et repositories des collections <code>crm_*</code> ; champs <code>limits</code> / <code>weight</code> / <code>routingEnabled</code> sur les intégrations ; index sur <code>subscribers.data.*</code>.</td></tr>
+          <tr><td class="name"><code>apps/api</code></td><td>Modules <code>crm-segments</code> (CRUD, aperçu d'audience, figer), <code>crm-fields</code>, <code>crm-templates</code>, <code>crm-campaigns</code> (CRUD, lancer, suspendre), <code>crm-reports</code>, <code>crm-monitoring</code> ; routes publiques <code>crm-public</code> (désinscription, ouverture push, suivi de liens) ; <b>préfixes réservés</b> : les routes Inbox refusent qu'un client s'abonne ou se désabonne lui-même d'un topic <code>segment:*</code> ou <code>campaign:*</code>.</td></tr>
+          <tr><td class="name"><code>apps/crm-ingest</code> <span class="tag new">NOUVEAU</span></td><td>Consommateur RabbitMQ, endpoint webhook Keycloak, adaptateurs, validation, journal, recalcul par client, file d'erreurs rejouable.</td></tr>
+          <tr><td class="name"><code>apps/worker</code></td><td>Priorité haute BullMQ pour les jobs des workflows critiques ; planificateur et exécuteur de campagnes ; aiguilleur email (branché sur le choix d'intégration de l'étape email) ; versement des compteurs dans <code>crm_provider_usage</code> ; script d'import initial.</td></tr>
+          <tr><td class="name"><code>apps/webhook</code></td><td>Vérifier et compléter la prise en compte des événements des fournisseurs retenus (délivré, bounce, plainte, ouverture, clic) et leur report dans <code>crm_engagement</code>.</td></tr>
+          <tr><td class="name"><code>apps/dashboard</code></td><td>Groupe de menu « CRM » : Segments (constructeur + aperçu), Templates (éditeur templatical), Campagnes, Rapports, Monitoring fournisseurs. Sélecteur de template dans l'étape email des workflows.</td></tr>
+          <tr><td class="name">Étape email Novu</td><td>Novu accepte déjà un contenu HTML (<code>editorType: 'html'</code>). L'étape référence un <code>templateId</code> ; le HTML rendu par templatical est injecté à l'envoi.</td></tr>
+          <tr><td class="name">SDK izipush</td><td>Remonter l'ouverture d'une notification push (identifiant du message placé dans les données de la notification).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>templatical</h3>
+    <ul class="plain">
+      <li><b>Licence</b> : éditeur en FSL-1.1-MIT (devient MIT deux ans après chaque version), moteur de rendu en MIT. L'usage commercial est permis ; la seule interdiction est de revendre un éditeur d'emails concurrent — ce n'est pas notre cas.</li>
+      <li><b>Intégration</b> : indépendant du framework, monté par un appel <code>init()</code> dans une page React du dashboard.</li>
+      <li><b>Sortie</b> : un JSON (stocké dans <code>design</code>), rendu en MJML puis HTML. Le rendu fonctionne aussi côté Node.</li>
+      <li><b>Variables</b> : syntaxe configurable — on la règle sur celle de Novu (<code>{{subscriber.firstName}}</code>, <code>{{payload.montant}}</code>) pour que le HTML rendu soit directement utilisable.</li>
+      <li><b>Stockage</b> : templates, blocs réutilisables et versions via nos propres interfaces (Mongo), sans service externe.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="faisabilite">
+    <div class="block-head"><span class="num">13</span><h2>Faisabilité &amp; volumétrie</h2></div>
+    <p class="sub">Ordres de grandeur à 1 M de clients. Les hypothèses d'activité sont à confirmer avec l'export réel.</p>
+
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>Élément</th><th>Estimation</th><th>Commentaire</th></tr></thead>
+        <tbody>
+          <tr><td>Subscribers</td><td>1 M documents, quelques Go avec index</td><td>Volume courant pour Mongo.</td></tr>
+          <tr><td><code>crm_activity_daily</code></td><td>~200 000 lignes / jour → ~10 Go / an avec index</td><td>Hypothèse : 20 % de clients actifs par jour, plusieurs produits. Archivage des vieilles années possible, pas nécessaire avant plusieurs années.</td></tr>
+          <tr><td><code>crm_events</code></td><td>Taille bornée par le TTL de 180 j</td><td>Les journées passées du daily sont définitives : le journal n'est plus utile au-delà.</td></tr>
+          <tr><td>Résolution d'une audience</td><td>À mesurer — objectif &lt; 2 min sur 1 M</td><td>Dépend des index et de la sélectivité des filtres : <b>benchmark à faire</b> sur 1 M de clients fictifs.</td></tr>
+          <tr><td>Fan-out d'un topic de 1 M</td><td>À mesurer</td><td>Novu sait déclencher un topic ; le débit à 1 M dépend du nombre de workers. <b>À inclure dans le benchmark.</b></td></tr>
+          <tr><td>Durée d'une campagne email</td><td>Dictée par les limites</td><td>Exemple : 2 fournisseurs à 50 emails/s = 100/s → 1 M d'emails en ~2 h 45. Ce sont les limites fournisseurs qui fixent la durée.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Risques</h3>
+    <ul class="plain">
+      <li><b>Fusion des mises à jour Novu</b> : limitée en gardant le CRM dans des modules et collections à part, et en réduisant les modifications du cœur aux points d'accroche listés en §12.</li>
+      <li><b>Mongo sur un seul nœud</b> : pas de risque de cohérence (tout est rejouable), mais un risque de disponibilité. Replica set recommandé avant la mise en production à 1 M.</li>
+      <li><b>Débit pendant une grosse campagne</b> : les messages critiques passent devant grâce à la priorité ; si la file reste trop longue en production, on ajoutera l'envoi par lots.</li>
+      <li><b>Délivrabilité email</b> : un démarrage à pleine vitesse sur un domaine neuf finit en spam. Montée en volume à planifier.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="ouvert">
+    <div class="block-head"><span class="num">14</span><h2>Points ouverts</h2></div>
+    <p class="sub">À trancher avant ou pendant la construction.</p>
+
+    <ol class="open-list">
+      <li><b>Structure des exports.</b> Colonnes, format (CSV, dump SQL), volume, et date de coupure. La correspondance avec nos champs se fera à réception.
+        <span class="who">IZICHANGE</span></li>
+      <li><b>Consentement marketing des clients existants.</b> Quelle valeur de <code>marketing_optin</code> à l'import ? Existe-t-il une préférence dans les comptes Izichange ? C'est aussi une question juridique.
+        <span class="who">IZICHANGE + JURIDIQUE</span></li>
+      <li><b>Fournisseurs email et domaine d'envoi.</b> Quels fournisseurs, quelles limites de départ, quel sous-domaine marketing.
+        <span class="who">NOUS</span></li>
+      <li><b>Même identifiant client partout.</b> Le <code>userId</code> de Keycloak est-il celui des services transaction et KYC, et celui que le SDK utilise comme <code>subscriberId</code> ? Sinon un client aurait deux profils. Aussi : <code>timestamp</code> = moment de l'action, <code>eventId</code> stable en cas de republication, liste des produits et types de transaction.
+        <span class="who">IZICHANGE</span></li>
+      <li><b>Benchmark 1 M.</b> Générer 1 M de clients et un an d'activité fictifs pour mesurer la résolution d'audience et le fan-out, et ajuster les index.
+        <span class="who">NOUS</span></li>
+    </ol>
+  </section>
+
+  <footer>
+    izipush · architecture CRM V1 — document de travail. Voir aussi <code>flux-izipush.html</code> (enregistrement des appareils, topics, déclenchement) et <code>index.html</code> (documentation du SDK).
+  </footer>
+
+</div>
+</body>
+</html>

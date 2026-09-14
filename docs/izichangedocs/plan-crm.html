@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Plan CRM izipush</title>
+<meta name="description" content="Plan d'intégration du CRM dans le fork Novu : lots, points d'accroche dans le code, méthode et décisions." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#F5F6FA; --surface:#FFFFFF; --ink:#14171F; --steel:#5B6472; --line:#DCE0E6;
+  --native:#0E8A69; --native-wash:#E4F4EE;
+  --enriched:#B4530A; --enriched-wash:#FBF0E3;
+  --accent:#4338CA; --accent-wash:#ECEAFB;
+  --muted-wash:#EEF0F4;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --canvas:#10121A; --surface:#171A24; --ink:#EEF0F5; --steel:#9099AA; --line:#2A2E3B;
+    --native:#34C98F; --native-wash:rgba(52,201,143,.13);
+    --enriched:#E39544; --enriched-wash:rgba(227,149,68,.13);
+    --accent:#8A82F0; --accent-wash:rgba(138,130,240,.16);
+    --muted-wash:#1E2230;
+  }
+}
+:root[data-theme="dark"]{
+  --canvas:#10121A; --surface:#171A24; --ink:#EEF0F5; --steel:#9099AA; --line:#2A2E3B;
+  --native:#34C98F; --native-wash:rgba(52,201,143,.13);
+  --enriched:#E39544; --enriched-wash:rgba(227,149,68,.13);
+  --accent:#8A82F0; --accent-wash:rgba(138,130,240,.16);
+  --muted-wash:#1E2230;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--canvas); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:16px; line-height:1.6;
+}
+.wrap{max-width:1040px; margin:0 auto; padding:clamp(2rem,5vw,4rem) clamp(1.25rem,4vw,2.5rem) 5rem}
+
+code{font-family:"IBM Plex Mono",Menlo,Consolas,monospace; font-size:.84em; background:var(--accent-wash); color:var(--accent); padding:.08em .38em; border-radius:.3em; word-break:break-word}
+pre{font-family:"IBM Plex Mono",Menlo,Consolas,monospace; font-size:.8rem; line-height:1.55; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:1rem 1.1rem; overflow-x:auto; margin:1rem 0}
+pre code{background:none; color:var(--ink); padding:0; font-size:inherit}
+
+header.page{margin-bottom:2.2rem}
+.kicker{
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 .8rem; display:flex; align-items:center; gap:.55rem;
+}
+.kicker::before{content:""; width:7px; height:7px; border-radius:2px; background:var(--accent); display:inline-block}
+h1{
+  font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:clamp(1.5rem,3.4vw,2.15rem);
+  letter-spacing:-.01em; margin:0 0 .9rem; text-wrap:balance;
+}
+.lede{color:var(--steel); font-size:1.02rem; max-width:70ch; margin:0}
+.lede strong{color:var(--ink); font-weight:600}
+.meta{display:flex; flex-wrap:wrap; gap:.5rem 1.4rem; margin-top:1.2rem; font-family:"IBM Plex Mono",monospace; font-size:.76rem; color:var(--steel)}
+.meta b{color:var(--ink); font-weight:600}
+
+.legend{
+  display:flex; flex-wrap:wrap; gap:1rem 1.6rem; align-items:center; margin-top:1.4rem; padding:.9rem 1.1rem;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); font-size:.84rem;
+}
+.legend-item{display:flex; align-items:center; gap:.5rem; color:var(--steel)}
+
+.tag{display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:600; letter-spacing:.04em; padding:.12rem .45rem; border-radius:.35rem; white-space:nowrap; vertical-align:.1em}
+.tag.native{background:var(--native-wash); color:var(--native)}
+.tag.enriched{background:var(--enriched-wash); color:var(--enriched)}
+.tag.new{background:var(--accent-wash); color:var(--accent)}
+.tag.later{background:var(--muted-wash); color:var(--steel)}
+
+nav.toc{
+  margin:2.2rem 0 0; padding:1.1rem 1.2rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+}
+nav.toc h2{font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--steel); margin:0 0 .6rem}
+nav.toc ol{margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.25rem 1.4rem; counter-reset:toc}
+nav.toc li{counter-increment:toc; font-size:.9rem}
+nav.toc li::before{content:counter(toc,decimal-leading-zero); font-family:"IBM Plex Mono",monospace; font-size:.74rem; color:var(--accent); margin-right:.55rem}
+nav.toc a{color:var(--ink); text-decoration:none}
+nav.toc a:hover{color:var(--accent); text-decoration:underline}
+
+section.block{margin-top:3.6rem; scroll-margin-top:1rem}
+.block-head{display:flex; align-items:baseline; gap:.8rem; margin-bottom:.3rem}
+.num{
+  font-family:"IBM Plex Mono",monospace; font-size:.78rem; font-weight:600; color:var(--accent);
+  background:var(--accent-wash); border-radius:.4rem; padding:.15rem .5rem; flex:none;
+}
+h2{font-family:"IBM Plex Mono",monospace; font-size:1.16rem; font-weight:600; margin:0; letter-spacing:-.005em}
+h3{font-family:"IBM Plex Mono",monospace; font-size:.95rem; font-weight:600; margin:2rem 0 .5rem}
+.sub{color:var(--steel); font-size:.94rem; margin:.5rem 0 1.3rem; max-width:72ch}
+p{max-width:74ch}
+a{color:var(--accent)}
+ul.plain, ol.plain{padding-left:1.2rem; max-width:76ch}
+ul.plain li, ol.plain li{margin:.3rem 0}
+
+.table-frame{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow-x:auto; margin:1rem 0}
+table{border-collapse:collapse; width:100%; font-size:.86rem; min-width:640px}
+th, td{text-align:left; vertical-align:top; padding:.62rem .85rem; border-bottom:1px solid var(--line)}
+th{font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.08em; text-transform:uppercase; color:var(--steel); font-weight:600; background:var(--muted-wash)}
+tr:last-child td{border-bottom:none}
+td code{font-size:.8em}
+td.name{white-space:nowrap}
+
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1rem; margin:1.2rem 0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:1rem 1.1rem}
+.card h4{font-family:"IBM Plex Mono",monospace; font-size:.86rem; margin:0 0 .45rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap}
+.card p{font-size:.88rem; color:var(--steel); margin:0}
+.card p + p{margin-top:.5rem}
+.card p strong{color:var(--ink)}
+
+.steps{list-style:none; margin:1rem 0; padding:0; counter-reset:step; max-width:80ch}
+.steps > li{counter-increment:step; position:relative; padding:0 0 1rem 2.6rem; border-left:1.5px solid var(--line); margin-left:.8rem}
+.steps > li:last-child{border-left-color:transparent; padding-bottom:0}
+.steps > li::before{
+  content:counter(step); position:absolute; left:-.85rem; top:-.05rem; width:1.7rem; height:1.7rem; border-radius:50%;
+  background:var(--surface); border:1.5px solid var(--accent); color:var(--accent);
+  font-family:"IBM Plex Mono",monospace; font-size:.74rem; font-weight:600; display:grid; place-items:center;
+}
+.steps > li b{font-weight:600}
+.steps > li .note{display:block; color:var(--steel); font-size:.88rem; margin-top:.15rem}
+
+.pipeline{display:flex; flex-wrap:wrap; align-items:stretch; gap:.4rem; margin:1.2rem 0}
+.stage{flex:1 1 150px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:.75rem .85rem; position:relative}
+.stage .k{font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent)}
+.stage b{display:block; font-size:.92rem; margin:.15rem 0 .25rem}
+.stage span{display:block; font-size:.8rem; color:var(--steel); line-height:1.45}
+.arrow{align-self:center; color:var(--steel); font-family:"IBM Plex Mono",monospace; font-size:.9rem}
+
+.callout{border-left:3px solid var(--enriched); background:var(--enriched-wash); padding:.8rem 1rem; border-radius:0 var(--radius) var(--radius) 0; margin:1.2rem 0; font-size:.9rem; max-width:80ch}
+.callout.info{border-left-color:var(--accent); background:var(--accent-wash)}
+.callout strong{font-weight:600}
+
+figure{margin:1.2rem 0 0}
+.diagram-frame{background:var(--surface); border:1px solid var(--line); border-radius:calc(var(--radius) + 4px); padding:1.1rem; overflow-x:auto}
+svg{display:block; width:100%; height:auto; min-width:720px}
+figcaption{color:var(--steel); font-size:.82rem; margin-top:.75rem; max-width:76ch; line-height:1.55}
+
+.open-list{counter-reset:open; list-style:none; padding:0; margin:1rem 0; display:grid; gap:.7rem}
+.open-list li{counter-increment:open; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:.8rem 1rem .8rem 3rem; position:relative; font-size:.9rem}
+.open-list li::before{content:counter(open); position:absolute; left:1rem; top:.8rem; font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--enriched)}
+.open-list li b{font-weight:600}
+.open-list .who{display:block; font-family:"IBM Plex Mono",monospace; font-size:.7rem; color:var(--steel); margin-top:.3rem; letter-spacing:.04em}
+
+.tag.v1{background:var(--ink); color:var(--canvas)}
+.ev{list-style:none; margin:.4rem 0 0; padding:0; display:flex; flex-direction:column; gap:.55rem}
+.ev li{display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .5rem; font-size:.86rem; padding-bottom:.55rem; border-bottom:1px dashed var(--line)}
+.ev li:last-child{border-bottom:none; padding-bottom:0}
+.ev li > span:first-child{flex:1 1 auto}
+.ev em{flex-basis:100%; font-style:normal; color:var(--steel); font-size:.8rem}
+.ev em::before{content:"→ "}
+.cards-4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.ev-cards{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+footer{margin-top:4rem; padding-top:1.4rem; border-top:1px solid var(--line); color:var(--steel); font-size:.8rem}
+
+.stage .demo{margin-top:.45rem; font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--native)}
+.map{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:.8rem; margin-top:1rem}
+.zone{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:.9rem 1rem}
+.zone h4{margin:0 0 .5rem; font-size:.86rem}
+.zone p{margin:.35rem 0 0; font-size:.84rem; color:var(--steel)}
+.zone p .tag{margin-right:.35rem}
+h3 .tag{vertical-align:.15em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <p class="kicker">izipush · plan d'intégration CRM</p>
+    <h1>Plan d'intégration du CRM dans le fork</h1>
+    <p class="lede">
+      Cinq lots, chacun terminé par une <strong>démo vérifiable</strong>. Chaque tâche est rattachée aux fichiers réels du fork
+      (Novu 3.18). Référence fonctionnelle : <code>architecture-crm.html</code>.
+    </p>
+    <div class="meta">
+      <span>Statut <b>validé · Lot 0 en cours</b></span>
+      <span>Branche <b>crm</b> (depuis <b>next</b>)</span>
+      <span>Mise à jour <b>14 sept. 2026</b></span>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <section class="block" id="feuille">
+    <div class="block-head"><span class="num">01</span><h2>Feuille de route</h2></div>
+    <p class="sub">Chaque lot s'appuie sur le précédent. Tailles relatives : S &lt; M &lt; L.</p>
+
+    <div class="pipeline" role="list">
+      <div class="stage" role="listitem"><span class="k">Lot 0 · S</span><b>Socle</b><span>Branche, env. local Docker, conventions, index.</span><span class="demo">Démo : env. qui démarre</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="stage" role="listitem"><span class="k">Lot 1 · L</span><b>Données &amp; ingestion</b><span>Collections, service <code>crm-ingest</code>.</span><span class="demo">Démo : un événement met à jour un client</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="stage" role="listitem"><span class="k">Lot 2 · L</span><b>Segments &amp; campagnes</b><span>Constructeur, exécution, priorité critique.</span><span class="demo">Démo : campagne push vers un segment</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="stage" role="listitem"><span class="k">Lot 3 · L</span><b>Email</b><span>Templates, multi-fournisseur, monitoring, désinscription.</span><span class="demo">Démo : campagne email sur 2 fournisseurs</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="stage" role="listitem"><span class="k">Lot 4 · M</span><b>Suivi &amp; reprise</b><span>Rapports, ouvertures, import initial.</span><span class="demo">Démo : rapport complet d'une campagne</span></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="carte">
+    <div class="block-head"><span class="num">02</span><h2>Où on touche le code</h2></div>
+    <p class="sub">Le CRM est surtout du <b>nouveau code isolé</b> ; les modifications du cœur Novu se limitent aux points d'accroche marqués « modifié » ci-dessous.</p>
+
+    <div class="legend" style="margin-top:0">
+      <span class="legend-item"><span class="tag new">NOUVEAU</span>code à nous, isolé</span>
+      <span class="legend-item"><span class="tag enriched">MODIFIÉ</span>point d'accroche dans le cœur Novu</span>
+    </div>
+
+    <div class="map">
+      <div class="zone"><h4><code>apps/crm-ingest</code></h4>
+        <p><span class="tag new">NOUVEAU</span> app complète : consommateur RabbitMQ, webhook Keycloak, recalcul client, file d'erreurs</p></div>
+      <div class="zone"><h4><code>apps/api</code></h4>
+        <p><span class="tag new">NOUVEAU</span> modules <code>crm/*</code> : segments, campagnes, templates, rapports, monitoring, routes publiques</p>
+        <p><span class="tag enriched">MODIFIÉ</span> <code>inbox.topic.controller.ts</code> : préfixes réservés</p></div>
+      <div class="zone"><h4><code>apps/worker</code></h4>
+        <p><span class="tag new">NOUVEAU</span> file + worker <code>crm-campaign</code></p>
+        <p><span class="tag enriched">MODIFIÉ</span> <code>add-job.usecase.ts</code> : priorité critique</p>
+        <p><span class="tag enriched">MODIFIÉ</span> <code>send-message-email.usecase.ts</code> : aiguillage</p>
+        <p><span class="tag enriched">MODIFIÉ</span> <code>run-job.usecase.ts</code> : statut « reporté »</p></div>
+      <div class="zone"><h4><code>apps/webhook</code></h4>
+        <p><span class="tag enriched">MODIFIÉ</span> <code>webhook.usecase.ts</code> : écrit l'engagement (ouverture, clic, bounce, plainte)</p></div>
+      <div class="zone"><h4><code>apps/dashboard</code></h4>
+        <p><span class="tag new">NOUVEAU</span> groupe de menu « CRM » et ses pages</p>
+        <p><span class="tag enriched">MODIFIÉ</span> étape email : sélecteur de template · formulaire intégration : limites</p></div>
+      <div class="zone"><h4><code>libs/dal</code> · <code>libs/application-generic</code></h4>
+        <p><span class="tag new">NOUVEAU</span> collections <code>crm_*</code>, files CRM</p>
+        <p><span class="tag enriched">MODIFIÉ</span> champs <code>limits</code> des intégrations · index <code>subscribers.data.*</code> · schéma de l'étape email</p></div>
+      <div class="zone"><h4>SDK izipush</h4>
+        <p><span class="tag enriched">MODIFIÉ</span> signale l'ouverture d'une push (identifiant du message déjà présent dans la notification)</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="decouvertes">
+    <div class="block-head"><span class="num">03</span><h2>Ce que le code nous impose</h2></div>
+    <p class="sub">Relevé dans le fork en préparant ce plan. Chaque point est déjà intégré aux lots.</p>
+
+    <div class="table-frame">
+      <table>
+        <thead><tr><th>Constat</th><th>Conséquence dans le plan</th></tr></thead>
+        <tbody>
+          <tr><td>L'API Novu n'ajoute que <b>100 membres par appel</b> à un topic.</td><td>Le CRM écrit les membres directement par le repository, en masse : pas 10 000 appels pour une liste de 1 M.</td></tr>
+          <tr><td>En production, Novu <b>ne crée pas les index</b> automatiquement.</td><td>Les index CRM sont créés explicitement au démarrage (Lot 0), sinon chaque segment parcourrait 1 M de documents.</td></tr>
+          <tr><td>Les files Novu n'ont <b>pas de priorité</b>, mais BullMQ la transmet telle quelle.</td><td>Une ligne dans <code>queueJob()</code> : priorité haute si le workflow est critique (Lot 2).</td></tr>
+          <tr><td>Aucun <b>repli</b> ni <b>relance</b> sur erreur fournisseur email ; aucun statut « reporté ».</td><td>Aiguilleur dans l'envoi email + nouveau statut « reporté » qui replanifie le job (Lot 3).</td></tr>
+          <tr><td>Le dashboard n'appelle que <b>l'API Novu</b>.</td><td>Les écrans CRM parlent aux modules CRM de <code>apps/api</code> ; <code>crm-ingest</code> n'expose que l'ingestion.</td></tr>
+          <tr><td>Les droits (RBAC) sont <b>inactifs</b> en édition communautaire.</td><td>Sans impact en V1 (droits de lancement reportés). À construire plus tard si besoin.</td></tr>
+          <tr><td>Une <b>plainte</b> email est enregistrée comme un succès ; les webhooks ne modifient pas le message.</td><td>Notre accroche d'engagement traite la plainte comme une exclusion d'adresse (Lot 3).</td></tr>
+          <tr><td>La push contient déjà <b>l'identifiant du message</b>.</td><td>Le SDK n'a qu'à le renvoyer à l'ouverture : pas de changement côté envoi (Lot 4).</td></tr>
+          <tr><td><b>RabbitMQ</b> n'existe nulle part dans le repo.</td><td>Ajout de la bibliothèque et d'un conteneur RabbitMQ en dev (Lot 0-1).</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="lots">
+    <div class="block-head"><span class="num">04</span><h2>Détail des lots</h2></div>
+
+    <h3>Lot 0 · Socle <span class="tag later">S</span></h3>
+    <div class="table-frame"><table>
+      <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
+      <tbody>
+        <tr><td>Branche <code>crm</code> depuis <code>next</code></td><td>fork</td></tr>
+        <tr><td>Env. local : Mongo, Redis, RabbitMQ, 2 faux serveurs mail (Mailpit)</td><td><code>docker/crm-dev/docker-compose.yml</code></td></tr>
+        <tr><td>Création explicite des index des collections CRM au démarrage</td><td>script partagé <code>libs/dal</code></td></tr>
+        <tr><td>Conventions : dossiers <code>crm</code>, collections <code>crm_*</code>, dépôts en <code>BaseRepositoryV2</code></td><td>—</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Lot 1 · Données &amp; ingestion <span class="tag later">L</span></h3>
+    <div class="table-frame"><table>
+      <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
+      <tbody>
+        <tr><td>Collections <code>crm_events</code>, <code>crm_activity_daily</code>, <code>crm_fields</code> ; index <code>subscribers.data.*</code></td><td><code>libs/dal/src/repositories/crm-*</code></td></tr>
+        <tr><td>App <code>crm-ingest</code> sur le modèle de <code>apps/webhook</code> (bootstrap, santé, Dockerfile en instance unique)</td><td><code>apps/crm-ingest</code></td></tr>
+        <tr><td>Consommateur RabbitMQ (notre file liée à l'exchange existant) + webhook Keycloak signé</td><td><code>apps/crm-ingest/src/sources</code></td></tr>
+        <tr><td>Adaptateurs → enveloppe unique, validation, dédoublonnage, journal</td><td><code>apps/crm-ingest/src/pipeline</code></td></tr>
+        <tr><td>Recalcul client : profil (via les usecases Novu qui vident le cache), activité du jour, cumuls, date par champ, suppression</td><td><code>apps/crm-ingest/src/derive</code></td></tr>
+        <tr><td>File d'erreurs + route de relecture</td><td><code>apps/crm-ingest</code></td></tr>
+        <tr><td>Image Docker + service dans le compose</td><td><code>package.json</code> racine, <code>docker/</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Lot 2 · Segments &amp; campagnes <span class="tag later">L</span></h3>
+    <div class="table-frame"><table>
+      <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
+      <tbody>
+        <tr><td>Arbre de conditions → requêtes Mongo (profil + activité), aperçu du nombre de clients</td><td><code>apps/api/src/app/crm/segments</code></td></tr>
+        <tr><td>Segment figé → topic <code>segment:{id}</code> écrit en masse</td><td>idem + <code>TopicSubscribersRepository</code></td></tr>
+        <tr><td>Préfixes réservés <code>segment:*</code> / <code>campaign:*</code> sur les routes Inbox</td><td><code>inbox.topic.controller.ts</code></td></tr>
+        <tr><td>Campagnes + exécutions : machine à états, topic du run, déclenchement avec <code>transactionId = runId</code></td><td><code>apps/api/src/app/crm/campaigns</code></td></tr>
+        <tr><td>File <code>crm-campaign</code> : jobs différés (programmé) et répétables (cron)</td><td><code>libs/application-generic/src/services/queues</code>, <code>apps/worker</code></td></tr>
+        <tr><td>Campagnes « sur événement » évaluées dans le recalcul client</td><td><code>apps/crm-ingest/src/derive</code></td></tr>
+        <tr><td>Priorité haute pour les workflows critiques</td><td><code>add-job.usecase.ts</code> · <code>queueJob()</code></td></tr>
+        <tr><td>Pages Segments et Campagnes</td><td><code>apps/dashboard/src/pages/crm</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Lot 3 · Email <span class="tag later">L</span></h3>
+    <div class="table-frame"><table>
+      <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
+      <tbody>
+        <tr><td>Templates : collection, page éditeur templatical, rendu HTML côté serveur</td><td><code>apps/api/src/app/crm/templates</code>, dashboard</td></tr>
+        <tr><td>Sélecteur de template dans l'étape email (même chemin que le choix de layout)</td><td><code>email-control.schema.ts</code>, <code>email-editor.tsx</code></td></tr>
+        <tr><td>Limites par fournisseur (seconde / heure / jour, poids)</td><td><code>integration.schema.ts</code>, formulaire intégration</td></tr>
+        <tr><td>Aiguilleur avec quotas Redis + bascule sur erreur</td><td><code>send-message-email.usecase.ts</code></td></tr>
+        <tr><td>Statut « reporté » : replanifie le job au lieu de l'échouer</td><td><code>run-job.usecase.ts</code></td></tr>
+        <tr><td>Compteurs → <code>crm_provider_usage</code> + page Monitoring (graphiques)</td><td><code>apps/worker</code>, dashboard</td></tr>
+        <tr><td>Désinscription : lien signé, en-tête un clic, route publique ; bounce/plainte → exclusion</td><td><code>apps/api/src/app/crm/public</code>, <code>webhook.usecase.ts</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Lot 4 · Suivi &amp; reprise <span class="tag later">M</span></h3>
+    <div class="table-frame"><table>
+      <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
+      <tbody>
+        <tr><td>Engagement : ouverture push (route + SDK), clics email, webhooks fournisseurs</td><td><code>crm_engagement</code>, SDK, <code>apps/webhook</code></td></tr>
+        <tr><td>Statistiques d'un run recalculées depuis messages / exécutions</td><td><code>apps/api/src/app/crm/reports</code></td></tr>
+        <tr><td>Pages Rapports : exécutions, détail d'un run, détail d'un client</td><td>dashboard</td></tr>
+        <tr><td>Volet ingestion du monitoring + écran de la file d'erreurs</td><td>dashboard</td></tr>
+        <tr><td>Import initial des exports users / transactions</td><td>script <code>apps/crm-ingest</code></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="methode">
+    <div class="block-head"><span class="num">05</span><h2>Méthode</h2></div>
+    <div class="cards">
+      <div class="card"><h4>Tests</h4><p>Tests unitaires à côté du code (mocha pour api/worker, jest pour les libs). Pour chaque lot, un scénario de bout en bout avec des événements simulés au format actuel d'Izichange.</p></div>
+      <div class="card"><h4>Machine locale</h4><p>Compilations et tests lancés un par un avec un plafond mémoire : c'est ce qui avait fait planter le poste.</p></div>
+      <div class="card"><h4>Commits</h4><p>Commits locaux sur <code>crm</code>, un par tâche. Tu pousses (le push vers un nouveau dépôt m'est bloqué).</p></div>
+      <div class="card"><h4>Mises à jour Novu</h4><p>Code CRM isolé ; chaque point d'accroche est commenté <code>// izipush-crm</code> pour les retrouver à chaque fusion.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section class="block" id="decisions">
+    <div class="block-head"><span class="num">06</span><h2>Décisions</h2></div>
+    <ol class="open-list">
+      <li><b>Durée de vie des listes d'exécution : 30 jours</b> après la fin de l'envoi, puis suppression. Aucun autre usage de ces listes n'en dépend (vérifié dans le code) ; l'historique reste dans l'exécution et dans les notifications Novu.
+        <span class="who">DÉCIDÉ · 14 SEPT.</span></li>
+      <li><b>Démarrage</b> : Lot 0 lancé le 14 sept. sur la branche <code>crm</code>.
+        <span class="who">DÉCIDÉ · 14 SEPT.</span></li>
+    </ol>
+  </section>
+
+  <footer>
+    izipush · plan d'intégration CRM — document de travail. Voir <code>architecture-crm.html</code> pour le « quoi », ce document pour le « comment ».
+  </footer>
+
+</div>
+</body>
+</html>
