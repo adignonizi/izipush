@@ -12,6 +12,8 @@ export const emailControlZodSchema = z
     subject: z.string().min(1),
     disableOutputSanitization: z.boolean().optional(),
     layoutId: z.string().nullish(),
+    // izipush-crm — template email CRM dont le HTML est recopié dans `body`
+    crmTemplateId: z.string().nullish(),
     from: z
       .object({
         email: z.string().optional(),
@@ -47,6 +49,9 @@ export const emailUiSchema: UiSchema = {
     },
     layoutId: {
       component: UiComponentEnum.LAYOUT_SELECT,
+    },
+    crmTemplateId: {
+      component: UiComponentEnum.CRM_TEMPLATE_SELECT,
     },
   },
 };

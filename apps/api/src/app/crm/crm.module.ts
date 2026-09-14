@@ -3,6 +3,7 @@ import {
   CrmAudienceRepository,
   CrmCampaignRepository,
   CrmCampaignRunRepository,
+  CrmEmailTemplateRepository,
   CrmSegmentRepository,
 } from '@novu/dal';
 
@@ -12,6 +13,8 @@ import { CrmCampaignsService } from './campaigns/crm-campaigns.service';
 import { CrmFieldsController } from './fields/crm-fields.controller';
 import { CrmSegmentsController } from './segments/crm-segments.controller';
 import { CrmSegmentsService } from './segments/crm-segments.service';
+import { CrmTemplatesController } from './templates/crm-templates.controller';
+import { CrmTemplatesService } from './templates/crm-templates.service';
 
 /**
  * izipush-crm — segments et campagnes, pour le dashboard. L'exécution (figeage, lancements, envois)
@@ -19,7 +22,7 @@ import { CrmSegmentsService } from './segments/crm-segments.service';
  */
 @Module({
   imports: [SharedModule],
-  controllers: [CrmFieldsController, CrmSegmentsController, CrmCampaignsController],
+  controllers: [CrmFieldsController, CrmSegmentsController, CrmCampaignsController, CrmTemplatesController],
   providers: [
     CrmSegmentRepository,
     CrmCampaignRepository,
@@ -27,6 +30,8 @@ import { CrmSegmentsService } from './segments/crm-segments.service';
     CrmAudienceRepository,
     CrmSegmentsService,
     CrmCampaignsService,
+    CrmEmailTemplateRepository,
+    CrmTemplatesService,
   ],
 })
 export class CrmModule {}

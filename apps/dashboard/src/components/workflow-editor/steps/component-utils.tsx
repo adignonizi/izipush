@@ -22,6 +22,7 @@ import { useWorkflow } from '../workflow-provider';
 import { BaseBody } from './base/base-body';
 import { BaseSubject } from './base/base-subject';
 import { DataObject } from './base/data-object';
+import { CrmTemplateSelect } from './email/crm-template-select';
 import { LayoutSelect } from './email/layout-select';
 import { useSaveForm } from './save-form-context';
 import { BypassSanitizationSwitch } from './shared/bypass-sanitization-switch';
@@ -133,6 +134,9 @@ export const getComponentByType = ({ component }: { component?: UiComponentEnum 
 
     case UiComponentEnum.LAYOUT_SELECT: {
       return <LayoutSelect />;
+    }
+    case UiComponentEnum.CRM_TEMPLATE_SELECT: {
+      return <CrmTemplateSelect />;
     }
 
     case UiComponentEnum.EXTEND_TO_SCHEDULE: {

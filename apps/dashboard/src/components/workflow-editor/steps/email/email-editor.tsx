@@ -18,7 +18,7 @@ export const EmailEditor = (props: EmailEditorProps) => {
     return null;
   }
 
-  const { body, subject, disableOutputSanitization, editorType, layoutId } = uiSchema.properties ?? {};
+  const { body, subject, disableOutputSanitization, editorType, layoutId, crmTemplateId } = uiSchema.properties ?? {};
 
   return (
     <>
@@ -40,6 +40,9 @@ export const EmailEditor = (props: EmailEditorProps) => {
           {layoutId && (
             <div className="flex items-center gap-0.5 border-b border-t border-neutral-100 px-1 py-1">
               {getComponentByType({ component: layoutId.component ?? UiComponentEnum.LAYOUT_SELECT })}
+              {/* izipush-crm */}
+              {crmTemplateId &&
+                getComponentByType({ component: crmTemplateId.component ?? UiComponentEnum.CRM_TEMPLATE_SELECT })}
             </div>
           )}
         </div>

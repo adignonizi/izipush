@@ -12,6 +12,7 @@ import {
   RiKey2Line,
   RiLayout5Line,
   RiLineChartLine,
+  RiMailLine,
   RiMegaphoneLine,
   RiRobot2Line,
   RiRouteFill,
@@ -305,6 +306,16 @@ export const LegacySideNavigation = () => {
               >
                 <RiMegaphoneLine className="size-4" />
                 <span>Campagnes</span>
+              </NavigationLink>
+              <NavigationLink
+                to={
+                  currentEnvironment?.slug
+                    ? buildRoute(ROUTES.CRM_TEMPLATES, { environmentSlug: currentEnvironment.slug })
+                    : undefined
+                }
+              >
+                <RiMailLine className="size-4" />
+                <span>Templates email</span>
               </NavigationLink>
             </NavigationGroup>
             <Protect
