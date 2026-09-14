@@ -73,6 +73,7 @@ h1{
 .tag.enriched{background:var(--enriched-wash); color:var(--enriched)}
 .tag.new{background:var(--accent-wash); color:var(--accent)}
 .tag.later{background:var(--muted-wash); color:var(--steel)}
+.tag.done{background:var(--native-wash); color:var(--native)}
 
 nav.toc{
   margin:2.2rem 0 0; padding:1.1rem 1.2rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
@@ -189,15 +190,15 @@ h3 .tag{vertical-align:.15em}
     <p class="sub">Chaque lot s'appuie sur le précédent. Tailles relatives : S &lt; M &lt; L.</p>
 
     <div class="pipeline" role="list">
-      <div class="stage" role="listitem"><span class="k">Lot 0 · S</span><b>Socle</b><span>Branche, env. local Docker, conventions, index.</span><span class="demo">Démo : env. qui démarre</span></div>
+      <div class="stage" role="listitem"><span class="k">Lot 0 · S · ✔ déployé</span><b>Socle</b><span>Branche, env. local Docker, conventions, index.</span><span class="demo">Démo : env. qui démarre</span></div>
       <div class="arrow" aria-hidden="true">→</div>
-      <div class="stage" role="listitem"><span class="k">Lot 1 · L</span><b>Données &amp; ingestion</b><span>Collections, service <code>crm-ingest</code>.</span><span class="demo">Démo : un événement met à jour un client</span></div>
+      <div class="stage" role="listitem"><span class="k">Lot 1 · L · ✔ déployé</span><b>Données &amp; ingestion</b><span>Collections, service <code>crm-ingest</code>.</span><span class="demo">Démo : un événement met à jour un client</span></div>
       <div class="arrow" aria-hidden="true">→</div>
-      <div class="stage" role="listitem"><span class="k">Lot 2 · L</span><b>Segments &amp; campagnes</b><span>Constructeur, exécution, priorité critique.</span><span class="demo">Démo : campagne push vers un segment</span></div>
+      <div class="stage" role="listitem"><span class="k">Lot 2 · L · ✔ déployé</span><b>Segments &amp; campagnes</b><span>Constructeur, exécution, priorité critique.</span><span class="demo">Démo : campagne push vers un segment</span></div>
       <div class="arrow" aria-hidden="true">→</div>
-      <div class="stage" role="listitem"><span class="k">Lot 3 · L</span><b>Email</b><span>Templates, multi-fournisseur, monitoring, désinscription.</span><span class="demo">Démo : campagne email sur 2 fournisseurs</span></div>
+      <div class="stage" role="listitem"><span class="k">Lot 3 · L · ✔ codé</span><b>Email</b><span>Templates, multi-fournisseur, monitoring, désinscription.</span><span class="demo">Démo : campagne email sur 2 fournisseurs</span></div>
       <div class="arrow" aria-hidden="true">→</div>
-      <div class="stage" role="listitem"><span class="k">Lot 4 · M</span><b>Suivi &amp; reprise</b><span>Rapports, ouvertures, import initial.</span><span class="demo">Démo : rapport complet d'une campagne</span></div>
+      <div class="stage" role="listitem"><span class="k">Lot 4 · M · ✔ codé</span><b>Suivi &amp; reprise</b><span>Rapports, ouvertures, import initial.</span><span class="demo">Démo : rapport complet d'une campagne</span></div>
     </div>
   </section>
 
@@ -213,23 +214,23 @@ h3 .tag{vertical-align:.15em}
 
     <div class="map">
       <div class="zone"><h4><code>apps/crm-ingest</code></h4>
-        <p><span class="tag new">NOUVEAU</span> app complète : consommateur RabbitMQ, webhook Keycloak, recalcul client, file d'erreurs</p></div>
+        <p><span class="tag new">NOUVEAU</span> app complète : consommateur RabbitMQ, webhook Keycloak, recalcul client, file d'erreurs, exécution des campagnes, battement de suivi, import initial</p></div>
       <div class="zone"><h4><code>apps/api</code></h4>
         <p><span class="tag new">NOUVEAU</span> modules <code>crm/*</code> : segments, campagnes, templates, rapports, monitoring, routes publiques</p>
         <p><span class="tag enriched">MODIFIÉ</span> <code>inbox.topic.controller.ts</code> : préfixes réservés</p></div>
       <div class="zone"><h4><code>apps/worker</code></h4>
-        <p><span class="tag new">NOUVEAU</span> file + worker <code>crm-campaign</code></p>
-        <p><span class="tag enriched">MODIFIÉ</span> <code>add-job.usecase.ts</code> : priorité critique</p>
-        <p><span class="tag enriched">MODIFIÉ</span> <code>send-message-email.usecase.ts</code> : aiguillage</p>
-        <p><span class="tag enriched">MODIFIÉ</span> <code>run-job.usecase.ts</code> : statut « reporté »</p></div>
+        <p><span class="tag new">NOUVEAU</span> <code>CrmEmailRouter</code> : répartition des emails de campagne</p>
+        <p><span class="tag enriched">MODIFIÉ</span> <code>add-job.usecase.ts</code> : priorité critique, relances des emails de campagne</p>
+        <p><span class="tag enriched">MODIFIÉ</span> <code>send-message-email.usecase.ts</code> : aiguillage, exclusion, désinscription en un clic</p>
+        <p><span class="tag enriched">MODIFIÉ</span> <code>run-job.usecase.ts</code> · <code>standard.worker.ts</code> : relance quand tous les fournisseurs sont pleins</p></div>
       <div class="zone"><h4><code>apps/webhook</code></h4>
         <p><span class="tag enriched">MODIFIÉ</span> <code>webhook.usecase.ts</code> : écrit l'engagement (ouverture, clic, bounce, plainte)</p></div>
       <div class="zone"><h4><code>apps/dashboard</code></h4>
         <p><span class="tag new">NOUVEAU</span> groupe de menu « CRM » et ses pages</p>
-        <p><span class="tag enriched">MODIFIÉ</span> étape email : sélecteur de template · formulaire intégration : limites</p></div>
+        <p><span class="tag enriched">MODIFIÉ</span> étape email : sélecteur de template</p></div>
       <div class="zone"><h4><code>libs/dal</code> · <code>libs/application-generic</code></h4>
-        <p><span class="tag new">NOUVEAU</span> collections <code>crm_*</code>, files CRM</p>
-        <p><span class="tag enriched">MODIFIÉ</span> champs <code>limits</code> des intégrations · index <code>subscribers.data.*</code> · schéma de l'étape email</p></div>
+        <p><span class="tag new">NOUVEAU</span> collections <code>crm_*</code> (dont <code>crm_email_providers</code> : les intégrations Novu restent inchangées)</p>
+        <p><span class="tag enriched">MODIFIÉ</span> index <code>subscribers.data.*</code> · schéma de l'étape email</p></div>
       <div class="zone"><h4>SDK izipush</h4>
         <p><span class="tag enriched">MODIFIÉ</span> signale l'ouverture d'une push (identifiant du message déjà présent dans la notification)</p></div>
     </div>
@@ -247,7 +248,7 @@ h3 .tag{vertical-align:.15em}
           <tr><td>L'API Novu n'ajoute que <b>100 membres par appel</b> à un topic.</td><td>Le CRM écrit les membres directement par le repository, en masse : pas 10 000 appels pour une liste de 1 M.</td></tr>
           <tr><td>En production, Novu <b>ne crée pas les index</b> automatiquement.</td><td>Les index CRM sont créés explicitement au démarrage (Lot 0), sinon chaque segment parcourrait 1 M de documents.</td></tr>
           <tr><td>Les files Novu n'ont <b>pas de priorité</b>, mais BullMQ la transmet telle quelle.</td><td>Une ligne dans <code>queueJob()</code> : priorité haute si le workflow est critique (Lot 2).</td></tr>
-          <tr><td>Aucun <b>repli</b> ni <b>relance</b> sur erreur fournisseur email ; aucun statut « reporté ».</td><td>Aiguilleur dans l'envoi email + nouveau statut « reporté » qui replanifie le job (Lot 3).</td></tr>
+          <tr><td>Aucun <b>repli</b> ni <b>relance</b> sur erreur fournisseur email ; aucun statut « reporté ».</td><td>Aiguilleur dans l'envoi email ; tous pleins → erreur dédiée, relancée par le backoff BullMQ déjà présent dans le worker (Lot 3).</td></tr>
           <tr><td>Le dashboard n'appelle que <b>l'API Novu</b>.</td><td>Les écrans CRM parlent aux modules CRM de <code>apps/api</code> ; <code>crm-ingest</code> n'expose que l'ingestion.</td></tr>
           <tr><td>Les droits (RBAC) sont <b>inactifs</b> en édition communautaire.</td><td>Sans impact en V1 (droits de lancement reportés). À construire plus tard si besoin.</td></tr>
           <tr><td>Une <b>plainte</b> email est enregistrée comme un succès ; les webhooks ne modifient pas le message.</td><td>Notre accroche d'engagement traite la plainte comme une exclusion d'adresse (Lot 3).</td></tr>
@@ -262,7 +263,7 @@ h3 .tag{vertical-align:.15em}
   <section class="block" id="lots">
     <div class="block-head"><span class="num">04</span><h2>Détail des lots</h2></div>
 
-    <h3>Lot 0 · Socle <span class="tag later">S</span></h3>
+    <h3>Lot 0 · Socle <span class="tag later">S</span> <span class="tag done">DÉPLOYÉ</span></h3>
     <div class="table-frame"><table>
       <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
       <tbody>
@@ -273,7 +274,7 @@ h3 .tag{vertical-align:.15em}
       </tbody>
     </table></div>
 
-    <h3>Lot 1 · Données &amp; ingestion <span class="tag later">L</span></h3>
+    <h3>Lot 1 · Données &amp; ingestion <span class="tag later">L</span> <span class="tag done">DÉPLOYÉ</span></h3>
     <div class="table-frame"><table>
       <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
       <tbody>
@@ -287,7 +288,7 @@ h3 .tag{vertical-align:.15em}
       </tbody>
     </table></div>
 
-    <h3>Lot 2 · Segments &amp; campagnes <span class="tag later">L</span></h3>
+    <h3>Lot 2 · Segments &amp; campagnes <span class="tag later">L</span> <span class="tag done">DÉPLOYÉ</span></h3>
     <div class="table-frame"><table>
       <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
       <tbody>
@@ -295,36 +296,37 @@ h3 .tag{vertical-align:.15em}
         <tr><td>Segment figé → topic <code>segment:{id}</code> écrit en masse</td><td>idem + <code>TopicSubscribersRepository</code></td></tr>
         <tr><td>Préfixes réservés <code>segment:*</code> / <code>campaign:*</code> sur les routes Inbox</td><td><code>inbox.topic.controller.ts</code></td></tr>
         <tr><td>Campagnes + exécutions : machine à états, topic du run, déclenchement avec <code>transactionId = runId</code></td><td><code>apps/api/src/app/crm/campaigns</code></td></tr>
-        <tr><td>File <code>crm-campaign</code> : jobs différés (programmé) et répétables (cron)</td><td><code>libs/application-generic/src/services/queues</code>, <code>apps/worker</code></td></tr>
+        <tr><td>File <code>crm-campaigns</code> : échéances programmées et récurrentes (cron), figeages, purge des topics</td><td><code>apps/crm-ingest/src/campaigns</code></td></tr>
         <tr><td>Campagnes « sur événement » évaluées dans le recalcul client</td><td><code>apps/crm-ingest/src/derive</code></td></tr>
         <tr><td>Priorité haute pour les workflows critiques</td><td><code>add-job.usecase.ts</code> · <code>queueJob()</code></td></tr>
         <tr><td>Pages Segments et Campagnes</td><td><code>apps/dashboard/src/pages/crm</code></td></tr>
       </tbody>
     </table></div>
 
-    <h3>Lot 3 · Email <span class="tag later">L</span></h3>
+    <h3>Lot 3 · Email <span class="tag later">L</span> <span class="tag done">CODÉ</span></h3>
     <div class="table-frame"><table>
       <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
       <tbody>
         <tr><td>Templates : collection, page éditeur templatical, rendu HTML côté serveur</td><td><code>apps/api/src/app/crm/templates</code>, dashboard</td></tr>
         <tr><td>Sélecteur de template dans l'étape email (même chemin que le choix de layout)</td><td><code>email-control.schema.ts</code>, <code>email-editor.tsx</code></td></tr>
-        <tr><td>Limites par fournisseur (seconde / heure / jour, poids)</td><td><code>integration.schema.ts</code>, formulaire intégration</td></tr>
-        <tr><td>Aiguilleur avec quotas Redis + bascule sur erreur</td><td><code>send-message-email.usecase.ts</code></td></tr>
-        <tr><td>Statut « reporté » : replanifie le job au lieu de l'échouer</td><td><code>run-job.usecase.ts</code></td></tr>
-        <tr><td>Compteurs → <code>crm_provider_usage</code> + page Monitoring (graphiques)</td><td><code>apps/worker</code>, dashboard</td></tr>
+        <tr><td>Limites par fournisseur (minute / heure / jour) et ordre de passage</td><td><code>crm_email_providers</code>, page « Fournisseurs email »</td></tr>
+        <tr><td>Aiguilleur avec quotas Redis (script Lua, tout ou rien)</td><td><code>crm-email-router.service.ts</code>, <code>send-message-email.usecase.ts</code></td></tr>
+        <tr><td>Tous pleins : job relancé à la fin de la fenêtre (jusqu'à 500 fois), jamais mis en échec</td><td><code>add-job</code>, <code>run-job</code>, <code>standard.worker.ts</code></td></tr>
+        <tr><td>Compteurs quotidiens → <code>crm_provider_usage</code> + graphique et compteurs en cours</td><td><code>apps/worker</code>, <code>apps/webhook</code>, dashboard</td></tr>
         <tr><td>Désinscription : lien signé, en-tête un clic, route publique ; bounce/plainte → exclusion</td><td><code>apps/api/src/app/crm/public</code>, <code>webhook.usecase.ts</code></td></tr>
       </tbody>
     </table></div>
 
-    <h3>Lot 4 · Suivi &amp; reprise <span class="tag later">M</span></h3>
+    <h3>Lot 4 · Suivi &amp; reprise <span class="tag later">M</span> <span class="tag done">CODÉ</span></h3>
     <div class="table-frame"><table>
       <thead><tr><th>Tâche</th><th>Où</th></tr></thead>
       <tbody>
         <tr><td>Engagement : ouverture push (route + SDK), clics email, webhooks fournisseurs</td><td><code>crm_engagement</code>, SDK, <code>apps/webhook</code></td></tr>
-        <tr><td>Statistiques d'un run recalculées depuis messages / exécutions</td><td><code>apps/api/src/app/crm/reports</code></td></tr>
-        <tr><td>Pages Rapports : exécutions, détail d'un run, détail d'un client</td><td>dashboard</td></tr>
-        <tr><td>Volet ingestion du monitoring + écran de la file d'erreurs</td><td>dashboard</td></tr>
-        <tr><td>Import initial des exports users / transactions</td><td>script <code>apps/crm-ingest</code></td></tr>
+        <tr><td>Résultats d'une exécution recalculés depuis <code>messages</code> et <code>crm_engagement</code>, figés 48 h après l'envoi</td><td><code>apps/api/src/app/crm/reports</code></td></tr>
+        <tr><td>Page « Rapports » (par campagne, sur 7 / 30 / 90 jours) + résultats dans l'historique des exécutions. Détail d'un client : plus tard (le fil d'activité Novu le couvre)</td><td>dashboard</td></tr>
+        <tr><td>Page « Suivi » : état de crm-ingest, volumes par événement, file d'erreurs rejouable depuis le dashboard</td><td><code>crm_service_status</code>, <code>crm_ingest_daily</code>, <code>crm_dead_letters</code></td></tr>
+        <tr><td>Import initial : exports CSV → événements RabbitMQ (rejouable, sans déclencher de campagne)</td><td><code>apps/crm-ingest/scripts/import-izichange.mjs</code></td></tr>
+        <tr><td>Relance d'un figeage de segment en échec</td><td>API + page Segments</td></tr>
       </tbody>
     </table></div>
   </section>

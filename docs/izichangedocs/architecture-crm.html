@@ -752,17 +752,18 @@ crm_activity_daily.aggregate([
     <p class="sub">Plusieurs fournisseurs email, chacun avec ses limites ; le worker choisit pour chaque email celui qui a encore du quota.</p>
 
     <h3>Configuration</h3>
-    <p>À l'ajout (ou la modification) d'un fournisseur email dans le dashboard, trois limites optionnelles —
-      <b>par seconde, par heure, par jour</b> — un poids (répartition entre fournisseurs disponibles) et un interrupteur
-      « participe à l'aiguillage ».</p>
+    <p>Page <b>« Fournisseurs email »</b> du groupe CRM : pour chaque intégration email de Novu, un interrupteur
+      « participe à la répartition », un <b>ordre</b> de passage et trois limites optionnelles — <b>par minute, par heure,
+      par jour</b>. Réglages dans <code>crm_email_providers</code> : les intégrations Novu restent inchangées. Seuls les emails
+      de campagne sont répartis ; les emails transactionnels (OTP, reçus) gardent le choix habituel de Novu.</p>
 
     <h3>À l'envoi</h3>
     <ol class="steps">
       <li><b>L'étape email du workflow arrive dans le worker.</b> Novu choisit normalement le fournisseur « principal », ou celui imposé via <code>integrationIdentifier</code>. On insère l'aiguillage à cet endroit.</li>
-      <li><b>L'aiguilleur lit les compteurs Redis</b> de chaque fournisseur éligible (fenêtres seconde / heure / jour) et en tire un parmi ceux qui ont du quota, selon leur poids. La réservation du quota est atomique (script Lua) : deux workers ne peuvent pas dépasser la limite ensemble.</li>
-      <li><b>Tous les fournisseurs sont pleins</b> : le job est replanifié après un délai, pas mis en échec. L'envoi ralentit, il ne se perd pas.</li>
-      <li><b>Un fournisseur répond en erreur</b> de façon répétée : il est mis de côté quelques minutes (disjoncteur) et l'envoi repart sur un autre.</li>
-      <li><b>Chaque envoi incrémente les compteurs</b> du fournisseur, repris par l'écran de monitoring.</li>
+      <li><b>L'aiguilleur essaie les fournisseurs dans l'ordre choisi</b> et retient le premier qui a encore de la place sur sa minute, son heure et son jour. La réservation est atomique (script Lua dans Redis, tout ou rien) : deux workers ne peuvent pas dépasser la limite ensemble.</li>
+      <li><b>Tous les fournisseurs sont pleins</b> : le job est relancé à la fin de la fenêtre la plus proche (relances étalées sur la fenêtre suivante, jusqu'à 500), par le mécanisme de relance BullMQ déjà présent dans le worker. L'envoi ralentit, il ne se perd pas.</li>
+      <li><b>Un fournisseur répond en erreur</b> : l'email est en échec dans Novu et compté dans le suivi. Pas de bascule automatique en V1 : si un fournisseur tombe, on le retire de la répartition dans la page.</li>
+      <li><b>Chaque envoi incrémente les compteurs</b> quotidiens du fournisseur (<code>crm_provider_usage</code>) ; le webhook du fournisseur y ajoute bounces et plaintes.</li>
     </ol>
 
     <div class="callout">
@@ -792,20 +793,19 @@ crm_activity_daily.aggregate([
 
     <h3>Onglet Rapports</h3>
     <ul class="plain">
-      <li><b>Liste des exécutions</b> de chaque campagne : date, statut, audience, exclus (par motif), envoyés, délivrés, ouverts, cliqués, échecs.</li>
-      <li><b>Détail d'une exécution</b> : les mêmes chiffres par canal, et la liste des clients visés (le topic du run), filtrable.</li>
-      <li><b>Détail d'un client</b> : chaque message reçu, les étapes du workflow avec leurs horodatages (<code>executiondetails</code>), et s'il a ouvert, vu ou cliqué.</li>
-      <li>Les statistiques d'un run sont <b>recalculées</b> depuis <code>messages</code> et <code>crm_engagement</code> (par <code>transactionId</code>), jamais incrémentées : elles restent justes même si un webhook arrive deux fois.</li>
+      <li><b>Vue client</b> (page « Rapports ») : sur 7, 30 ou 90 jours, par campagne et par canal — exécutions, clients visés, envoyés, erreurs, écartés, taux d'ouverture et de clic.</li>
+      <li><b>Exécutions d'une campagne</b> : date, statut, visés, exclus, envoyés par canal, erreurs, ouverts, cliqués ; pour une campagne « sur événement », le cumul des 30 derniers jours.</li>
+      <li>Les résultats d'un run sont <b>recalculés</b> depuis <code>messages</code> et <code>crm_engagement</code> (par <code>transactionId</code>), jamais incrémentés : justes même si un webhook arrive deux fois. <b>Figés 48 h après l'envoi</b> pour ne plus relire les messages.</li>
+      <li><b>Plus tard</b> : « délivré » par fournisseur et détail d'un client (en attendant, le fil d'activité de Novu montre chaque message et ses étapes).</li>
     </ul>
 
     <h3>Écran de monitoring des fournisseurs</h3>
     <div class="cards">
-      <div class="card"><h4>Quotas</h4><p>Consommation en temps réel face aux limites (seconde / heure / jour), par fournisseur. Source : compteurs Redis.</p></div>
-      <div class="card"><h4>Débit</h4><p>Emails et push envoyés par minute sur les dernières heures, par fournisseur. Source : <code>crm_provider_usage</code>.</p></div>
-      <div class="card"><h4>Délivrabilité</h4><p>Taux de délivrance, de bounce et de plainte par fournisseur, avec seuils d'alerte (ex. bounce &gt; 5 %, plainte &gt; 0,1 %).</p></div>
-      <div class="card"><h4>Santé</h4><p>Taux d'erreur, latence, état du disjoncteur, dernières erreurs brutes. Pour le push : part de tokens invalides renvoyés par FCM.</p></div>
+      <div class="card"><h4>Quotas</h4><p>Page « Fournisseurs email » : envois de la minute, de l'heure et du jour en cours face aux limites. Source : compteurs Redis.</p></div>
+      <div class="card"><h4>Envois par jour</h4><p>Envoyés, échecs, bounces, plaintes et envois repoussés (tous pleins), sur 14 jours. Source : <code>crm_provider_usage</code>.</p></div>
+      <div class="card"><h4>Délivrabilité</h4><p>Taux d'échec, de bounce et de plainte par fournisseur. Seuils d'alerte : plus tard.</p></div>
+      <div class="card"><h4>Ingestion</h4><p>Page « Suivi » : état de crm-ingest (battement toutes les 30 s), files, volumes par événement, file d'erreurs rejouable.</p></div>
     </div>
-    <p>Le worker verse chaque minute les compteurs Redis dans <code>crm_provider_usage</code> (écriture <code>$set</code> de l'heure en cours, rejouable).</p>
   </section>
 
   <!-- ============================================================ -->
@@ -820,10 +820,10 @@ crm_activity_daily.aggregate([
 
     <h3>Désinscription</h3>
     <ol class="steps">
-      <li>Chaque email marketing contient un lien <code>{{unsubscribe_url}}</code> : une URL publique portant un jeton signé (client + environnement + expiration).</li>
+      <li>Chaque email marketing peut contenir le lien <code>{{subscriber.data.unsubscribe_url}}</code>, posé sur le profil par crm-ingest : une URL publique portant un jeton signé HMAC (client + environnement).</li>
       <li>L'en-tête <code>List-Unsubscribe</code> avec désinscription en un clic est ajouté aux emails marketing — Gmail et Yahoo l'exigent pour les envois en volume.</li>
-      <li>Au clic, la route publique vérifie la signature et coupe la préférence marketing email du client. Aucune connexion requise.</li>
-      <li>Un bounce définitif ou une plainte pose <code>data.email_suppressed = true</code> : l'adresse est exclue de tout envoi marketing.</li>
+      <li>Au clic, la route publique vérifie la signature et pose <code>data.marketing_optin = false</code>. Aucune connexion requise. Le consentement peut aussi venir d'Izichange (événement <code>consent.marketing_updated</code>) ; le plus récent l'emporte.</li>
+      <li>Un bounce, une plainte ou un signalement spam pose <code>data.email_suppressed = true</code> : les emails de campagne vers cette adresse sont écartés (statut « écarté » dans les rapports).</li>
     </ol>
 
     <h3>Suppression d'un compte</h3>
@@ -842,17 +842,17 @@ crm_activity_daily.aggregate([
     <ol class="steps">
       <li><b>Date de coupure D</b> (minuit). Izichange commence à publier les événements temps réel à partir de D ; notre file les garde en attente.</li>
       <li><b>Export des deux tables jusqu'à la veille de D incluse</b>, déposé sur un stockage partagé (S3 ou SFTP) — jamais par email : elles contiennent des données personnelles.</li>
-      <li><b>Chargement brut</b> dans deux collections temporaires (<code>crm_import_users</code>, <code>crm_import_transactions</code>).</li>
-      <li><b>Clients → subscribers</b> : correspondance colonnes → champs (définie à réception de l'export), écriture en masse par lots avec upsert sur <code>subscriberId</code>.</li>
-      <li><b>Transactions → <code>crm_activity_daily</code></b> : agrégation par client, jour et produit (montants déjà en USD), écriture par <code>$merge</code>.</li>
-      <li><b>Faits du profil</b> : <code>first_tx_at</code>, <code>last_tx_at</code>, <code>lifetime_*</code> et <code>{produit}_activated_at</code> calculés depuis le daily et posés sur chaque subscriber.</li>
-      <li><b>Contrôles de rapprochement</b> : nombre de clients, nombre de transactions et volume par mois, comparés à l'export. Les collections temporaires sont supprimées une fois validées.</li>
+      <li><b>Essai à blanc</b> : <code>import-izichange.mjs --dry-run</code> avec un fichier de correspondance des colonnes (<code>--map</code>) ; affiche les premiers événements et les lignes écartées, par motif.</li>
+      <li><b>Chaque ligne devient un événement</b> publié sur RabbitMQ comme le ferait Izichange : inscription, KYC, consentement, dernière connexion, suppression, transactions (montants en USD).</li>
+      <li><b>crm-ingest les traite comme le temps réel</b> : profils, <code>crm_activity_daily</code>, <code>first_tx_at</code>, <code>last_tx_at</code>, <code>lifetime_*</code>. Aucun code d'agrégation à part.</li>
+      <li><b>Identifiants stables</b> (<code>import:user:…</code>, <code>import:tx:…</code>) : relancer le script ne double rien. Événements marqués <code>imported</code> : ils ne déclenchent aucune campagne.</li>
+      <li><b>Contrôles de rapprochement</b> : page « Suivi » (volumes par type d'événement) et comptages clients / transactions / volumes comparés à l'export.</li>
       <li><b>Démarrage de la consommation RabbitMQ</b> : le temps réel prend le relais à partir de D.</li>
     </ol>
 
     <div class="callout info">
       <strong>Pas de double comptage possible.</strong> Une journée est alimentée soit par l'import (avant D), soit par les
-      événements (à partir de D), jamais par les deux. Toutes les étapes sont des upserts : le script peut être relancé.
+      événements (à partir de D), jamais par les deux. Le script peut être relancé sans risque.
     </div>
   </section>
 
