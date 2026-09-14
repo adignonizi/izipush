@@ -49,4 +49,9 @@ export const QueryKeys = Object.freeze({
   fetchDomainConnectStatus: 'fetchDomainConnectStatus',
   localBridgeHealth: 'localBridgeHealth',
   localDiscover: 'localDiscover',
+  // izipush-crm
+  fetchCrmFields: 'fetchCrmFields',
+  fetchCrmSegments: 'fetchCrmSegments',
+  fetchCrmCampaigns: 'fetchCrmCampaigns',
+  fetchCrmCampaignRuns: 'fetchCrmCampaignRuns',
 });

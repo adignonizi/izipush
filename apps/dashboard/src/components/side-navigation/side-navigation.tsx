@@ -7,10 +7,12 @@ import {
   RiCodeSSlashLine,
   RiDatabase2Line,
   RiDiscussLine,
+  RiFilter3Line,
   RiGroup2Line,
   RiKey2Line,
   RiLayout5Line,
   RiLineChartLine,
+  RiMegaphoneLine,
   RiRobot2Line,
   RiRouteFill,
   RiSettings4Line,
@@ -282,6 +284,29 @@ export const LegacySideNavigation = () => {
                 )}
               </NavigationGroup>
             </Protect>
+            {/* izipush-crm */}
+            <NavigationGroup label="CRM">
+              <NavigationLink
+                to={
+                  currentEnvironment?.slug
+                    ? buildRoute(ROUTES.CRM_SEGMENTS, { environmentSlug: currentEnvironment.slug })
+                    : undefined
+                }
+              >
+                <RiFilter3Line className="size-4" />
+                <span>Segments</span>
+              </NavigationLink>
+              <NavigationLink
+                to={
+                  currentEnvironment?.slug
+                    ? buildRoute(ROUTES.CRM_CAMPAIGNS, { environmentSlug: currentEnvironment.slug })
+                    : undefined
+                }
+              >
+                <RiMegaphoneLine className="size-4" />
+                <span>Campagnes</span>
+              </NavigationLink>
+            </NavigationGroup>
             <Protect
               condition={(has) =>
                 has({ permission: PermissionsEnum.API_KEY_READ }) ||

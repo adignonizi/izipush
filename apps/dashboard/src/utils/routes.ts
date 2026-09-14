@@ -47,6 +47,9 @@ export const ROUTES = {
   INTEGRATIONS_UPDATE: '/integrations/:integrationId/update',
   API_KEYS: '/env/:environmentSlug/api-keys',
   SDK_DOCS: '/env/:environmentSlug/sdk-docs',
+  // izipush-crm
+  CRM_SEGMENTS: '/env/:environmentSlug/crm/segments',
+  CRM_CAMPAIGNS: '/env/:environmentSlug/crm/campaigns',
   ENVIRONMENTS: '/env/:environmentSlug/environments',
   ACTIVITY_FEED: '/env/:environmentSlug/activity-feed',
   ACTIVITY_WORKFLOW_RUNS: '/env/:environmentSlug/activity/workflow-runs',

@@ -54,6 +54,9 @@ import { ContextsPage } from './pages/contexts';
 import { CreateContextPage } from './pages/create-context';
 import { CreateSubscriberPage } from './pages/create-subscriber';
 import { CreateTopicPage } from './pages/create-topic';
+// izipush-crm
+import { CrmCampaignsPage } from './pages/crm-campaigns';
+import { CrmSegmentsPage } from './pages/crm-segments';
 import { DomainDetailPage } from './pages/domain-detail';
 import { DomainsPage } from './pages/domains';
 import { DuplicateLayoutPage } from './pages/duplicate-layout-page';
@@ -471,6 +474,22 @@ const router = createBrowserRouter([
                 element: (
                   <ProtectedRoute>
                     <SdkDocsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_SEGMENTS,
+                element: (
+                  <ProtectedRoute>
+                    <CrmSegmentsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGNS,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignsPage />
                   </ProtectedRoute>
                 ),
               },
