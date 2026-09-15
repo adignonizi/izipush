@@ -52,6 +52,7 @@ export class OnEventCampaigns {
       for (const event of recent.filter((candidate) => candidate.eventName === campaign.schedule.eventName)) {
         try {
           await this.novu.trigger({
+            environmentId: String(campaign._environmentId),
             workflowKey: campaign.workflowKey,
             to: [subscriberId],
             payload: {

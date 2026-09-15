@@ -102,6 +102,7 @@ export class CampaignRunner {
   private async trigger(run: CrmCampaignRunEntity, campaign: CrmCampaignEntity): Promise<void> {
     if (run.audienceSize) {
       await this.novu.trigger({
+        environmentId: String(campaign._environmentId),
         workflowKey: campaign.workflowKey,
         to: [{ type: 'Topic', topicKey: run.topicKey as string }],
         payload: { ...(campaign.payload ?? {}), __crm: { campaignId: campaign._id, runId: run._id } },

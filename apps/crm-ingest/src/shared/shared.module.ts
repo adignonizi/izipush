@@ -9,6 +9,7 @@ import {
   CrmProfileStateRepository,
   CrmSegmentRepository,
   DalService,
+  EnvironmentRepository,
   ensureCrmIndexes,
   SubscriberRepository,
   TopicRepository,
@@ -16,6 +17,8 @@ import {
 } from '@novu/dal';
 
 const DAL_MODELS = [
+  // Clé API de l'environnement de chaque campagne (déclenchement Novu).
+  EnvironmentRepository,
   CrmEventRepository,
   CrmActivityDailyRepository,
   CrmProfileStateRepository,
