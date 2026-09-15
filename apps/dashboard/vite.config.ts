@@ -116,6 +116,8 @@ export default defineConfig(({ mode }) => {
               }
             : {}),
         '@': path.resolve(__dirname, './src'),
+        // izipush-crm : templatical importe pusher-js (fonctions cloud non utilisées) sans le déclarer.
+        'pusher-js': path.resolve(__dirname, './src/utils/crm/pusher-stub.ts'),
         // Explicitly map prettier imports to browser-compatible versions
         'prettier/standalone': path.resolve(__dirname, './node_modules/prettier/standalone.js'),
         'prettier/plugins/html': path.resolve(__dirname, './node_modules/prettier/plugins/html.js'),
