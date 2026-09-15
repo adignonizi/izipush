@@ -64,6 +64,7 @@ import { CrmSegmentEditorPage } from './pages/crm-segment-editor';
 import { CrmSegmentsPage } from './pages/crm-segments';
 import { SelfHostedInvitationPage } from './pages/self-hosted-invitation';
 import { CrmTemplateEditorPage } from './pages/crm-template-editor';
+import { CrmTemplateNewPage } from './pages/crm-template-new';
 import { CrmTemplatesPage } from './pages/crm-templates';
 import { DomainDetailPage } from './pages/domain-detail';
 import { DomainsPage } from './pages/domains';
@@ -543,6 +544,14 @@ const router = createBrowserRouter([
                 element: (
                   <ProtectedRoute>
                     <CrmTemplatesPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_TEMPLATE_NEW,
+                element: (
+                  <ProtectedRoute>
+                    <CrmTemplateNewPage />
                   </ProtectedRoute>
                 ),
               },

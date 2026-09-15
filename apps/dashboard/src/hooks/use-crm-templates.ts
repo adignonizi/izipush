@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CrmTemplateBody,
+  CrmTemplateDetails,
   createCrmTemplate,
   deleteCrmTemplate,
   getCrmTemplate,
@@ -33,20 +34,35 @@ export function useCrmTemplate(templateId?: string) {
   });
 }
 
-export function useSaveCrmTemplate() {
+function useInvalidateTemplates() {
   const { currentEnvironment } = useEnvironment();
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ templateId, body }: { templateId?: string; body: CrmTemplateBody }) =>
-      templateId
-        ? updateCrmTemplate({ environment: currentEnvironment!, templateId, body })
-        : createCrmTemplate({ environment: currentEnvironment!, body }).then((template) => ({
-            ...template,
-            propagatedSteps: 0,
-          })),
-    onSuccess: () =>
+  return () =>
+    Promise.all([
       queryClient.invalidateQueries({ queryKey: [QueryKeys.fetchCrmTemplates, currentEnvironment?._id] }),
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.fetchCrmTemplate, currentEnvironment?._id] }),
+    ]);
+}
+
+export function useCreateCrmTemplate() {
+  const { currentEnvironment } = useEnvironment();
+  const invalidate = useInvalidateTemplates();
+
+  return useMutation({
+    mutationFn: (body: CrmTemplateDetails) => createCrmTemplate({ environment: currentEnvironment!, body }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useSaveCrmTemplate() {
+  const { currentEnvironment } = useEnvironment();
+  const invalidate = useInvalidateTemplates();
+
+  return useMutation({
+    mutationFn: ({ templateId, body }: { templateId: string; body: CrmTemplateBody }) =>
+      updateCrmTemplate({ environment: currentEnvironment!, templateId, body }),
+    onSuccess: invalidate,
   });
 }
 

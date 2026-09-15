@@ -20,6 +20,7 @@ import {
   RiSettings4Line,
   RiSignalTowerLine,
   RiStore3Line,
+  RiTeamLine,
   RiTranslate2,
   RiUserAddLine,
 } from 'react-icons/ri';
@@ -70,7 +71,14 @@ const BottomSection = ({
   if (IS_SELF_HOSTED) {
     return (
       <div className="relative mt-auto gap-8 pt-4">
-        <HomeMenuItem />
+        <NavigationGroup>
+          {/* izipush : équipe et invitations en auto-hébergé (Settings > Team). */}
+          <NavigationLink to={ROUTES.SETTINGS_TEAM}>
+            <RiTeamLine className="size-4" />
+            <span>{t('nav.team')}</span>
+          </NavigationLink>
+          <HomeMenuItem />
+        </NavigationGroup>
       </div>
     );
   }

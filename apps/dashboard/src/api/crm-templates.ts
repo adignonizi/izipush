@@ -6,18 +6,22 @@ import { del, get, patch, post } from './api.client';
 export type CrmTemplateSummary = {
   _id: string;
   name: string;
+  description?: string;
   subject?: string;
   version: number;
   updatedAt?: string;
 };
 
 export type CrmTemplate = CrmTemplateSummary & {
-  design: Record<string, unknown>;
-  html: string;
+  /** Vides tant que le template n'a pas été conçu dans l'éditeur. */
+  design?: Record<string, unknown>;
+  html?: string;
   usedBySteps?: number;
 };
 
-export type CrmTemplateBody = { name: string; subject?: string; design: Record<string, unknown>; html: string };
+export type CrmTemplateDetails = { name: string; description?: string; subject?: string };
+
+export type CrmTemplateBody = Partial<CrmTemplateDetails> & { design?: Record<string, unknown>; html?: string };
 
 type WithEnvironment = { environment: IEnvironment; signal?: AbortSignal };
 
@@ -33,10 +37,11 @@ export async function getCrmTemplate({
   return (await get<{ data: CrmTemplate }>(`/crm/templates/${templateId}`, { environment, signal })).data;
 }
 
+/** Étape 1 : le template est créé avec son nom et sa description, sans contenu. */
 export async function createCrmTemplate({
   environment,
   body,
-}: WithEnvironment & { body: CrmTemplateBody }): Promise<CrmTemplate> {
+}: WithEnvironment & { body: CrmTemplateDetails }): Promise<CrmTemplate> {
   return (await post<{ data: CrmTemplate }>('/crm/templates', { environment, body })).data;
 }
 
@@ -44,7 +49,7 @@ export async function updateCrmTemplate({
   environment,
   templateId,
   body,
-}: WithEnvironment & { templateId: string; body: Partial<CrmTemplateBody> }): Promise<
+}: WithEnvironment & { templateId: string; body: CrmTemplateBody }): Promise<
   CrmTemplate & { propagatedSteps: number }
 > {
   return (

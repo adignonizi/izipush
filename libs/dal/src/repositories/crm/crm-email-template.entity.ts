@@ -14,12 +14,16 @@ export class CrmEmailTemplateEntity {
 
   name: string;
 
+  /** À quoi sert ce template (pour l'équipe). */
+  description?: string;
+
   /** Objet proposé aux étapes email qui utilisent ce template (facultatif). */
   subject?: string;
 
-  design: Record<string, unknown>;
+  /** Vide tant que le template n'a pas été conçu dans l'éditeur (création en deux étapes). */
+  design?: Record<string, unknown>;
 
-  html: string;
+  html?: string;
 
   version: number;
 

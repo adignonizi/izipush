@@ -6,10 +6,12 @@ import { toCrmEntity } from './crm-entity.utils';
 
 export type CrmEmailTemplateSummary = Pick<
   CrmEmailTemplateEntity,
-  '_id' | 'name' | 'subject' | 'version' | 'createdAt' | 'updatedAt'
+  '_id' | 'name' | 'description' | 'subject' | 'version' | 'createdAt' | 'updatedAt'
 >;
 
-type TemplateSet = Partial<Pick<CrmEmailTemplateEntity, 'name' | 'subject' | 'design' | 'html' | '_updatedBy'>>;
+type TemplateSet = Partial<
+  Pick<CrmEmailTemplateEntity, 'name' | 'description' | 'subject' | 'design' | 'html' | '_updatedBy'>
+>;
 
 export class CrmEmailTemplateRepository extends BaseRepositoryV2<
   CrmEmailTemplateDBModel,
@@ -24,7 +26,7 @@ export class CrmEmailTemplateRepository extends BaseRepositoryV2<
   async list(environmentId: string): Promise<CrmEmailTemplateSummary[]> {
     const docs = await this.MongooseModel.find(
       { _environmentId: environmentId },
-      { name: 1, subject: 1, version: 1, createdAt: 1, updatedAt: 1, _environmentId: 1, _organizationId: 1 }
+      { name: 1, description: 1, subject: 1, version: 1, createdAt: 1, updatedAt: 1, _environmentId: 1, _organizationId: 1 }
     )
       .sort({ updatedAt: -1 })
       .lean();
@@ -41,7 +43,7 @@ export class CrmEmailTemplateRepository extends BaseRepositoryV2<
   async createTemplate(
     data: Pick<
       CrmEmailTemplateEntity,
-      '_environmentId' | '_organizationId' | 'name' | 'subject' | 'design' | 'html' | '_updatedBy'
+      '_environmentId' | '_organizationId' | 'name' | 'description' | 'subject' | 'design' | 'html' | '_updatedBy'
     >
   ): Promise<CrmEmailTemplateEntity> {
     const doc = await this.MongooseModel.create({ ...data, version: 1 });

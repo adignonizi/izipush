@@ -41,6 +41,11 @@ export const CrmTemplateSelect = () => {
 
                 try {
                   const template = await getCrmTemplate({ environment: currentEnvironment!, templateId: value });
+                  if (!template.html) {
+                    showErrorToast(t('templateSelect.empty'), t('templateSelect.failed'));
+
+                    return;
+                  }
                   field.onChange(value);
                   setValue('editorType', 'html', { shouldDirty: true });
                   setValue('body', template.html, { shouldDirty: true });

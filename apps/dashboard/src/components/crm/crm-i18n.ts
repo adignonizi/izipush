@@ -555,6 +555,26 @@ const fr = {
   'invite.submitLogin': 'Me connecter et rejoindre',
   'org.switch': 'Changer d’organisation',
   'org.switchFailed': 'Changement d’organisation impossible',
+
+  'nav.team': "Équipe",
+  'templateNew.title': "Nouveau template",
+  'templateNew.intro': "Donnez un nom et une description à votre email. Vous le concevrez ensuite dans l’éditeur visuel, en plein écran.",
+  'templateNew.step': "Étape {current} sur 2",
+  'templateNew.step1': "Informations",
+  'templateNew.step2': "Conception",
+  'templateNew.descriptionPlaceholder': "À quoi sert cet email ? Pour quelle campagne ?",
+  'templateNew.subjectHint': "Proposé aux étapes email qui utilisent ce template. Modifiable ensuite.",
+  'templateNew.continue': "Continuer vers l’éditeur",
+  'templateNew.nameRequired': "Donnez un nom au template.",
+  'templateNew.toast.failed': "Template non créé",
+  'templateEditor.showMenu': "Afficher le menu",
+  'templateEditor.hideMenu': "Masquer le menu",
+  'templateEditor.details': "Détails",
+  'templateEditor.detailsTitle': "Détails du template",
+  'templateEditor.detailsText': "Le nom et la description servent à retrouver le template ; ils ne sont pas envoyés.",
+  'templateEditor.toast.detailsSaved': "Détails enregistrés",
+  'templateEditor.notFound': "Template introuvable.",
+  'templateSelect.empty': "Ce template n’a pas encore de contenu : concevez-le d’abord dans l’éditeur.",
 } as const;
 
 export type CrmMessageKey = keyof typeof fr;
@@ -1080,6 +1100,26 @@ const en: Record<CrmMessageKey, string> = {
   'invite.submitLogin': 'Sign in and join',
   'org.switch': 'Switch organization',
   'org.switchFailed': 'Could not switch organization',
+
+  'nav.team': "Team",
+  'templateNew.title': "New template",
+  'templateNew.intro': "Give your email a name and a description. You will then design it in the full-screen visual editor.",
+  'templateNew.step': "Step {current} of 2",
+  'templateNew.step1': "Details",
+  'templateNew.step2': "Design",
+  'templateNew.descriptionPlaceholder': "What is this email for? Which campaign?",
+  'templateNew.subjectHint': "Suggested to the email steps that use this template. You can change it later.",
+  'templateNew.continue': "Continue to the editor",
+  'templateNew.nameRequired': "Give the template a name.",
+  'templateNew.toast.failed': "Template not created",
+  'templateEditor.showMenu': "Show menu",
+  'templateEditor.hideMenu': "Hide menu",
+  'templateEditor.details': "Details",
+  'templateEditor.detailsTitle': "Template details",
+  'templateEditor.detailsText': "Name and description help you find the template; they are never sent.",
+  'templateEditor.toast.detailsSaved': "Details saved",
+  'templateEditor.notFound': "Template not found.",
+  'templateSelect.empty': "This template has no content yet: design it in the editor first.",
 };
 
 const MESSAGES: Record<CrmLocale, Record<CrmMessageKey, string>> = { fr, en };

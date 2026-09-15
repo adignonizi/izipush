@@ -9,7 +9,13 @@ import { UserSessionData } from '@novu/shared';
 
 import { isDuplicateKey, optionalText, requiredName } from '../crm-http.utils';
 
-export type CrmTemplateBody = { name?: unknown; subject?: unknown; design?: unknown; html?: unknown };
+export type CrmTemplateBody = {
+  name?: unknown;
+  description?: unknown;
+  subject?: unknown;
+  design?: unknown;
+  html?: unknown;
+};
 
 const MAX_HTML_BYTES = 1024 * 1024;
 
@@ -39,9 +45,11 @@ export class CrmTemplatesService {
         _environmentId: user.environmentId,
         _organizationId: user.organizationId,
         name,
+        description: optionalText(body.description),
         subject: optionalText(body.subject),
-        design: this.validDesign(body.design),
-        html: this.validHtml(body.html),
+        // Création en deux étapes : le contenu arrive au premier enregistrement dans l'éditeur.
+        design: body.design === undefined ? undefined : this.validDesign(body.design),
+        html: body.html === undefined ? undefined : this.validHtml(body.html),
         _updatedBy: user._id,
       });
     } catch (error) {
@@ -61,6 +69,7 @@ export class CrmTemplatesService {
   ): Promise<CrmEmailTemplateEntity & { propagatedSteps: number }> {
     const set: Partial<CrmEmailTemplateEntity> = { _updatedBy: user._id };
     if (body.name !== undefined) set.name = requiredName(body.name);
+    if (body.description !== undefined) set.description = optionalText(body.description) ?? '';
     if (body.subject !== undefined) set.subject = optionalText(body.subject);
     if (body.design !== undefined) set.design = this.validDesign(body.design);
     if (body.html !== undefined) set.html = this.validHtml(body.html);
@@ -75,7 +84,9 @@ export class CrmTemplatesService {
     if (!updated) throw new NotFoundException('Template introuvable');
 
     const propagatedSteps =
-      body.html !== undefined || body.subject !== undefined ? await this.propagate(user.environmentId, updated) : 0;
+      (body.html !== undefined || body.subject !== undefined) && updated.html
+        ? await this.propagate(user.environmentId, updated)
+        : 0;
 
     return { ...updated, propagatedSteps };
   }

@@ -40,7 +40,7 @@ export function CrmTemplatesPage() {
   };
 
   const newButton = (
-    <Button variant="primary" size="xs" leadingIcon={RiAddLine} onClick={() => navigate(editHref('new'))}>
+    <Button variant="primary" size="xs" leadingIcon={RiAddLine} onClick={() => navigate(buildRoute(ROUTES.CRM_TEMPLATE_NEW, { environmentSlug: currentEnvironment?.slug ?? '' }))}>
       {t('templates.new')}
     </Button>
   );
@@ -79,7 +79,7 @@ export function CrmTemplatesPage() {
                     return (
                       <TableRow key={template._id} className="group relative isolate cursor-pointer">
                         <CrmLinkedCell to={href}>
-                          <CrmRowTitle to={href} title={template.name} />
+                          <CrmRowTitle to={href} title={template.name} subtitle={template.description} />
                         </CrmLinkedCell>
                         <CrmLinkedCell to={href} className="text-paragraph-sm max-w-[360px] truncate">
                           {template.subject ?? '—'}

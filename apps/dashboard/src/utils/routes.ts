@@ -56,6 +56,7 @@ export const ROUTES = {
   CRM_CAMPAIGN_EDIT: '/env/:environmentSlug/crm/campaigns/:campaignId/edit',
   CRM_SEGMENT_NEW: '/env/:environmentSlug/crm/segments/new',
   CRM_TEMPLATES: '/env/:environmentSlug/crm/templates',
+  CRM_TEMPLATE_NEW: '/env/:environmentSlug/crm/templates/new',
   CRM_TEMPLATE_EDIT: '/env/:environmentSlug/crm/templates/:templateId',
   CRM_REPORTS: '/env/:environmentSlug/crm/reports',
   CRM_MONITORING: '/env/:environmentSlug/crm/monitoring',
