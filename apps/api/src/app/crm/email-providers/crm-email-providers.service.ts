@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CacheService } from '@novu/application-generic';
 import {
   CRM_QUOTA_READ_LUA,
   CRM_QUOTA_WINDOWS,
@@ -12,6 +11,8 @@ import {
   IntegrationRepository,
 } from '@novu/dal';
 import { ChannelTypeEnum, UserSessionData } from '@novu/shared';
+
+import { CrmQuotaRedis } from './crm-quota-redis.service';
 
 export type CrmEmailProviderBody = {
   routingEnabled?: unknown;
@@ -45,7 +46,7 @@ export class CrmEmailProvidersService {
     private integrations: IntegrationRepository,
     private emailProviders: CrmEmailProviderRepository,
     private usage: CrmProviderUsageRepository,
-    private cacheService: CacheService
+    private quotaRedis: CrmQuotaRedis
   ) {}
 
   async list(user: UserSessionData): Promise<CrmEmailProviderRow[]> {
@@ -122,9 +123,9 @@ export class CrmEmailProvidersService {
   }
 
   private async currentCounts(integrationId: string): Promise<CrmEmailProviderRow['current']> {
-    if (!this.cacheService.cacheEnabled()) return null;
+    if (!this.quotaRedis.isReady()) return null;
 
-    const values = await this.cacheService.eval<(string | null)[]>(CRM_QUOTA_READ_LUA, crmQuotaKeys(integrationId), []);
+    const values = await this.quotaRedis.eval<(string | null)[]>(CRM_QUOTA_READ_LUA, crmQuotaKeys(integrationId), []);
 
     return {
       minute: Number(values?.[0] ?? 0),

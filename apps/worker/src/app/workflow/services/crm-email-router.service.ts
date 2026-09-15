@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CacheService } from '@novu/application-generic';
 import {
   CRM_QUOTA_RESERVE_LUA,
   CRM_QUOTA_WINDOWS,
@@ -13,6 +12,8 @@ import {
   IntegrationRepository,
 } from '@novu/dal';
 import { ChannelTypeEnum } from '@novu/shared';
+
+import { CrmQuotaRedis } from './crm-quota-redis.service';
 
 type Route = { integration: IntegrationEntity; settings: CrmEmailProviderEntity };
 
@@ -32,13 +33,13 @@ export const CRM_ROUTING_USAGE_ID = 'routing';
 export class CrmEmailRouter {
   private routesByEnvironment = new Map<string, { expiresAt: number; routes: Route[] }>();
 
-  private warnedCacheDisabled = false;
+  private warnedRedisDown = false;
 
   constructor(
     private integrationRepository: IntegrationRepository,
     private emailProviders: CrmEmailProviderRepository,
     private usage: CrmProviderUsageRepository,
-    private cacheService: CacheService
+    private quotaRedis: CrmQuotaRedis
   ) {}
 
   /** Intégration à utiliser ; undefined = aucune répartition configurée, Novu choisit comme d'habitude. */
@@ -46,10 +47,10 @@ export class CrmEmailRouter {
     const routes = await this.loadRoutes(environmentId, organizationId);
     if (!routes.length) return undefined;
 
-    if (!this.cacheService.cacheEnabled()) {
-      if (!this.warnedCacheDisabled) {
-        Logger.warn('Cache Redis indisponible : limites des fournisseurs email non appliquées', LOG_CONTEXT);
-        this.warnedCacheDisabled = true;
+    if (!this.quotaRedis.isReady()) {
+      if (!this.warnedRedisDown) {
+        Logger.warn('Redis indisponible : limites des fournisseurs email non appliquées', LOG_CONTEXT);
+        this.warnedRedisDown = true;
       }
 
       return routes[0].integration;
@@ -58,7 +59,7 @@ export class CrmEmailRouter {
     let retryAfterMs = Number.POSITIVE_INFINITY;
 
     for (const route of routes) {
-      const result = await this.cacheService.eval<[number, number, number]>(
+      const result = await this.quotaRedis.eval<[number, number, number]>(
         CRM_QUOTA_RESERVE_LUA,
         crmQuotaKeys(String(route.integration._id)),
         crmQuotaArgs(route.settings)

@@ -18,6 +18,7 @@ import { CrmCampaignsController } from './campaigns/crm-campaigns.controller';
 import { CrmCampaignsService } from './campaigns/crm-campaigns.service';
 import { CrmEmailProvidersController } from './email-providers/crm-email-providers.controller';
 import { CrmEmailProvidersService } from './email-providers/crm-email-providers.service';
+import { CrmQuotaRedis } from './email-providers/crm-quota-redis.service';
 import { CrmFieldsController } from './fields/crm-fields.controller';
 import { CrmMonitoringController } from './monitoring/crm-monitoring.controller';
 import { CrmMonitoringService } from './monitoring/crm-monitoring.service';
@@ -58,6 +59,7 @@ import { CrmTemplatesService } from './templates/crm-templates.service';
     CrmEmailProviderRepository,
     CrmProviderUsageRepository,
     CrmEmailProvidersService,
+    CrmQuotaRedis,
     CrmEngagementRepository,
     CrmOpsRepository,
     CrmReportRepository,
