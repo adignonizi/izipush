@@ -1,10 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  CRM_RECIPIENT_FILTERS,
   CrmCampaignEntity,
   CrmCampaignRepository,
   CrmCampaignRunEntity,
   CrmCampaignRunRepository,
   CrmChannelStats,
+  CrmRecipientFilter,
+  CrmRecipientScope,
   CrmReportRepository,
 } from '@novu/dal';
 import { UserSessionData } from '@novu/shared';
@@ -13,6 +16,10 @@ import { UserSessionData } from '@novu/shared';
 const FINAL_AFTER_MS = 48 * 3600 * 1000;
 const ON_EVENT_DAYS = 30;
 const OVERVIEW_MAX_RUNS = 1000;
+/** Une page d'écran fait au plus 100 lignes ; l'export CSV lit par lots de 1 000. */
+const RECIPIENTS_MAX_LIMIT = 1000;
+
+export type CrmRecipientsQuery = { filter?: string; search?: string; cursor?: string; limit?: string };
 
 export type CrmRunReport = CrmCampaignRunEntity & { stats: CrmChannelStats[] };
 
@@ -39,6 +46,52 @@ export class CrmReportsService {
         : null;
 
     return { campaignId: campaign._id, name: campaign.name, runs, onEvent };
+  }
+
+  /**
+   * Destinataires d'une exécution, message par message ; `runId` = « events » pour les envois d'une campagne
+   * « sur événement » (30 derniers jours). Renvoie aussi les résultats de l'exécution pour l'en-tête de la page.
+   */
+  async recipients(user: UserSessionData, campaignId: string, runId: string, query: CrmRecipientsQuery) {
+    const campaign = await this.campaigns.findCampaign(user.environmentId, campaignId);
+    if (!campaign) throw new NotFoundException('Campagne introuvable');
+
+    const filter: CrmRecipientFilter = (CRM_RECIPIENT_FILTERS as readonly string[]).includes(query.filter ?? '')
+      ? (query.filter as CrmRecipientFilter)
+      : 'all';
+    const limit = Math.min(RECIPIENTS_MAX_LIMIT, Math.max(1, Math.floor(Number(query.limit) || 50)));
+
+    let run: CrmRunReport | null = null;
+    let onEvent: { days: number; stats: CrmChannelStats[] } | null = null;
+    let scope: CrmRecipientScope;
+
+    if (runId === 'events') {
+      if (campaign.schedule.mode !== 'on_event') throw new NotFoundException('Cette campagne ne se déclenche pas sur événement');
+
+      const since = daysAgo(ON_EVENT_DAYS);
+      scope = { prefix: `crm-${campaign._id}-`, since };
+      onEvent = { days: ON_EVENT_DAYS, stats: await this.onEventStats(user.environmentId, campaign, since) };
+    } else {
+      const found = await this.runs.findRun(runId).catch(() => null);
+      if (!found || String(found._environmentId) !== user.environmentId || found.campaignId !== String(campaign._id)) {
+        throw new NotFoundException('Exécution introuvable');
+      }
+
+      [run] = await this.withStats(user.environmentId, [found]);
+      scope = { transactionId: found.transactionId ?? found._id };
+    }
+
+    const subscriberIds = query.search?.trim()
+      ? await this.reports.findSubscriberIds(user.environmentId, query.search)
+      : undefined;
+    const page = await this.reports.recipients(user.environmentId, scope, {
+      filter,
+      limit,
+      cursor: query.cursor,
+      subscriberIds,
+    });
+
+    return { run, onEvent, ...page };
   }
 
   /** Rapport client : par campagne, sur la période (exécutions déclenchées et envois « sur événement »). */

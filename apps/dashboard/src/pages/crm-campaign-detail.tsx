@@ -1,11 +1,19 @@
 import { useMemo, useState } from 'react';
 import { RiDeleteBin2Line, RiEditLine, RiMegaphoneLine, RiPauseLine, RiPlayLine } from 'react-icons/ri';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ConfirmationModal } from '@/components/confirmation-modal';
 import { ActivateCampaignDialog } from '@/components/crm/activate-campaign-dialog';
+import { CrmChartCard, CrmFunnel, CrmRunsTrend } from '@/components/crm/crm-campaign-charts';
 import { formatDateTime, formatNumber, t } from '@/components/crm/crm-i18n';
 import { CAMPAIGN_STATUS, describeSchedule, RUN_STATUS } from '@/components/crm/crm-labels';
-import { CrmBreadcrumbHeader, CrmRowMenu, CrmSection, CrmStat, CrmTitleBar } from '@/components/crm/crm-page';
+import {
+  CrmBreadcrumbHeader,
+  CrmLinkedCell,
+  CrmRowMenu,
+  CrmRowTitle,
+  CrmSection,
+  CrmTitleBar,
+} from '@/components/crm/crm-page';
 import { describeChannels, rate, totalStats, workflowChannels } from '@/components/crm/crm-stats';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { DetailsSidebar, DetailsSidebarCard, DetailsSidebarRow } from '@/components/details-sidebar';
@@ -54,9 +62,14 @@ export function CrmCampaignDetailPage() {
   const totals = useMemo(() => {
     const stats = totalStats([...runs.flatMap((run) => run.stats), ...(report?.onEvent?.stats ?? [])]);
     const audience = runs.reduce((sum, run) => sum + (run.audienceSize ?? 0), 0);
+    const excluded = runs.reduce((sum, run) => sum + (run.excludedCount ?? 0), 0);
 
-    return { ...stats, audience };
+    // « Sur événement » : pas d'exécution groupée, les visés sont les messages eux-mêmes.
+    return { ...stats, excluded, audience: audience || stats.sent + stats.errors + stats.skipped };
   }, [runs, report?.onEvent]);
+
+  const runHref = (runId: string) => buildRoute(ROUTES.CRM_CAMPAIGN_RUN, { environmentSlug, campaignId, runId });
+  const triggeredRuns = runs.filter((run) => run.status === 'triggered').length;
 
   const changeState = async (action: 'activate' | 'pause') => {
     try {
@@ -218,31 +231,36 @@ export function CrmCampaignDetailPage() {
                 )}
 
                 <CrmSection title={t('detail.results')}>
-                  <div className="border-stroke-soft flex flex-wrap gap-6 rounded-lg border p-4">
-                    <CrmStat
-                      label={t('stat.audience')}
-                      value={formatNumber(totals.audience)}
-                      isLoading={isLoadingReport}
-                    />
-                    <CrmStat label={t('stat.sent')} value={formatNumber(totals.sent)} isLoading={isLoadingReport} />
-                    <CrmStat label={t('stat.errors')} value={formatNumber(totals.errors)} isLoading={isLoadingReport} />
-                    <CrmStat
-                      label={t('stat.openRate')}
-                      value={rate(totals.opened, totals.sent)}
-                      hint={formatNumber(totals.opened)}
-                      help={t('stat.openHint')}
-                      isLoading={isLoadingReport}
-                    />
-                    <CrmStat
-                      label={t('stat.clickRate')}
-                      value={rate(totals.clicked, totals.sent)}
-                      hint={formatNumber(totals.clicked)}
-                      isLoading={isLoadingReport}
-                    />
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <CrmChartCard title={t('funnel.title')} aside={t('funnel.caption')}>
+                      <CrmFunnel values={totals} isLoading={isLoadingReport} />
+                      <p className="text-text-soft text-paragraph-xs flex items-center gap-1">
+                        {t('stat.openRate')}{' '}
+                        <span className="text-text-sub font-medium tabular-nums">{rate(totals.opened, totals.sent)}</span>
+                        <span aria-hidden>·</span>
+                        {t('stat.clickRate')}{' '}
+                        <span className="text-text-sub font-medium tabular-nums">{rate(totals.clicked, totals.sent)}</span>
+                        <HelpTooltipIndicator text={t('stat.openHint')} size="3" />
+                      </p>
+                    </CrmChartCard>
+                    <CrmChartCard
+                      title={t('trend.title')}
+                      aside={triggeredRuns > 1 ? t('trend.aside', { count: String(Math.min(triggeredRuns, 20)) }) : undefined}
+                    >
+                      <CrmRunsTrend runs={runs} isLoading={isLoadingReport} />
+                    </CrmChartCard>
                   </div>
                   {report?.onEvent && (
-                    <p className="text-text-soft text-paragraph-xs">
-                      {t('detail.onEvent')} : {describeChannels(report.onEvent.stats)}
+                    <p className="text-text-soft text-paragraph-xs flex flex-wrap items-center gap-x-2">
+                      <span>
+                        {t('detail.onEvent')} : {describeChannels(report.onEvent.stats)}
+                      </span>
+                      <Link
+                        to={runHref('events')}
+                        className="text-text-sub focus-visible:ring-stroke-strong rounded-sm font-medium underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+                      >
+                        {t('detail.onEventLink', { days: String(report.onEvent.days) })}
+                      </Link>
                     </p>
                   )}
                 </CrmSection>
@@ -269,36 +287,45 @@ export function CrmCampaignDetailPage() {
                     <TableBody>
                       {runs.map((run) => {
                         const total = totalStats(run.stats);
+                        const href = runHref(run._id);
+                        const date = formatDateTime(run.scheduledFor);
 
                         return (
-                          <TableRow key={run._id}>
-                            <TableCell className="text-text-sub whitespace-nowrap">
-                              {formatDateTime(run.scheduledFor)}
-                            </TableCell>
-                            <TableCell>
+                          <TableRow key={run._id} className="group relative isolate cursor-pointer">
+                            <CrmLinkedCell to={href} className="whitespace-nowrap">
+                              <span className="sr-only">{t('detail.runs.open', { date })}</span>
+                              <CrmRowTitle to={href} title={date} />
+                            </CrmLinkedCell>
+                            <CrmLinkedCell to={href}>
                               <Badge variant="lighter" color={RUN_STATUS[run.status].color} size="md">
                                 {RUN_STATUS[run.status].label}
                               </Badge>
                               {run.error && (
                                 <p className="text-error-base text-paragraph-xs mt-1 max-w-[260px]">{run.error}</p>
                               )}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{formatNumber(run.audienceSize)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{formatNumber(run.excludedCount)}</TableCell>
-                            <TableCell className="text-text-sub text-paragraph-xs">
+                            </CrmLinkedCell>
+                            <CrmLinkedCell to={href} className="text-right tabular-nums">
+                              {formatNumber(run.audienceSize)}
+                            </CrmLinkedCell>
+                            <CrmLinkedCell to={href} className="text-right tabular-nums">
+                              {formatNumber(run.excludedCount)}
+                            </CrmLinkedCell>
+                            <CrmLinkedCell to={href} className="text-paragraph-xs">
                               {describeChannels(run.stats)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{formatNumber(total.errors)}</TableCell>
-                            <TableCell className="text-right tabular-nums">
+                            </CrmLinkedCell>
+                            <CrmLinkedCell to={href} className="text-right tabular-nums">
+                              {formatNumber(total.errors)}
+                            </CrmLinkedCell>
+                            <CrmLinkedCell to={href} className="text-right tabular-nums">
                               {formatNumber(total.opened)}{' '}
                               <span className="text-text-soft text-paragraph-xs">{rate(total.opened, total.sent)}</span>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
+                            </CrmLinkedCell>
+                            <CrmLinkedCell to={href} className="text-right tabular-nums">
                               {formatNumber(total.clicked)}{' '}
                               <span className="text-text-soft text-paragraph-xs">
                                 {rate(total.clicked, total.sent)}
                               </span>
-                            </TableCell>
+                            </CrmLinkedCell>
                           </TableRow>
                         );
                       })}

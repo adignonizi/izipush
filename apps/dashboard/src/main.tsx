@@ -56,6 +56,7 @@ import { CreateSubscriberPage } from './pages/create-subscriber';
 import { CreateTopicPage } from './pages/create-topic';
 // izipush-crm
 import { CrmCampaignDetailPage } from './pages/crm-campaign-detail';
+import { CrmCampaignRunPage } from './pages/crm-campaign-run';
 import { CrmCampaignEditorPage } from './pages/crm-campaign-editor';
 import { CrmCampaignsPage } from './pages/crm-campaigns';
 import { CrmMonitoringPage } from './pages/crm-monitoring';
@@ -528,6 +529,14 @@ const router = createBrowserRouter([
                 element: (
                   <ProtectedRoute>
                     <CrmCampaignDetailPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGN_RUN,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignRunPage />
                   </ProtectedRoute>
                 ),
               },
