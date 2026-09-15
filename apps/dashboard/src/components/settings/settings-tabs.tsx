@@ -136,7 +136,7 @@ export function SettingsTabs({ routes, rootRoute }: SettingsTabsProps) {
   const canManageBilling = IS_CLOUD && hasBillingPermission;
   const brandingTierLabel = getRequiredTierLabelForFeature(FeatureNameEnum.PLATFORM_REMOVE_NOVU_BRANDING_BOOLEAN);
 
-  const currentTab = resolveCurrentTab(location.pathname, routes, rootRoute);
+  const currentTab = IS_SELF_HOSTED_CE ? 'team' : resolveCurrentTab(location.pathname, routes, rootRoute);
 
   const handleTabChange = (value: string) => {
     switch (value as SettingsTab) {
@@ -161,12 +161,17 @@ export function SettingsTabs({ routes, rootRoute }: SettingsTabsProps) {
   return (
     <Tabs value={currentTab} onValueChange={handleTabChange} className="-mx-2 w-full">
       <TabsList align="center" variant="regular" className="border-t-transparent py-0!">
-        <TabsTrigger variant="regular" value="account" size="xl">
-          Account
-        </TabsTrigger>
-        <TabsTrigger variant="regular" value="organization" size="xl">
-          Organization
-        </TabsTrigger>
+        {/* izipush : compte et organisation dépendent de Clerk, absent en auto-hébergé communautaire. */}
+        {!IS_SELF_HOSTED_CE && (
+          <>
+            <TabsTrigger variant="regular" value="account" size="xl">
+              Account
+            </TabsTrigger>
+            <TabsTrigger variant="regular" value="organization" size="xl">
+              Organization
+            </TabsTrigger>
+          </>
+        )}
         <TabsTrigger variant="regular" value="team" size="xl">
           Team
         </TabsTrigger>

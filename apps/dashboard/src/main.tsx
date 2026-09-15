@@ -865,21 +865,23 @@ const router = createBrowserRouter([
                 <Navigate to={ROUTES.ROOT} replace />
               ),
           },
+          // izipush : en auto-hébergé communautaire, seul l'onglet Équipe existe (compte et organisation
+          // reposent sur Clerk, remplacé par des bouchons vides) : les autres routes y mènent.
           {
             path: ROUTES.SETTINGS,
-            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.SETTINGS_TEAM} replace /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_ACCOUNT,
-            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.SETTINGS_TEAM} replace /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_ORGANIZATION,
-            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.SETTINGS_TEAM} replace /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_TEAM,
-            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_BILLING,
