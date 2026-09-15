@@ -50,9 +50,12 @@ export const ROUTES = {
   // izipush-crm
   CRM_SEGMENTS: '/env/:environmentSlug/crm/segments',
   CRM_CAMPAIGNS: '/env/:environmentSlug/crm/campaigns',
+  CRM_CAMPAIGN_NEW: '/env/:environmentSlug/crm/campaigns/new',
+  CRM_CAMPAIGN_DETAIL: '/env/:environmentSlug/crm/campaigns/:campaignId',
+  CRM_CAMPAIGN_EDIT: '/env/:environmentSlug/crm/campaigns/:campaignId/edit',
+  CRM_SEGMENT_NEW: '/env/:environmentSlug/crm/segments/new',
   CRM_TEMPLATES: '/env/:environmentSlug/crm/templates',
   CRM_TEMPLATE_EDIT: '/env/:environmentSlug/crm/templates/:templateId',
-  CRM_EMAIL_PROVIDERS: '/env/:environmentSlug/crm/email-providers',
   CRM_REPORTS: '/env/:environmentSlug/crm/reports',
   CRM_MONITORING: '/env/:environmentSlug/crm/monitoring',
   ENVIRONMENTS: '/env/:environmentSlug/environments',

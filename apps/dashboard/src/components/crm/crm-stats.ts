@@ -1,14 +1,16 @@
 import type { CrmChannelStats } from '@/api/crm-reports';
+import { formatNumber, t, tMaybe } from './crm-i18n';
 
 // izipush-crm — cumuls et taux affichés dans les rapports.
 
-export const CHANNEL_LABELS: Record<string, string> = {
-  email: 'Email',
-  push: 'Push',
-  in_app: 'In-app',
-  sms: 'SMS',
-  chat: 'Chat',
-};
+export function channelLabel(channel: string): string {
+  return tMaybe(`channel.${channel}`) ?? channel;
+}
+
+/** @deprecated utiliser channelLabel. */
+export const CHANNEL_LABELS: Record<string, string> = new Proxy({} as Record<string, string>, {
+  get: (_target, channel: string) => channelLabel(channel),
+});
 
 export type StatsTotal = Omit<CrmChannelStats, 'channel'>;
 
@@ -29,13 +31,16 @@ export function rate(part: number, total: number): string {
   return total > 0 ? `${((part / total) * 100).toFixed(1)} %` : '—';
 }
 
-export function formatCount(value?: number): string {
-  return (value ?? 0).toLocaleString('fr-FR');
-}
+export const formatCount = formatNumber;
 
 /** « Email 1 200 · Push 800 » : envoyés par canal, pour une cellule de tableau. */
 export function describeChannels(stats: CrmChannelStats[]): string {
-  return stats.length
-    ? stats.map((row) => `${CHANNEL_LABELS[row.channel] ?? row.channel} ${formatCount(row.sent)}`).join(' · ')
-    : '—';
+  return stats.length ? stats.map((row) => `${channelLabel(row.channel)} ${formatNumber(row.sent)}`).join(' · ') : '—';
 }
+
+/** Canaux d'un workflow (types d'étapes), sans les étapes d'action (délai, digest…). */
+export function workflowChannels(stepTypes: string[] = []): string[] {
+  return [...new Set(stepTypes)].map((type) => tMaybe(`channel.${type}`)).filter((label): label is string => !!label);
+}
+
+export { t };

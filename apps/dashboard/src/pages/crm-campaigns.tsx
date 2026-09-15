@@ -1,46 +1,63 @@
 import { useState } from 'react';
-import { RiAddLine, RiDeleteBin2Line, RiHistoryLine, RiPauseLine, RiPlayLine } from 'react-icons/ri';
+import {
+  RiAddLine,
+  RiBarChartBoxLine,
+  RiDeleteBin2Line,
+  RiEditLine,
+  RiMegaphoneLine,
+  RiPauseLine,
+  RiPlayLine,
+} from 'react-icons/ri';
+import { useNavigate } from 'react-router-dom';
 import type { CrmCampaign } from '@/api/crm';
 import { ConfirmationModal } from '@/components/confirmation-modal';
-import { CampaignRunsDialog } from '@/components/crm/campaign-runs-dialog';
-import { CreateCampaignDialog } from '@/components/crm/create-campaign-dialog';
-import { CAMPAIGN_STATUS, describeSchedule, formatDate } from '@/components/crm/crm-labels';
+import { ActivateCampaignDialog } from '@/components/crm/activate-campaign-dialog';
+import { formatDateTime, t } from '@/components/crm/crm-i18n';
+import { CAMPAIGN_STATUS, describeSchedule } from '@/components/crm/crm-labels';
+import { CrmBlankState, CrmLinkedCell, CrmListIntro, CrmRowMenu, CrmRowTitle } from '@/components/crm/crm-page';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { PageMeta } from '@/components/page-meta';
 import { Badge } from '@/components/primitives/badge';
 import { Button } from '@/components/primitives/button';
 import { showErrorToast, showSuccessToast } from '@/components/primitives/sonner-helpers';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/primitives/table';
-import {
-  useCrmCampaigns,
-  useCrmFields,
-  useCrmSegments,
-  useDeleteCrmCampaign,
-  useSetCrmCampaignState,
-} from '@/hooks/use-crm';
+import { useEnvironment } from '@/context/environment/hooks';
+import { useCrmCampaigns, useCrmSegments, useDeleteCrmCampaign, useSetCrmCampaignState } from '@/hooks/use-crm';
+import { useFetchWorkflows } from '@/hooks/use-fetch-workflows';
+import { buildRoute, ROUTES } from '@/utils/routes';
 
-// izipush-crm — liste, lancement et historique des campagnes.
+// izipush-crm — liste des campagnes : état, prochain envoi, et actions rapides.
 
 export function CrmCampaignsPage() {
+  const navigate = useNavigate();
+  const { currentEnvironment } = useEnvironment();
+  const environmentSlug = currentEnvironment?.slug ?? '';
   const { data: campaigns = [], isLoading } = useCrmCampaigns();
   const { data: segments = [] } = useCrmSegments();
-  const { data: fields } = useCrmFields();
+  const { data: workflowsData } = useFetchWorkflows({ limit: 100 });
   const setState = useSetCrmCampaignState();
   const remove = useDeleteCrmCampaign();
-  const [creating, setCreating] = useState(false);
-  const [runsOf, setRunsOf] = useState<CrmCampaign>();
+  const [toActivate, setToActivate] = useState<CrmCampaign>();
   const [toDelete, setToDelete] = useState<CrmCampaign>();
 
+  const newHref = buildRoute(ROUTES.CRM_CAMPAIGN_NEW, { environmentSlug });
+  const detailHref = (campaign: CrmCampaign) =>
+    buildRoute(ROUTES.CRM_CAMPAIGN_DETAIL, { environmentSlug, campaignId: campaign._id });
   const segmentName = (segmentId: string) => segments.find((segment) => segment._id === segmentId)?.name ?? '—';
+  const workflowName = (key: string) =>
+    workflowsData?.workflows.find((workflow) => workflow.workflowId === key)?.name ?? key;
 
-  const toggle = async (campaign: CrmCampaign) => {
-    const action = campaign.status === 'active' ? 'pause' : 'activate';
-
+  const changeState = async (campaign: CrmCampaign, action: 'activate' | 'pause') => {
     try {
       await setState.mutateAsync({ campaignId: campaign._id, action });
-      showSuccessToast(action === 'activate' ? 'Campagne activée' : 'Campagne mise en pause');
+      showSuccessToast(action === 'activate' ? t('campaigns.toast.activated') : t('campaigns.toast.paused'));
     } catch (error) {
-      showErrorToast((error as Error).message, action === 'activate' ? 'Campagne non activée' : 'Pause impossible');
+      showErrorToast(
+        (error as Error).message,
+        action === 'activate' ? t('campaigns.toast.activateFailed') : t('campaigns.toast.pauseFailed')
+      );
+    } finally {
+      setToActivate(undefined);
     }
   };
 
@@ -49,121 +66,144 @@ export function CrmCampaignsPage() {
 
     try {
       await remove.mutateAsync(toDelete._id);
-      showSuccessToast('Campagne supprimée');
+      showSuccessToast(t('campaigns.toast.deleted'));
     } catch (error) {
-      showErrorToast((error as Error).message, 'Campagne non supprimée');
+      showErrorToast((error as Error).message, t('campaigns.toast.deleteFailed'));
     } finally {
       setToDelete(undefined);
     }
   };
 
+  const newButton = (
+    <Button variant="primary" size="xs" leadingIcon={RiAddLine} onClick={() => navigate(newHref)}>
+      {t('campaigns.new')}
+    </Button>
+  );
+
   return (
     <>
-      <PageMeta title="Campagnes" />
-      <DashboardLayout headerStartItems={<h1 className="text-foreground-950">Campagnes</h1>}>
-        <div className="flex flex-col gap-4 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-foreground-600 text-sm">
-              Un segment, un workflow, un moment. Une campagne créée reste en brouillon jusqu'à son activation.
-            </p>
-            <Button variant="primary" size="sm" onClick={() => setCreating(true)} disabled={!fields}>
-              <RiAddLine className="size-4" /> Nouvelle campagne
-            </Button>
-          </div>
+      <PageMeta title={t('nav.campaigns')} />
+      <DashboardLayout headerStartItems={<h1 className="text-foreground-950">{t('nav.campaigns')}</h1>}>
+        <div className="flex flex-col px-2.5 pb-6 md:px-4">
+          {!isLoading && campaigns.length === 0 ? (
+            <CrmBlankState
+              icon={RiMegaphoneLine}
+              title={t('campaigns.blank.title')}
+              description={t('campaigns.blank.text')}
+              action={newButton}
+            />
+          ) : (
+            <>
+              <CrmListIntro description={t('campaigns.description')} action={newButton} />
+              <Table isLoading={isLoading} loadingRowsCount={5}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('campaigns.col.name')}</TableHead>
+                    <TableHead>{t('campaigns.col.schedule')}</TableHead>
+                    <TableHead>{t('campaigns.col.status')}</TableHead>
+                    <TableHead>{t('campaigns.col.next')}</TableHead>
+                    <TableHead>{t('campaigns.col.last')}</TableHead>
+                    <TableHead className="w-1">
+                      <span className="sr-only">{t('common.actions')}</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {campaigns.map((campaign) => {
+                    const href = detailHref(campaign);
+                    const isActive = campaign.status === 'active';
 
-          <Table isLoading={isLoading} loadingRowsCount={4}>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Segment</TableHead>
-                <TableHead>Workflow</TableHead>
-                <TableHead>Quand</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Prochaine</TableHead>
-                <TableHead>Dernière</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {campaigns.map((campaign) => (
-                <TableRow key={campaign._id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{campaign.name}</span>
-                      {campaign.error && <span className="text-xs text-red-600">{campaign.error}</span>}
-                    </div>
-                  </TableCell>
-                  <TableCell>{segmentName(campaign.segmentId)}</TableCell>
-                  <TableCell className="font-mono text-xs">{campaign.workflowKey}</TableCell>
-                  <TableCell className="text-xs">{describeSchedule(campaign.schedule)}</TableCell>
-                  <TableCell>
-                    <Badge variant="lighter" color={CAMPAIGN_STATUS[campaign.status].color} size="md">
-                      {CAMPAIGN_STATUS[campaign.status].label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs">{formatDate(campaign.nextRunAt)}</TableCell>
-                  <TableCell className="text-xs">{formatDate(campaign.lastRunAt)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="secondary"
-                        mode="ghost"
-                        size="xs"
-                        onClick={() => toggle(campaign)}
-                        disabled={setState.isPending}
-                        title={campaign.status === 'active' ? 'Mettre en pause' : 'Activer'}
-                      >
-                        {campaign.status === 'active' ? (
-                          <RiPauseLine className="size-4" />
-                        ) : (
-                          <RiPlayLine className="size-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        mode="ghost"
-                        size="xs"
-                        onClick={() => setRunsOf(campaign)}
-                        title="Exécutions"
-                      >
-                        <RiHistoryLine className="size-4" />
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        mode="ghost"
-                        size="xs"
-                        onClick={() => setToDelete(campaign)}
-                        disabled={campaign.status === 'active'}
-                        title="Supprimer"
-                      >
-                        <RiDeleteBin2Line className="size-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!isLoading && campaigns.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-foreground-500 text-center text-sm">
-                    Aucune campagne pour l'instant.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    return (
+                      <TableRow key={campaign._id} className="group relative isolate cursor-pointer">
+                        <CrmLinkedCell to={href}>
+                          <CrmRowTitle
+                            to={href}
+                            title={campaign.name}
+                            subtitle={`${segmentName(campaign.segmentId)} · ${workflowName(campaign.workflowKey)}`}
+                          />
+                          {campaign.error && (
+                            <span className="text-error-base text-paragraph-xs relative z-10 block max-w-[320px] truncate">
+                              {campaign.error}
+                            </span>
+                          )}
+                        </CrmLinkedCell>
+                        <CrmLinkedCell to={href} className="text-paragraph-sm">
+                          {describeSchedule(campaign.schedule)}
+                        </CrmLinkedCell>
+                        <CrmLinkedCell to={href}>
+                          <Badge variant="lighter" color={CAMPAIGN_STATUS[campaign.status].color} size="md">
+                            {CAMPAIGN_STATUS[campaign.status].label}
+                          </Badge>
+                        </CrmLinkedCell>
+                        <CrmLinkedCell to={href} className="font-code text-code-xs whitespace-nowrap">
+                          {formatDateTime(campaign.nextRunAt)}
+                        </CrmLinkedCell>
+                        <CrmLinkedCell to={href} className="font-code text-code-xs whitespace-nowrap">
+                          {formatDateTime(campaign.lastRunAt)}
+                        </CrmLinkedCell>
+                        <TableCell className="group-hover:bg-neutral-alpha-50 w-1">
+                          <CrmRowMenu
+                            items={[
+                              {
+                                label: t('campaigns.action.view'),
+                                icon: RiBarChartBoxLine,
+                                onSelect: () => navigate(href),
+                              },
+                              {
+                                label: isActive ? t('campaigns.pauseToEdit') : t('common.edit'),
+                                icon: RiEditLine,
+                                disabled: isActive,
+                                onSelect: () =>
+                                  navigate(
+                                    buildRoute(ROUTES.CRM_CAMPAIGN_EDIT, { environmentSlug, campaignId: campaign._id })
+                                  ),
+                              },
+                              isActive
+                                ? {
+                                    label: t('campaigns.action.pause'),
+                                    icon: RiPauseLine,
+                                    onSelect: () => changeState(campaign, 'pause'),
+                                  }
+                                : {
+                                    label: t('campaigns.action.activate'),
+                                    icon: RiPlayLine,
+                                    onSelect: () => setToActivate(campaign),
+                                  },
+                              {
+                                label: t('common.delete'),
+                                icon: RiDeleteBin2Line,
+                                destructive: true,
+                                disabled: isActive,
+                                separatorBefore: true,
+                                onSelect: () => setToDelete(campaign),
+                              },
+                            ]}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </>
+          )}
         </div>
 
-        {fields && (
-          <CreateCampaignDialog open={creating} onOpenChange={setCreating} fields={fields} segments={segments} />
-        )}
-        <CampaignRunsDialog campaign={runsOf} onClose={() => setRunsOf(undefined)} />
+        <ActivateCampaignDialog
+          open={!!toActivate}
+          onOpenChange={(open) => !open && setToActivate(undefined)}
+          campaign={toActivate}
+          segmentName={toActivate ? segmentName(toActivate.segmentId) : undefined}
+          onConfirm={() => toActivate && changeState(toActivate, 'activate')}
+          isLoading={setState.isPending}
+        />
         <ConfirmationModal
           open={!!toDelete}
           onOpenChange={(open) => !open && setToDelete(undefined)}
           onConfirm={confirmDelete}
-          title="Supprimer la campagne ?"
-          description={`« ${toDelete?.name ?? ''} » et son historique d'exécutions ne seront plus visibles.`}
-          confirmButtonText="Supprimer"
+          title={t('campaigns.delete.title')}
+          description={t('campaigns.delete.text', { name: toDelete?.name ?? '' })}
+          confirmButtonText={t('common.delete')}
           confirmButtonVariant="error"
           isLoading={remove.isPending}
         />

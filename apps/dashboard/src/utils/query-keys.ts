@@ -53,6 +53,7 @@ export const QueryKeys = Object.freeze({
   fetchCrmFields: 'fetchCrmFields',
   fetchCrmSegments: 'fetchCrmSegments',
   fetchCrmCampaigns: 'fetchCrmCampaigns',
+  fetchCrmCampaign: 'fetchCrmCampaign',
   fetchCrmCampaignRuns: 'fetchCrmCampaignRuns',
   fetchCrmTemplates: 'fetchCrmTemplates',
   fetchCrmTemplate: 'fetchCrmTemplate',

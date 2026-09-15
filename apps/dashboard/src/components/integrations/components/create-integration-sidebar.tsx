@@ -1,10 +1,19 @@
-import { ChatProviderIdEnum } from '@novu/shared';
+import { ChannelTypeEnum, ChatProviderIdEnum } from '@novu/shared';
 import { useEffect, useRef, useState } from 'react';
 import { RiSearchLine } from 'react-icons/ri';
 import { useNavigate, useParams } from 'react-router-dom';
+import { saveCrmEmailProvider } from '@/api/crm-email-providers';
+import {
+  CampaignSendingFields,
+  EMPTY_SENDING_DRAFT,
+  isSendingConfigured,
+  toSendingSettings,
+} from '@/components/crm/campaign-sending-settings';
+import { t } from '@/components/crm/crm-i18n';
+import { useEnvironment } from '@/context/environment/hooks';
 import { useCreateIntegration } from '@/hooks/use-create-integration';
 import { useFetchIntegrations } from '@/hooks/use-fetch-integrations';
-import { showSuccessToast } from '../../../components/primitives/sonner-helpers';
+import { showErrorToast, showSuccessToast } from '../../../components/primitives/sonner-helpers';
 import { useSetPrimaryIntegration } from '../../../hooks/use-set-primary-integration';
 import { buildRoute, ROUTES } from '../../../utils/routes';
 import { Button } from '../../primitives/button';
@@ -135,6 +144,10 @@ export function CreateIntegrationSidebar({ isOpened }: CreateIntegrationSidebarP
     mode: 'create',
   });
 
+  // izipush-crm : réglages d'envoi des campagnes, saisis dans la même fiche qu'une intégration email.
+  const { environments } = useEnvironment();
+  const [sending, setSending] = useState(EMPTY_SENDING_DRAFT);
+
   async function handleCreateIntegration(data: IntegrationFormData) {
     if (!provider) return;
 
@@ -152,6 +165,17 @@ export function CreateIntegrationSidebar({ isOpened }: CreateIntegrationSidebarP
 
       if (data.primary && isChannelSupportPrimary && data.active) {
         await setPrimaryIntegration({ integrationId: integration.data._id });
+      }
+
+      if (provider.channel === ChannelTypeEnum.EMAIL && isSendingConfigured(sending)) {
+        const environment = environments?.find((candidate) => candidate._id === data.environmentId);
+        if (environment) {
+          await saveCrmEmailProvider({
+            environment,
+            integrationId: integration.data._id,
+            body: toSendingSettings(sending),
+          }).catch((error: unknown) => showErrorToast((error as Error).message, t('sending.toast.failed')));
+        }
       }
 
       showSuccessToast('Integration created successfully');
@@ -230,6 +254,13 @@ export function CreateIntegrationSidebar({ isOpened }: CreateIntegrationSidebarP
                 mode="create"
                 onFormStateChange={setFormState}
               />
+              {provider.channel === ChannelTypeEnum.EMAIL && (
+                <CampaignSendingFields
+                  value={sending}
+                  onChange={setSending}
+                  footer={<p className="text-text-soft text-paragraph-xs">{t('sending.createHint')}</p>}
+                />
+              )}
             </div>
             <div className="bg-background flex justify-end gap-2 border-t p-3">
               <Button

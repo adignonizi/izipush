@@ -7,6 +7,7 @@ import {
   createCrmSegment,
   deleteCrmCampaign,
   deleteCrmSegment,
+  getCrmCampaign,
   getCrmCampaignRuns,
   getCrmCampaigns,
   getCrmFields,
@@ -14,6 +15,7 @@ import {
   previewCrmSegment,
   retryCrmSegmentFreeze,
   setCrmCampaignState,
+  updateCrmCampaign,
 } from '@/api/crm';
 import { useEnvironment } from '@/context/environment/hooks';
 import { QueryKeys } from '@/utils/query-keys';
@@ -55,6 +57,17 @@ export function useCrmCampaigns() {
     enabled: !!currentEnvironment?._id,
     refetchInterval: (query) =>
       query.state.data?.some((campaign) => campaign.status === 'active') ? LIVE_REFRESH_MS : false,
+  });
+}
+
+export function useCrmCampaign(campaignId?: string) {
+  const { currentEnvironment } = useEnvironment();
+
+  return useQuery({
+    queryKey: [QueryKeys.fetchCrmCampaign, currentEnvironment?._id, campaignId],
+    queryFn: ({ signal }) => getCrmCampaign({ environment: currentEnvironment!, campaignId: campaignId!, signal }),
+    enabled: !!currentEnvironment?._id && !!campaignId,
+    refetchInterval: (query) => (query.state.data?.status === 'active' ? LIVE_REFRESH_MS : false),
   });
 }
 
@@ -118,10 +131,16 @@ export function useSetCrmCampaignState() {
   const { currentEnvironment } = useEnvironment();
   const invalidate = useInvalidate(QueryKeys.fetchCrmCampaigns);
 
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: ({ campaignId, action }: { campaignId: string; action: 'activate' | 'pause' }) =>
       setCrmCampaignState({ environment: currentEnvironment!, campaignId, action }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.fetchCrmCampaign, currentEnvironment?._id] });
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.fetchCrmCampaignReport, currentEnvironment?._id] });
+    },
   });
 }
 
@@ -142,5 +161,19 @@ export function useRetryCrmSegmentFreeze() {
   return useMutation({
     mutationFn: (segmentId: string) => retryCrmSegmentFreeze({ environment: currentEnvironment!, segmentId }),
     onSuccess: invalidate,
+  });
+}
+
+export function useUpdateCrmCampaign() {
+  const { currentEnvironment } = useEnvironment();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ campaignId, body }: { campaignId: string; body: Partial<CreateCrmCampaignBody> }) =>
+      updateCrmCampaign({ environment: currentEnvironment!, campaignId, body }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.fetchCrmCampaigns, currentEnvironment?._id] });
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.fetchCrmCampaign, currentEnvironment?._id] });
+    },
   });
 }

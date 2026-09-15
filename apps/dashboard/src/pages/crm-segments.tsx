@@ -1,134 +1,162 @@
 import { useState } from 'react';
-import { RiAddLine, RiDeleteBin2Line, RiRefreshLine } from 'react-icons/ri';
+import { RiAddLine, RiDeleteBin2Line, RiFilter3Line, RiRefreshLine } from 'react-icons/ri';
+import { useNavigate } from 'react-router-dom';
 import type { CrmSegment } from '@/api/crm';
 import { ConfirmationModal } from '@/components/confirmation-modal';
-import { CreateSegmentDialog } from '@/components/crm/create-segment-dialog';
-import { formatDate, SEGMENT_STATUS } from '@/components/crm/crm-labels';
+import { formatDateTime, formatDay, formatNumber, t } from '@/components/crm/crm-i18n';
+import { SEGMENT_STATUS } from '@/components/crm/crm-labels';
+import { CrmBlankState, CrmListIntro, CrmRowMenu } from '@/components/crm/crm-page';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { PageMeta } from '@/components/page-meta';
 import { Badge } from '@/components/primitives/badge';
 import { Button } from '@/components/primitives/button';
 import { showErrorToast, showSuccessToast } from '@/components/primitives/sonner-helpers';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/primitives/table';
-import { useCrmFields, useCrmSegments, useDeleteCrmSegment, useRetryCrmSegmentFreeze } from '@/hooks/use-crm';
+import { useEnvironment } from '@/context/environment/hooks';
+import { useCrmSegments, useDeleteCrmSegment, useRetryCrmSegmentFreeze } from '@/hooks/use-crm';
+import { buildRoute, ROUTES } from '@/utils/routes';
 
-// izipush-crm — liste et création des segments.
+// izipush-crm — liste des segments.
 
 export function CrmSegmentsPage() {
+  const navigate = useNavigate();
+  const { currentEnvironment } = useEnvironment();
   const { data: segments = [], isLoading } = useCrmSegments();
-  const { data: fields } = useCrmFields();
   const remove = useDeleteCrmSegment();
   const retry = useRetryCrmSegmentFreeze();
+  const [toDelete, setToDelete] = useState<CrmSegment>();
+
+  const newHref = buildRoute(ROUTES.CRM_SEGMENT_NEW, { environmentSlug: currentEnvironment?.slug ?? '' });
 
   const retryFreeze = async (segment: CrmSegment) => {
     try {
       await retry.mutateAsync(segment._id);
-      showSuccessToast('Figeage relancé');
+      showSuccessToast(t('segments.toast.retried'));
     } catch (error) {
-      showErrorToast((error as Error).message, 'Figeage non relancé');
+      showErrorToast((error as Error).message, t('segments.toast.retryFailed'));
     }
   };
-  const [creating, setCreating] = useState(false);
-  const [toDelete, setToDelete] = useState<CrmSegment>();
 
   const confirmDelete = async () => {
     if (!toDelete) return;
 
     try {
       await remove.mutateAsync(toDelete._id);
-      showSuccessToast('Segment supprimé');
+      showSuccessToast(t('segments.toast.deleted'));
     } catch (error) {
-      showErrorToast((error as Error).message, 'Segment non supprimé');
+      showErrorToast((error as Error).message, t('segments.toast.deleteFailed'));
     } finally {
       setToDelete(undefined);
     }
   };
 
+  const newButton = (
+    <Button variant="primary" size="xs" leadingIcon={RiAddLine} onClick={() => navigate(newHref)}>
+      {t('segments.new')}
+    </Button>
+  );
+
   return (
     <>
-      <PageMeta title="Segments" />
-      <DashboardLayout headerStartItems={<h1 className="text-foreground-950">Segments</h1>}>
-        <div className="flex flex-col gap-4 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-foreground-600 text-sm">
-              Les clients regroupés par profil et par activité. Un segment figé garde la liste de sa création.
-            </p>
-            <Button variant="primary" size="sm" onClick={() => setCreating(true)} disabled={!fields}>
-              <RiAddLine className="size-4" /> Nouveau segment
-            </Button>
-          </div>
-
-          <Table isLoading={isLoading} loadingRowsCount={4}>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Clients</TableHead>
-                <TableHead>Créé le</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {segments.map((segment) => (
-                <TableRow key={segment._id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{segment.name}</span>
-                      {segment.description && (
-                        <span className="text-foreground-500 text-xs">{segment.description}</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{segment.frozen ? `Figé le ${formatDate(segment.frozenAt)}` : 'Dynamique'}</TableCell>
-                  <TableCell>
-                    <Badge variant="lighter" color={SEGMENT_STATUS[segment.status].color} size="md">
-                      {SEGMENT_STATUS[segment.status].label}
-                    </Badge>
-                    {segment.error && <div className="text-foreground-500 mt-1 text-xs">{segment.error}</div>}
-                  </TableCell>
-                  <TableCell>
-                    {segment.frozen ? (segment.memberCount?.toLocaleString('fr-FR') ?? '—') : 'Calculé à chaque envoi'}
-                  </TableCell>
-                  <TableCell>{formatDate(segment.createdAt)}</TableCell>
-                  <TableCell className="text-right">
-                    {segment.frozen && segment.status === 'failed' && (
-                      <Button
-                        variant="secondary"
-                        mode="ghost"
-                        size="xs"
-                        title="Relancer le figeage"
-                        disabled={retry.isPending}
-                        onClick={() => retryFreeze(segment)}
-                      >
-                        <RiRefreshLine className="size-4" />
-                      </Button>
-                    )}
-                    <Button variant="secondary" mode="ghost" size="xs" onClick={() => setToDelete(segment)}>
-                      <RiDeleteBin2Line className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!isLoading && segments.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-foreground-500 text-center text-sm">
-                    Aucun segment pour l'instant.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+      <PageMeta title={t('nav.segments')} />
+      <DashboardLayout headerStartItems={<h1 className="text-foreground-950">{t('nav.segments')}</h1>}>
+        <div className="flex flex-col px-2.5 pb-6 md:px-4">
+          {!isLoading && segments.length === 0 ? (
+            <CrmBlankState
+              icon={RiFilter3Line}
+              title={t('segments.blank.title')}
+              description={t('segments.blank.text')}
+              action={newButton}
+            />
+          ) : (
+            <>
+              <CrmListIntro description={t('segments.description')} action={newButton} />
+              <Table isLoading={isLoading} loadingRowsCount={5}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('segments.col.name')}</TableHead>
+                    <TableHead>{t('segments.col.type')}</TableHead>
+                    <TableHead className="text-right">{t('segments.col.count')}</TableHead>
+                    <TableHead>{t('segments.col.status')}</TableHead>
+                    <TableHead>{t('segments.col.created')}</TableHead>
+                    <TableHead className="w-1">
+                      <span className="sr-only">{t('common.actions')}</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {segments.map((segment) => (
+                    <TableRow key={segment._id}>
+                      <TableCell>
+                        <div className="flex min-w-0 flex-col">
+                          <span className="text-text-strong truncate font-medium">{segment.name}</span>
+                          {segment.description && (
+                            <span className="text-text-soft text-paragraph-xs max-w-[420px] truncate">
+                              {segment.description}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-text-sub text-paragraph-sm">
+                        {segment.frozen
+                          ? t('segments.type.frozen', { date: formatDay(segment.frozenAt) })
+                          : t('segments.type.dynamic')}
+                      </TableCell>
+                      <TableCell className="text-text-sub text-right tabular-nums">
+                        {segment.frozen ? (
+                          formatNumber(segment.memberCount)
+                        ) : (
+                          <span className="text-text-soft text-paragraph-xs">{t('segments.count.dynamic')}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="lighter" color={SEGMENT_STATUS[segment.status].color} size="md">
+                          {SEGMENT_STATUS[segment.status].label}
+                        </Badge>
+                        {segment.error && (
+                          <p className="text-error-base text-paragraph-xs mt-1 max-w-[280px]">{segment.error}</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-text-sub font-code text-code-xs whitespace-nowrap">
+                        {formatDateTime(segment.createdAt)}
+                      </TableCell>
+                      <TableCell className="w-1">
+                        <CrmRowMenu
+                          items={[
+                            ...(segment.frozen && segment.status === 'failed'
+                              ? [
+                                  {
+                                    label: t('segments.action.retry'),
+                                    icon: RiRefreshLine,
+                                    disabled: retry.isPending,
+                                    onSelect: () => retryFreeze(segment),
+                                  },
+                                ]
+                              : []),
+                            {
+                              label: t('common.delete'),
+                              icon: RiDeleteBin2Line,
+                              destructive: true,
+                              onSelect: () => setToDelete(segment),
+                            },
+                          ]}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          )}
         </div>
 
-        {fields && <CreateSegmentDialog open={creating} onOpenChange={setCreating} fields={fields} />}
         <ConfirmationModal
           open={!!toDelete}
           onOpenChange={(open) => !open && setToDelete(undefined)}
           onConfirm={confirmDelete}
-          title="Supprimer le segment ?"
-          description={`« ${toDelete?.name ?? ''} » sera supprimé. Un segment utilisé par une campagne ne peut pas l'être.`}
-          confirmButtonText="Supprimer"
+          title={t('segments.delete.title')}
+          description={t('segments.delete.text', { name: toDelete?.name ?? '' })}
+          confirmButtonText={t('common.delete')}
           confirmButtonVariant="error"
           isLoading={remove.isPending}
         />

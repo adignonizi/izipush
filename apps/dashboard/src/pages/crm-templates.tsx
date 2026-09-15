@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { RiAddLine, RiDeleteBin2Line, RiEditLine } from 'react-icons/ri';
+import { RiAddLine, RiDeleteBin2Line, RiEditLine, RiMailLine } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
 import type { CrmTemplateSummary } from '@/api/crm-templates';
 import { ConfirmationModal } from '@/components/confirmation-modal';
-import { formatDate } from '@/components/crm/crm-labels';
+import { formatDateTime, t } from '@/components/crm/crm-i18n';
+import { CrmBlankState, CrmLinkedCell, CrmListIntro, CrmRowMenu, CrmRowTitle } from '@/components/crm/crm-page';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { PageMeta } from '@/components/page-meta';
 import { Button } from '@/components/primitives/button';
@@ -22,84 +23,103 @@ export function CrmTemplatesPage() {
   const remove = useDeleteCrmTemplate();
   const [toDelete, setToDelete] = useState<CrmTemplateSummary>();
 
-  const open = (templateId: string) =>
-    navigate(buildRoute(ROUTES.CRM_TEMPLATE_EDIT, { environmentSlug: currentEnvironment?.slug ?? '', templateId }));
+  const editHref = (templateId: string) =>
+    buildRoute(ROUTES.CRM_TEMPLATE_EDIT, { environmentSlug: currentEnvironment?.slug ?? '', templateId });
 
   const confirmDelete = async () => {
     if (!toDelete) return;
 
     try {
       await remove.mutateAsync(toDelete._id);
-      showSuccessToast('Template supprimé');
+      showSuccessToast(t('templates.toast.deleted'));
     } catch (error) {
-      showErrorToast((error as Error).message, 'Template non supprimé');
+      showErrorToast((error as Error).message, t('templates.toast.deleteFailed'));
     } finally {
       setToDelete(undefined);
     }
   };
 
+  const newButton = (
+    <Button variant="primary" size="xs" leadingIcon={RiAddLine} onClick={() => navigate(editHref('new'))}>
+      {t('templates.new')}
+    </Button>
+  );
+
   return (
     <>
-      <PageMeta title="Templates email" />
-      <DashboardLayout headerStartItems={<h1 className="text-foreground-950">Templates email</h1>}>
-        <div className="flex flex-col gap-4 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-foreground-600 text-sm">
-              Des emails réutilisables. Choisis-en un dans une étape email : chaque modification du template y est
-              recopiée. Crée-les dans l'environnement où tu édites tes workflows.
-            </p>
-            <Button variant="primary" size="sm" onClick={() => open('new')}>
-              <RiAddLine className="size-4" /> Nouveau template
-            </Button>
-          </div>
+      <PageMeta title={t('nav.templates')} />
+      <DashboardLayout headerStartItems={<h1 className="text-foreground-950">{t('nav.templates')}</h1>}>
+        <div className="flex flex-col px-2.5 pb-6 md:px-4">
+          {!isLoading && templates.length === 0 ? (
+            <CrmBlankState
+              icon={RiMailLine}
+              title={t('templates.blank.title')}
+              description={t('templates.blank.text')}
+              action={newButton}
+            />
+          ) : (
+            <>
+              <CrmListIntro description={t('templates.description')} action={newButton} />
+              <Table isLoading={isLoading} loadingRowsCount={4}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('templates.col.name')}</TableHead>
+                    <TableHead>{t('templates.col.subject')}</TableHead>
+                    <TableHead>{t('templates.col.version')}</TableHead>
+                    <TableHead>{t('templates.col.updated')}</TableHead>
+                    <TableHead className="w-1">
+                      <span className="sr-only">{t('common.actions')}</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {templates.map((template) => {
+                    const href = editHref(template._id);
 
-          <Table isLoading={isLoading} loadingRowsCount={4}>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Objet</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead>Modifié le</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {templates.map((template) => (
-                <TableRow key={template._id}>
-                  <TableCell className="font-medium">{template.name}</TableCell>
-                  <TableCell>{template.subject ?? '—'}</TableCell>
-                  <TableCell>v{template.version}</TableCell>
-                  <TableCell>{formatDate(template.updatedAt)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="secondary" mode="ghost" size="xs" onClick={() => open(template._id)}>
-                        <RiEditLine className="size-4" />
-                      </Button>
-                      <Button variant="secondary" mode="ghost" size="xs" onClick={() => setToDelete(template)}>
-                        <RiDeleteBin2Line className="size-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!isLoading && templates.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-foreground-500 text-center text-sm">
-                    Aucun template pour l'instant.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    return (
+                      <TableRow key={template._id} className="group relative isolate cursor-pointer">
+                        <CrmLinkedCell to={href}>
+                          <CrmRowTitle to={href} title={template.name} />
+                        </CrmLinkedCell>
+                        <CrmLinkedCell to={href} className="text-paragraph-sm max-w-[360px] truncate">
+                          {template.subject ?? '—'}
+                        </CrmLinkedCell>
+                        <CrmLinkedCell to={href} className="font-code text-code-xs">
+                          v{template.version}
+                        </CrmLinkedCell>
+                        <CrmLinkedCell to={href} className="font-code text-code-xs whitespace-nowrap">
+                          {formatDateTime(template.updatedAt)}
+                        </CrmLinkedCell>
+                        <TableCell className="group-hover:bg-neutral-alpha-50 w-1">
+                          <CrmRowMenu
+                            items={[
+                              { label: t('common.edit'), icon: RiEditLine, onSelect: () => navigate(href) },
+                              {
+                                label: t('common.delete'),
+                                icon: RiDeleteBin2Line,
+                                destructive: true,
+                                separatorBefore: true,
+                                onSelect: () => setToDelete(template),
+                              },
+                            ]}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </>
+          )}
         </div>
 
         <ConfirmationModal
           open={!!toDelete}
           onOpenChange={(isOpen) => !isOpen && setToDelete(undefined)}
           onConfirm={confirmDelete}
-          title="Supprimer le template ?"
-          description={`« ${toDelete?.name ?? ''} » sera supprimé. Un template utilisé par une étape email ne peut pas l'être.`}
-          confirmButtonText="Supprimer"
+          title={t('templates.delete.title')}
+          description={t('templates.delete.text', { name: toDelete?.name ?? '' })}
+          confirmButtonText={t('common.delete')}
           confirmButtonVariant="error"
           isLoading={remove.isPending}
         />

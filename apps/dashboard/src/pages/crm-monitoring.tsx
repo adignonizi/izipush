@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import type { CrmIngestDaily, CrmQueueCounts, CrmServiceStatus } from '@/api/crm-monitoring';
-import { formatDate } from '@/components/crm/crm-labels';
+import { formatDateTime, formatNumber, t } from '@/components/crm/crm-i18n';
+import { eventLabel } from '@/components/crm/crm-labels';
+import { CrmSection, CrmStat } from '@/components/crm/crm-page';
+import { EmailSendingPanel } from '@/components/crm/email-sending-panel';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { PageMeta } from '@/components/page-meta';
 import { Badge } from '@/components/primitives/badge';
@@ -15,78 +18,84 @@ import {
   ChartTooltipContent,
 } from '@/components/primitives/chart';
 import { Input } from '@/components/primitives/input';
+import { Label } from '@/components/primitives/label';
+import { Skeleton } from '@/components/primitives/skeleton';
 import { showErrorToast, showSuccessToast } from '@/components/primitives/sonner-helpers';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/primitives/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/primitives/tabs';
 import { useCrmIngestion, useReplayCrmDeadLetters } from '@/hooks/use-crm-monitoring';
 
-// izipush-crm — suivi de l'ingestion des événements Izichange : état de crm-ingest, volumes, file d'erreurs.
+// izipush-crm — Suivi : réception des événements d'Izichange, et envois email des campagnes.
 
 const DAYS = 14;
 
 const chartConfig = {
-  accepted: { label: 'Acceptés', color: '#22c55e' },
-  duplicate: { label: 'Doublons', color: '#94a3b8' },
-  invalid: { label: 'Rejetés', color: '#ef4444' },
-  ignored: { label: 'Ignorés', color: '#f59e0b' },
+  accepted: { label: t('outcome.accepted'), color: '#1fc16b' },
+  duplicate: { label: t('outcome.duplicate'), color: '#99a0ae' },
+  invalid: { label: t('outcome.invalid'), color: '#fb3748' },
+  ignored: { label: t('outcome.ignored'), color: '#f6b51e' },
 } satisfies ChartConfig;
 
 type Outcome = keyof typeof chartConfig;
 const OUTCOMES = Object.keys(chartConfig) as Outcome[];
 
 const COMMAND_STATUS = {
-  pending: { label: 'En attente', color: 'orange' },
-  running: { label: 'En cours', color: 'blue' },
-  done: { label: 'Terminé', color: 'green' },
-  failed: { label: 'Échec', color: 'red' },
+  pending: { label: t('command.status.pending'), color: 'orange' },
+  running: { label: t('command.status.running'), color: 'blue' },
+  done: { label: t('command.status.done'), color: 'green' },
+  failed: { label: t('command.status.failed'), color: 'red' },
 } as const;
-
-const number = (value?: number) => (value ?? 0).toLocaleString('fr-FR');
-
-function Stat({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
-  return (
-    <div className="border-stroke-soft flex min-w-[140px] flex-1 flex-col gap-1 rounded-lg border p-3">
-      <span className="text-foreground-500 text-xs">{label}</span>
-      <span className="text-foreground-950 text-lg font-medium">{value}</span>
-      {hint && <span className="text-foreground-500 text-xs">{hint}</span>}
-    </div>
-  );
-}
 
 function queueLabel(counts?: CrmQueueCounts) {
   if (!counts) return '—';
 
-  return `${number(counts.waiting)} en attente · ${number(counts.active)} en cours · ${number(counts.failed)} en échec`;
+  return t('monitoring.queue', {
+    waiting: formatNumber(counts.waiting),
+    active: formatNumber(counts.active),
+    failed: formatNumber(counts.failed),
+  });
 }
 
-function ServiceStatus({ status }: { status: CrmServiceStatus | null }) {
-  if (!status) {
-    return (
-      <p className="text-foreground-600 text-sm">
-        crm-ingest n'a encore jamais signalé son état. Vérifie qu'il tourne et qu'il est à jour.
-      </p>
-    );
-  }
+function ServiceStatus({ status, isLoading }: { status: CrmServiceStatus | null; isLoading: boolean }) {
+  if (isLoading) return <Skeleton className="h-24 w-full" />;
+  if (!status) return <p className="text-text-sub text-paragraph-sm">{t('monitoring.service.never')}</p>;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
         <Badge variant="lighter" color={status.stale ? 'red' : 'green'} size="md">
-          {status.stale ? 'Sans nouvelles' : 'En ligne'}
+          {status.stale ? t('monitoring.service.stale') : t('monitoring.service.online')}
         </Badge>
         <Badge variant="lighter" color={status.rabbit.connected ? 'green' : 'red'} size="md">
-          RabbitMQ {status.rabbit.connected ? 'connecté' : 'déconnecté'}
+          {status.rabbit.connected ? t('monitoring.rabbit.connected') : t('monitoring.rabbit.disconnected')}
         </Badge>
-        <span className="text-foreground-500 text-xs">
-          Dernier signal {formatDate(status.updatedAt)} · démarré {formatDate(status.startedAt)} · v
-          {status.version ?? '?'} · {status.hostname ?? ''}
+        <span className="text-text-soft text-paragraph-xs">
+          {t('monitoring.service.meta', {
+            date: formatDateTime(status.updatedAt),
+            started: formatDateTime(status.startedAt),
+            version: status.version ?? '?',
+          })}
         </span>
       </div>
-      <div className="flex flex-wrap gap-3">
-        <Stat label="Messages en attente" value={number(status.rabbit.messages)} hint={status.rabbit.queue} />
-        <Stat label="File d'erreurs" value={number(status.rabbit.deadLetters)} hint="messages à examiner" />
-        <Stat label="Dernier événement reçu" value={status.lastMessageAt ? formatDate(status.lastMessageAt) : '—'} />
-        <Stat label="Recalcul des profils" value={queueLabel(status.queues.derive)} />
-        <Stat label="Campagnes" value={queueLabel(status.queues.campaigns)} />
+      <div className="border-stroke-soft flex flex-wrap gap-6 rounded-lg border p-4">
+        <CrmStat label={t('monitoring.stat.waiting')} value={formatNumber(status.rabbit.messages)} />
+        <CrmStat
+          label={t('monitoring.stat.rejected')}
+          value={formatNumber(status.rabbit.deadLetters)}
+          hint={t('monitoring.stat.rejectedHint')}
+        />
+        <CrmStat
+          label={t('monitoring.stat.lastEvent')}
+          value={<span className="text-label-md">{formatDateTime(status.lastMessageAt)}</span>}
+        />
+        <CrmStat
+          label={t('monitoring.stat.profiles')}
+          value={<span className="text-label-md">{queueLabel(status.queues.derive)}</span>}
+        />
+        <CrmStat
+          label={t('monitoring.stat.campaigns')}
+          value={<span className="text-label-md">{queueLabel(status.queues.campaigns)}</span>}
+        />
       </div>
     </div>
   );
@@ -112,11 +121,11 @@ function IngestionChart({ daily, from }: { daily: CrmIngestDaily[]; from: string
       events.set(row.eventName, total);
     }
 
-    return {
-      data: [...days.values()],
-      byEvent: [...events.entries()].sort((a, b) => b[1].accepted - a[1].accepted),
-    };
+    return { data: [...days.values()], byEvent: [...events.entries()].sort((a, b) => b[1].accepted - a[1].accepted) };
   }, [daily, from]);
+
+  if (byEvent.length === 0)
+    return <p className="text-text-soft text-paragraph-sm py-6">{t('monitoring.events.empty')}</p>;
 
   return (
     <div className="flex flex-col gap-4">
@@ -136,142 +145,173 @@ function IngestionChart({ daily, from }: { daily: CrmIngestDaily[]; from: string
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Événement ({DAYS} jours)</TableHead>
+            <TableHead>{t('monitoring.col.event')}</TableHead>
             {OUTCOMES.map((outcome) => (
-              <TableHead key={outcome}>{chartConfig[outcome].label}</TableHead>
+              <TableHead key={outcome} className="text-right">
+                {chartConfig[outcome].label}
+              </TableHead>
             ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {byEvent.map(([eventName, total]) => (
             <TableRow key={eventName}>
-              <TableCell className="font-medium">{eventName}</TableCell>
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="text-text-strong font-medium">{eventLabel(eventName)}</span>
+                  <span className="text-text-soft font-code text-code-xs">{eventName}</span>
+                </div>
+              </TableCell>
               {OUTCOMES.map((outcome) => (
-                <TableCell key={outcome}>{number(total[outcome])}</TableCell>
+                <TableCell key={outcome} className="text-right tabular-nums">
+                  {formatNumber(total[outcome])}
+                </TableCell>
               ))}
             </TableRow>
           ))}
-          {byEvent.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={5} className="text-foreground-500 text-center text-sm">
-                Aucun événement reçu sur la période.
-              </TableCell>
-            </TableRow>
-          )}
         </TableBody>
       </Table>
     </div>
   );
 }
 
-export function CrmMonitoringPage() {
+function IngestionTab() {
   const { data, isLoading } = useCrmIngestion(DAYS);
   const replay = useReplayCrmDeadLetters();
   const [limit, setLimit] = useState('100');
+  const deadLetters = data?.deadLetters ?? [];
 
   const requestReplay = async () => {
     try {
       await replay.mutateAsync(Number(limit) || 100);
-      showSuccessToast('Relecture demandée : crm-ingest la traite dans les 30 secondes');
+      showSuccessToast(t('monitoring.replay.toast'));
     } catch (error) {
-      showErrorToast((error as Error).message, 'Relecture non demandée');
+      showErrorToast((error as Error).message, t('monitoring.replay.failed'));
     }
   };
 
   return (
-    <>
-      <PageMeta title="Suivi CRM" />
-      <DashboardLayout headerStartItems={<h1 className="text-foreground-950">Suivi CRM</h1>}>
-        <div className="flex flex-col gap-8 p-4">
-          <section className="flex flex-col gap-3">
-            <h2 className="text-foreground-950 text-base font-medium">Service d'ingestion (crm-ingest)</h2>
-            {isLoading ? (
-              <p className="text-foreground-500 text-sm">Chargement…</p>
-            ) : (
-              <ServiceStatus status={data?.status ?? null} />
-            )}
-          </section>
+    <div className="flex flex-col gap-10">
+      <CrmSection title={t('monitoring.service.title')}>
+        <ServiceStatus status={data?.status ?? null} isLoading={isLoading} />
+      </CrmSection>
 
-          <section className="flex flex-col gap-3">
-            <h2 className="text-foreground-950 text-base font-medium">Événements reçus d'Izichange</h2>
-            <IngestionChart daily={data?.daily ?? []} from={data?.from ?? new Date().toISOString().slice(0, 10)} />
-          </section>
+      <CrmSection title={t('monitoring.events.title')}>
+        <IngestionChart daily={data?.daily ?? []} from={data?.from ?? new Date().toISOString().slice(0, 10)} />
+      </CrmSection>
 
-          <section className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-foreground-950 text-base font-medium">File d'erreurs</h2>
-                <p className="text-foreground-600 text-sm">
-                  Messages rejetés (format ou données invalides), gardés 30 jours. Une fois la cause corrigée chez
-                  Izichange ou dans crm-ingest, rejoue-les.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  className="w-24"
-                  inputMode="numeric"
-                  value={limit}
-                  onChange={(event) => setLimit(event.target.value.replace(/[^0-9]/g, ''))}
-                />
-                <Button variant="primary" size="sm" isLoading={replay.isPending} onClick={requestReplay}>
-                  Rejouer
-                </Button>
-              </div>
-            </div>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Reçu le</TableHead>
-                  <TableHead>Événement</TableHead>
-                  <TableHead>Motif</TableHead>
-                  <TableHead>Contenu</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(data?.deadLetters ?? []).map((deadLetter) => (
-                  <TableRow key={deadLetter._id}>
-                    <TableCell className="whitespace-nowrap">{formatDate(deadLetter.at)}</TableCell>
-                    <TableCell>
-                      <div>{deadLetter.eventType ?? deadLetter.routingKey ?? '—'}</div>
-                      <div className="text-foreground-500 text-xs">{deadLetter.eventId ?? ''}</div>
-                    </TableCell>
-                    <TableCell className="max-w-[260px] text-sm">{deadLetter.reason}</TableCell>
-                    <TableCell>
-                      <code className="text-foreground-600 block max-h-20 max-w-[420px] overflow-auto whitespace-pre-wrap break-all text-xs">
-                        {deadLetter.preview}
-                      </code>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!isLoading && (data?.deadLetters ?? []).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-foreground-500 text-center text-sm">
-                      Aucun message rejeté ces 30 derniers jours.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-
-            {(data?.commands ?? []).length > 0 && (
-              <div className="flex flex-col gap-1">
-                <h3 className="text-foreground-700 text-sm font-medium">Dernières relectures</h3>
-                {data?.commands.map((command) => (
-                  <div key={command._id} className="text-foreground-600 flex flex-wrap items-center gap-2 text-xs">
-                    <Badge variant="lighter" color={COMMAND_STATUS[command.status].color} size="sm">
-                      {COMMAND_STATUS[command.status].label}
-                    </Badge>
-                    <span>
-                      {formatDate(command.requestedAt)} — jusqu'à {command.limit} message(s)
-                      {command.result ? ` : ${command.result}` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+      <CrmSection title={t('monitoring.rejected.title')} description={t('monitoring.rejected.text')}>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="replay-count" className="text-label-xs text-text-sub">
+              {t('monitoring.rejected.count')}
+            </Label>
+            <Input
+              id="replay-count"
+              className="w-24"
+              size="xs"
+              inputMode="numeric"
+              value={limit}
+              onChange={(event) => setLimit(event.target.value.replace(/[^0-9]/g, ''))}
+            />
+          </div>
+          <Button
+            variant="secondary"
+            mode="outline"
+            size="xs"
+            isLoading={replay.isPending}
+            disabled={deadLetters.length === 0}
+            onClick={requestReplay}
+          >
+            {t('monitoring.rejected.replay')}
+          </Button>
         </div>
+
+        <Table isLoading={isLoading} loadingRowsCount={3}>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('monitoring.col.received')}</TableHead>
+              <TableHead>{t('monitoring.col.event')}</TableHead>
+              <TableHead>{t('monitoring.col.reason')}</TableHead>
+              <TableHead>{t('monitoring.col.content')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {deadLetters.map((deadLetter) => (
+              <TableRow key={deadLetter._id}>
+                <TableCell className="font-code text-code-xs text-text-sub whitespace-nowrap">
+                  {formatDateTime(deadLetter.at)}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="text-text-strong">
+                      {eventLabel(deadLetter.eventType ?? deadLetter.routingKey)}
+                    </span>
+                    {deadLetter.eventId && (
+                      <span className="text-text-soft font-code text-code-xs">{deadLetter.eventId}</span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-paragraph-sm max-w-[260px]">{deadLetter.reason}</TableCell>
+                <TableCell>
+                  <code className="text-text-sub font-code block max-h-20 max-w-[420px] overflow-auto whitespace-pre-wrap break-all text-xs">
+                    {deadLetter.preview}
+                  </code>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!isLoading && deadLetters.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-text-soft text-paragraph-sm py-8 text-center">
+                  {t('monitoring.rejected.empty')}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+
+        {(data?.commands ?? []).length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <h3 className="text-text-sub text-label-sm">{t('monitoring.commands.title')}</h3>
+            {data?.commands.map((command) => (
+              <div key={command._id} className="text-text-sub text-paragraph-xs flex flex-wrap items-center gap-2">
+                <Badge variant="lighter" color={COMMAND_STATUS[command.status].color} size="sm">
+                  {COMMAND_STATUS[command.status].label}
+                </Badge>
+                <span>
+                  {t('monitoring.command.line', { date: formatDateTime(command.requestedAt), limit: command.limit })}
+                  {command.result ? ` : ${command.result}` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CrmSection>
+    </div>
+  );
+}
+
+export function CrmMonitoringPage() {
+  return (
+    <>
+      <PageMeta title={t('monitoring.title')} />
+      <DashboardLayout headerStartItems={<h1 className="text-foreground-950">{t('monitoring.title')}</h1>}>
+        <Tabs defaultValue="ingestion" className="w-full">
+          <TabsList align="start" variant="regular" className="border-t-transparent px-4 py-0! md:px-6">
+            <TabsTrigger variant="regular" value="ingestion" size="xl">
+              {t('monitoring.tab.ingestion')}
+            </TabsTrigger>
+            <TabsTrigger variant="regular" value="email" size="xl">
+              {t('monitoring.tab.email')}
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="ingestion" className="px-4 pb-8 pt-6 outline-none md:px-6">
+            <IngestionTab />
+          </TabsContent>
+          <TabsContent value="email" className="px-4 pb-8 pt-6 outline-none md:px-6">
+            <EmailSendingPanel />
+          </TabsContent>
+        </Tabs>
       </DashboardLayout>
     </>
   );

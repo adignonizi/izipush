@@ -17,7 +17,6 @@ import {
   RiPulseLine,
   RiRobot2Line,
   RiRouteFill,
-  RiSendPlaneLine,
   RiSettings4Line,
   RiSignalTowerLine,
   RiStore3Line,
@@ -25,6 +24,7 @@ import {
   RiUserAddLine,
 } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
+import { t } from '@/components/crm/crm-i18n';
 import { SidebarContent } from '@/components/side-navigation/sidebar';
 import { useEnvironment } from '@/context/environment/hooks';
 import { useLocalMode } from '@/context/local-mode';
@@ -297,7 +297,7 @@ export const LegacySideNavigation = () => {
                 }
               >
                 <RiFilter3Line className="size-4" />
-                <span>Segments</span>
+                <span>{t('nav.segments')}</span>
               </NavigationLink>
               <NavigationLink
                 to={
@@ -307,7 +307,7 @@ export const LegacySideNavigation = () => {
                 }
               >
                 <RiMegaphoneLine className="size-4" />
-                <span>Campagnes</span>
+                <span>{t('nav.campaigns')}</span>
               </NavigationLink>
               <NavigationLink
                 to={
@@ -317,17 +317,7 @@ export const LegacySideNavigation = () => {
                 }
               >
                 <RiMailLine className="size-4" />
-                <span>Templates email</span>
-              </NavigationLink>
-              <NavigationLink
-                to={
-                  currentEnvironment?.slug
-                    ? buildRoute(ROUTES.CRM_EMAIL_PROVIDERS, { environmentSlug: currentEnvironment.slug })
-                    : undefined
-                }
-              >
-                <RiSendPlaneLine className="size-4" />
-                <span>Fournisseurs email</span>
+                <span>{t('nav.templates')}</span>
               </NavigationLink>
               <NavigationLink
                 to={
@@ -337,7 +327,7 @@ export const LegacySideNavigation = () => {
                 }
               >
                 <RiBarChartBoxLine className="size-4" />
-                <span>Rapports</span>
+                <span>{t('nav.reports')}</span>
               </NavigationLink>
               <NavigationLink
                 to={
@@ -347,7 +337,7 @@ export const LegacySideNavigation = () => {
                 }
               >
                 <RiPulseLine className="size-4" />
-                <span>Suivi</span>
+                <span>{t('nav.monitoring')}</span>
               </NavigationLink>
             </NavigationGroup>
             <Protect

@@ -1,8 +1,10 @@
 import { init, type TemplaticalEditor } from '@templatical/editor';
 import '@templatical/editor/style.css';
 import { useEffect, useRef, useState } from 'react';
-import { RiArrowLeftLine } from 'react-icons/ri';
+import { RiMailLine } from 'react-icons/ri';
 import { useNavigate, useParams } from 'react-router-dom';
+import { crmLocale, t, tp } from '@/components/crm/crm-i18n';
+import { CrmBreadcrumbHeader } from '@/components/crm/crm-page';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { PageMeta } from '@/components/page-meta';
 import { Button } from '@/components/primitives/button';
@@ -19,12 +21,16 @@ type TemplateContent = NonNullable<Parameters<typeof init>[0]['content']>;
 
 /** Variables disponibles, au format Novu (liquid) : rendues à l'envoi pour chaque client. */
 const MERGE_TAGS = [
-  { label: 'Prénom', value: '{{subscriber.firstName}}', group: 'Client' },
-  { label: 'Nom', value: '{{subscriber.lastName}}', group: 'Client' },
-  { label: 'Email', value: '{{subscriber.email}}', group: 'Client' },
-  { label: 'Pays', value: '{{subscriber.data.country_code}}', group: 'Client' },
-  { label: 'Lien de désinscription', value: '{{subscriber.data.unsubscribe_url}}', group: 'Marketing' },
-  { label: 'Donnée de la campagne', value: '{{payload.offre}}', group: 'Campagne' },
+  { label: t('mergeTag.firstName'), value: '{{subscriber.firstName}}', group: t('mergeTag.group.client') },
+  { label: t('mergeTag.lastName'), value: '{{subscriber.lastName}}', group: t('mergeTag.group.client') },
+  { label: t('mergeTag.email'), value: '{{subscriber.email}}', group: t('mergeTag.group.client') },
+  { label: t('mergeTag.country'), value: '{{subscriber.data.country_code}}', group: t('mergeTag.group.client') },
+  {
+    label: t('mergeTag.unsubscribe'),
+    value: '{{subscriber.data.unsubscribe_url}}',
+    group: t('mergeTag.group.marketing'),
+  },
+  { label: t('mergeTag.campaignData'), value: '{{payload.offre}}', group: t('mergeTag.group.campaign') },
 ];
 
 export function CrmTemplateEditorPage() {
@@ -56,7 +62,7 @@ export function CrmTemplateEditorPage() {
     void init({
       container: container.current,
       content: template?.design as TemplateContent | undefined,
-      locale: 'fr',
+      locale: crmLocale,
       mergeTags: { syntax: 'liquid', tags: MERGE_TAGS, autocomplete: true },
     }).then((created) => {
       if (cancelled) {
@@ -76,8 +82,7 @@ export function CrmTemplateEditorPage() {
     };
   }, [isNew, template]);
 
-  const backToList = () =>
-    navigate(buildRoute(ROUTES.CRM_TEMPLATES, { environmentSlug: currentEnvironment?.slug ?? '' }));
+  const listHref = buildRoute(ROUTES.CRM_TEMPLATES, { environmentSlug: currentEnvironment?.slug ?? '' });
 
   const submit = async () => {
     if (!editor.current) return;
@@ -87,7 +92,7 @@ export function CrmTemplateEditorPage() {
       const mjml = await editor.current.toMjml();
       const { default: mjml2html } = await import('mjml-browser');
       const { html, errors } = mjml2html(mjml, { validationLevel: 'soft' });
-      if (!html) throw new Error(errors?.[0]?.message ?? 'Rendu HTML impossible');
+      if (!html) throw new Error(errors?.[0]?.message ?? t('templateEditor.renderFailed'));
 
       const saved = await save.mutateAsync({
         templateId: isNew ? undefined : routeId,
@@ -96,8 +101,8 @@ export function CrmTemplateEditorPage() {
 
       showSuccessToast(
         saved.propagatedSteps
-          ? `Template enregistré et recopié dans ${saved.propagatedSteps} étape(s) email`
-          : 'Template enregistré'
+          ? t('templateEditor.toast.propagated', { steps: tp('steps', saved.propagatedSteps) })
+          : t('templateEditor.toast.saved')
       );
 
       if (isNew) {
@@ -110,47 +115,54 @@ export function CrmTemplateEditorPage() {
         );
       }
     } catch (error) {
-      showErrorToast((error as Error).message, 'Template non enregistré');
+      showErrorToast((error as Error).message, t('templateEditor.toast.failed'));
     }
   };
 
   return (
     <>
-      <PageMeta title={isNew ? 'Nouveau template' : (template?.name ?? 'Template')} />
+      <PageMeta title={isNew ? t('templateEditor.newTitle') : (template?.name ?? t('nav.templates'))} />
       <DashboardLayout
         headerStartItems={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" mode="ghost" size="xs" onClick={backToList}>
-              <RiArrowLeftLine className="size-4" />
-            </Button>
-            <h1 className="text-foreground-950">{isNew ? 'Nouveau template' : (template?.name ?? '…')}</h1>
-          </div>
+          <CrmBreadcrumbHeader
+            parentLabel={t('nav.templates')}
+            parentTo={listHref}
+            current={isNew ? t('templateEditor.newTitle') : template?.name}
+            icon={RiMailLine}
+            isLoading={!isNew && isLoading}
+          />
         }
       >
         <div className="flex h-full flex-col gap-3 p-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex min-w-60 flex-1 flex-col gap-1">
-              <Label>Nom</Label>
-              <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Relance KYC" />
+              <Label htmlFor="template-name">{t('templateEditor.name')}</Label>
+              <Input
+                id="template-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t('templateEditor.namePlaceholder')}
+              />
             </div>
             <div className="flex min-w-80 flex-[2] flex-col gap-1">
-              <Label>Objet proposé aux étapes email</Label>
+              <Label htmlFor="template-subject">{t('templateEditor.subject')}</Label>
               <Input
+                id="template-subject"
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
-                placeholder="{{subscriber.firstName}}, votre KYC vous attend"
+                placeholder={t('templateEditor.subjectPlaceholder')}
               />
             </div>
             <Button variant="primary" size="sm" onClick={submit} disabled={!ready || !name.trim() || save.isPending}>
-              Enregistrer
+              {t('common.save')}
             </Button>
           </div>
           {!isNew && template?.usedBySteps ? (
-            <p className="text-foreground-500 text-xs">
-              Utilisé par {template.usedBySteps} étape(s) email : elles seront mises à jour à l'enregistrement.
+            <p className="text-text-soft text-paragraph-xs">
+              {t('templateEditor.usedBy', { steps: tp('steps', template.usedBySteps) })}
             </p>
           ) : null}
-          {!isNew && isLoading && <p className="text-foreground-500 text-sm">Chargement du template…</p>}
+          {!isNew && isLoading && <p className="text-text-soft text-paragraph-sm">{t('common.loading')}</p>}
           <div ref={container} className="min-h-[70vh] flex-1 overflow-hidden rounded-lg border" />
         </div>
       </DashboardLayout>

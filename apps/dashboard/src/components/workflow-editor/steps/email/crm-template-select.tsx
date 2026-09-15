@@ -2,6 +2,7 @@ import { EnvironmentTypeEnum } from '@novu/shared';
 import { useFormContext } from 'react-hook-form';
 import { RiMailSettingsLine } from 'react-icons/ri';
 import { getCrmTemplate } from '@/api/crm-templates';
+import { t } from '@/components/crm/crm-i18n';
 import { FormControl, FormField, FormItem, FormMessage } from '@/components/primitives/form/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/primitives/select';
 import { showErrorToast } from '@/components/primitives/sonner-helpers';
@@ -46,7 +47,7 @@ export const CrmTemplateSelect = () => {
                   if (template.subject) setValue('subject', template.subject, { shouldDirty: true });
                   saveForm({ forceSubmit: true });
                 } catch (error) {
-                  showErrorToast((error as Error).message, 'Template non appliqué');
+                  showErrorToast((error as Error).message, t('templateSelect.failed'));
                 }
               }}
             >
@@ -55,11 +56,11 @@ export const CrmTemplateSelect = () => {
                 className="bg-bg-weak border-transparent hover:border-transparent hover:bg-neutral-100 [&_span]:text-neutral-600"
               >
                 <RiMailSettingsLine className="text-text-soft mr-2 size-4" />
-                <SelectValue placeholder="Template CRM" />
+                <SelectValue placeholder={t('templateSelect.placeholder')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_TEMPLATE} className="text-paragraph-xs">
-                  Sans template CRM
+                  {t('templateSelect.none')}
                 </SelectItem>
                 {templates.map((template) => (
                   <SelectItem key={template._id} value={template._id} className="text-paragraph-xs">

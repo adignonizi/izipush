@@ -147,6 +147,14 @@ export async function getCrmCampaigns({ environment, signal }: WithEnvironment):
   return (await get<{ data: CrmCampaign[] }>('/crm/campaigns', { environment, signal })).data;
 }
 
+export async function getCrmCampaign({
+  environment,
+  campaignId,
+  signal,
+}: WithEnvironment & { campaignId: string }): Promise<CrmCampaign> {
+  return (await get<{ data: CrmCampaign }>(`/crm/campaigns/${campaignId}`, { environment, signal })).data;
+}
+
 export async function createCrmCampaign({
   environment,
   body,

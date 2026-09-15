@@ -55,10 +55,12 @@ import { CreateContextPage } from './pages/create-context';
 import { CreateSubscriberPage } from './pages/create-subscriber';
 import { CreateTopicPage } from './pages/create-topic';
 // izipush-crm
+import { CrmCampaignDetailPage } from './pages/crm-campaign-detail';
+import { CrmCampaignEditorPage } from './pages/crm-campaign-editor';
 import { CrmCampaignsPage } from './pages/crm-campaigns';
-import { CrmEmailProvidersPage } from './pages/crm-email-providers';
 import { CrmMonitoringPage } from './pages/crm-monitoring';
 import { CrmReportsPage } from './pages/crm-reports';
+import { CrmSegmentEditorPage } from './pages/crm-segment-editor';
 import { CrmSegmentsPage } from './pages/crm-segments';
 import { CrmTemplateEditorPage } from './pages/crm-template-editor';
 import { CrmTemplatesPage } from './pages/crm-templates';
@@ -491,10 +493,42 @@ const router = createBrowserRouter([
                 ),
               },
               {
+                path: ROUTES.CRM_SEGMENT_NEW,
+                element: (
+                  <ProtectedRoute>
+                    <CrmSegmentEditorPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
                 path: ROUTES.CRM_CAMPAIGNS,
                 element: (
                   <ProtectedRoute>
                     <CrmCampaignsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGN_NEW,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignEditorPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGN_DETAIL,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignDetailPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGN_EDIT,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignEditorPage />
                   </ProtectedRoute>
                 ),
               },
@@ -511,14 +545,6 @@ const router = createBrowserRouter([
                 element: (
                   <ProtectedRoute>
                     <CrmTemplateEditorPage />
-                  </ProtectedRoute>
-                ),
-              },
-              {
-                path: ROUTES.CRM_EMAIL_PROVIDERS,
-                element: (
-                  <ProtectedRoute>
-                    <CrmEmailProvidersPage />
                   </ProtectedRoute>
                 ),
               },
