@@ -117,7 +117,8 @@ export class CampaignRunner {
       lockedUntil: null,
       ...(run.audienceSize ? {} : { error: 'Aucun client éligible : rien à envoyer' }),
     });
-    await this.campaigns.updateCampaign(String(run._environmentId), campaign._id, { lastRunAt: now });
+    // Envoi réussi : l'erreur d'une exécution précédente ne s'affiche plus sur la campagne.
+    await this.campaigns.updateCampaign(String(run._environmentId), campaign._id, { lastRunAt: now, error: undefined });
     this.logger.log(
       `Campagne « ${campaign.name} » : ${run.audienceSize} client(s) visé(s), ${run.excludedCount} exclu(s)`
     );

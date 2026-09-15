@@ -43,10 +43,15 @@ export class CrmCampaignRepository extends BaseRepositoryV2<CrmCampaignDBModel, 
     return toCrmEntity<CrmCampaignEntity>(doc.toObject());
   }
 
+  /** Un champ passé à `undefined` est supprimé ($unset) : Mongoose ignorerait sinon la clé (ex. effacer `error`). */
   async updateCampaign(environmentId: string, id: string, set: CampaignSet): Promise<CrmCampaignEntity | null> {
+    const cleared = Object.keys(set).filter((key) => set[key as keyof CampaignSet] === undefined);
     const doc = await this.MongooseModel.findOneAndUpdate(
       { _environmentId: environmentId, _id: id },
-      { $set: set },
+      {
+        $set: set,
+        ...(cleared.length ? { $unset: Object.fromEntries(cleared.map((key) => [key, 1])) } : {}),
+      },
       { new: true }
     ).lean();
 
