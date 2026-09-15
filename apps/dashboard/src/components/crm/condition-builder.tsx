@@ -1,6 +1,7 @@
 import { RiAddLine, RiCloseLine } from 'react-icons/ri';
 import type {
   CrmActivityCondition,
+  CrmActivityOperator,
   CrmCondition,
   CrmConditionGroup,
   CrmFields,
@@ -13,6 +14,7 @@ import { CompactButton } from '@/components/primitives/button-compact';
 import { Input } from '@/components/primitives/input';
 import { MultiSelect } from '@/components/primitives/multi-select';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/primitives/select';
+import { cn } from '@/utils/ui';
 import { t } from './crm-i18n';
 import { ACTIVITY_OPERATOR_LABELS, fieldLabel, metricLabel, OPERATOR_LABELS } from './crm-labels';
 
@@ -71,7 +73,11 @@ export function ConditionBuilder({ fields, value, onChange }: ConditionBuilderPr
           </SelectContent>
         </Select>
       </div>
-      {hasActivity && <p className="text-text-soft text-paragraph-xs">{t('segEditor.activityAll')}</p>}
+      {hasActivity && (
+        <p className="text-text-soft text-paragraph-xs">
+          {t('segEditor.activityAll')} {t('segEditor.activityZero')}
+        </p>
+      )}
 
       {value.conditions.length === 0 ? (
         <p className="border-stroke-soft text-text-soft text-paragraph-sm rounded-lg border border-dashed px-3 py-4">
@@ -231,20 +237,21 @@ function ProfileValue({
     }
 
     return (
-      <Input
-        className="w-64"
-        size="2xs"
-        placeholder={t('segEditor.value.listText')}
-        value={values.join(', ')}
-        onChange={(event) =>
-          set(
-            event.target.value
-              .split(',')
-              .map((item) => item.trim())
-              .filter(Boolean)
-          )
-        }
-      />
+      <div className={cn('shrink-0', 'w-64')}>
+        <Input
+          size="2xs"
+          placeholder={t('segEditor.value.listText')}
+          value={values.join(', ')}
+          onChange={(event) =>
+            set(
+              event.target.value
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+            )
+          }
+        />
+      </div>
     );
   }
 
@@ -290,25 +297,27 @@ function ProfileValue({
     const day = typeof condition.value === 'string' ? condition.value.slice(0, 10) : '';
 
     return (
-      <Input
-        type="date"
-        size="2xs"
-        className="w-44"
-        aria-label={fieldLabel(field)}
-        value={day}
-        onChange={(event) => set(event.target.value ? new Date(event.target.value).toISOString() : undefined)}
-      />
+      <div className={cn('shrink-0', 'w-44')}>
+        <Input
+          type="date"
+          size="2xs"
+          aria-label={fieldLabel(field)}
+          value={day}
+          onChange={(event) => set(event.target.value ? new Date(event.target.value).toISOString() : undefined)}
+        />
+      </div>
     );
   }
 
   return (
-    <Input
-      className="w-56"
-      size="2xs"
-      aria-label={fieldLabel(field)}
-      value={typeof condition.value === 'string' ? condition.value : ''}
-      onChange={(event) => set(event.target.value)}
-    />
+    <div className={cn('shrink-0', 'w-56')}>
+      <Input
+        size="2xs"
+        aria-label={fieldLabel(field)}
+        value={typeof condition.value === 'string' ? condition.value : ''}
+        onChange={(event) => set(event.target.value)}
+      />
+    </div>
   );
 }
 
@@ -340,7 +349,7 @@ function ActivityRow({
       </Select>
       <Select
         value={condition.operator}
-        onValueChange={(operator) => onChange({ ...condition, operator: operator as 'gt' | 'gte' })}
+        onValueChange={(operator) => onChange({ ...condition, operator: operator as CrmActivityOperator })}
       >
         <SelectTrigger className="w-36" size="2xs">
           <SelectValue />
@@ -369,14 +378,15 @@ function ActivityRow({
       <span className="text-text-sub text-paragraph-sm">
         {t('segEditor.activity.days')}, {t('segEditor.activity.product')}
       </span>
-      <Input
-        className="w-28"
-        size="2xs"
-        aria-label={t('segEditor.activity.product')}
-        placeholder={t('segEditor.activity.allProducts')}
-        value={condition.product ?? ''}
-        onChange={(event) => onChange({ ...condition, product: event.target.value.trim() || undefined })}
-      />
+      <div className={cn('shrink-0', 'w-28')}>
+        <Input
+          size="2xs"
+          aria-label={t('segEditor.activity.product')}
+          placeholder={t('segEditor.activity.allProducts')}
+          value={condition.product ?? ''}
+          onChange={(event) => onChange({ ...condition, product: event.target.value.trim() || undefined })}
+        />
+      </div>
     </>
   );
 }
@@ -393,13 +403,14 @@ function NumberInput({
   label: string;
 }) {
   return (
-    <Input
-      type="number"
-      size="2xs"
-      className={className}
-      aria-label={label}
-      value={typeof value === 'number' ? String(value) : ''}
-      onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
-    />
+    <div className={cn('shrink-0', className)}>
+      <Input
+        type="number"
+        size="2xs"
+        aria-label={label}
+        value={typeof value === 'number' ? String(value) : ''}
+        onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
+      />
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 import type {
   CrmActivityMetric,
+  CrmActivityOperator,
   CrmCampaign,
   CrmCampaignRun,
   CrmProfileField,
@@ -29,9 +30,12 @@ export const OPERATOR_LABELS: Record<CrmProfileOperator, string> = {
   more_than_days_ago: t('op.more_than_days_ago'),
 };
 
-export const ACTIVITY_OPERATOR_LABELS: Record<'gt' | 'gte', string> = {
+export const ACTIVITY_OPERATOR_LABELS: Record<CrmActivityOperator, string> = {
   gt: t('activity.op.gt'),
   gte: t('activity.op.gte'),
+  lt: t('activity.op.lt'),
+  lte: t('activity.op.lte'),
+  eq: t('activity.op.eq'),
 };
 
 export const SEGMENT_STATUS: Record<CrmSegment['status'], { label: string; color: BadgeColor }> = {

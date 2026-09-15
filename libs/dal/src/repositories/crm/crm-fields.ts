@@ -77,6 +77,11 @@ export const CRM_PROFILE_FIELDS: CrmFieldDefinition[] = [
 
 export type CrmActivityMetric = 'tx' | 'volUsd' | 'txFailed';
 
+/** Un client sans activité sur la fenêtre compte pour 0 : « lt », « lte » et « eq 0 » l'incluent. */
+export const CRM_ACTIVITY_OPERATORS = ['gt', 'gte', 'lt', 'lte', 'eq'] as const;
+
+export type CrmActivityOperator = (typeof CRM_ACTIVITY_OPERATORS)[number];
+
 export const CRM_ACTIVITY_METRICS: { key: CrmActivityMetric; label: string }[] = [
   { key: 'tx', label: 'Transactions réussies' },
   { key: 'volUsd', label: 'Volume (USD)' },

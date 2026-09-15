@@ -684,15 +684,16 @@ export function CrmCampaignEditorPage() {
                           hint={t('editor.schedule.at.hint')}
                           error={errors.at}
                         >
-                          <Input
-                            id="campaign-at"
-                            type="datetime-local"
-                            className="max-w-[260px]"
-                            value={draft.at}
-                            min={toLocalInput(new Date().toISOString())}
-                            aria-invalid={!!errors.at}
-                            onChange={(event) => set({ at: event.target.value })}
-                          />
+                          <div className="max-w-[260px]">
+                            <Input
+                              id="campaign-at"
+                              type="datetime-local"
+                              value={draft.at}
+                              min={toLocalInput(new Date().toISOString())}
+                              aria-invalid={!!errors.at}
+                              onChange={(event) => set({ at: event.target.value })}
+                            />
+                          </div>
                         </Field>
                       )}
 
@@ -790,23 +791,26 @@ export function CrmCampaignEditorPage() {
                               hint={t('editor.schedule.cron.hint')}
                               error={errors.cron}
                             >
-                              <Input
-                                id="campaign-cron"
-                                className="font-code max-w-[260px]"
-                                value={draft.recurrence.cron}
-                                aria-invalid={!!errors.cron}
-                                onChange={(event) => setRecurrence({ cron: event.target.value })}
-                              />
+                              <div className="max-w-[260px]">
+                                <Input
+                                  id="campaign-cron"
+                                  className="font-code"
+                                  value={draft.recurrence.cron}
+                                  aria-invalid={!!errors.cron}
+                                  onChange={(event) => setRecurrence({ cron: event.target.value })}
+                                />
+                              </div>
                             </Field>
                           ) : (
                             <Field id="campaign-time" label={t('editor.schedule.time')}>
-                              <Input
-                                id="campaign-time"
-                                type="time"
-                                className="max-w-[140px]"
-                                value={draft.recurrence.time}
-                                onChange={(event) => setRecurrence({ time: event.target.value || '09:00' })}
-                              />
+                              <div className="max-w-[140px]">
+                                <Input
+                                  id="campaign-time"
+                                  type="time"
+                                  value={draft.recurrence.time}
+                                  onChange={(event) => setRecurrence({ time: event.target.value || '09:00' })}
+                                />
+                              </div>
                             </Field>
                           )}
 

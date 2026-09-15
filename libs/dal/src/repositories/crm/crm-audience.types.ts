@@ -1,4 +1,4 @@
-import type { CrmActivityMetric, CrmProfileOperator } from './crm-fields';
+import type { CrmActivityMetric, CrmActivityOperator, CrmProfileOperator } from './crm-fields';
 
 /** Condition sur un champ du profil (catalogue CRM_PROFILE_FIELDS). */
 export type CrmProfileCondition = {
@@ -10,15 +10,14 @@ export type CrmProfileCondition = {
 
 /**
  * Condition sur l'activité d'une fenêtre glissante (ex. volume crypto des 30 derniers jours > 500 USD).
- * Seulement « > » ou « ≥ » une valeur positive : un client sans activité n'a aucune ligne à compter
- * (l'inactivité se cible avec la date de dernière transaction).
+ * Un client sans aucune activité sur la fenêtre compte pour 0 : « = 0 », « ≤ 5 » ou « < 10 » l'incluent.
  */
 export type CrmActivityCondition = {
   type: 'activity';
   metric: CrmActivityMetric;
   windowDays: number;
   product?: string;
-  operator: 'gt' | 'gte';
+  operator: CrmActivityOperator;
   value: number;
 };
 

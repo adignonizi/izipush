@@ -1,5 +1,12 @@
 import type { CrmActivityCondition, CrmCondition, CrmConditionGroup, CrmProfileCondition } from './crm-audience.types';
-import { CRM_ACTIVITY_METRICS, CRM_OPERATORS_BY_TYPE, CrmFieldDefinition, findCrmProfileField } from './crm-fields';
+import {
+  CRM_ACTIVITY_METRICS,
+  CRM_ACTIVITY_OPERATORS,
+  CRM_OPERATORS_BY_TYPE,
+  CrmActivityOperator,
+  CrmFieldDefinition,
+  findCrmProfileField,
+} from './crm-fields';
 
 /** Conditions invalides : message destiné à la personne qui construit le segment. */
 export class CrmAudienceError extends Error {}
@@ -7,14 +14,24 @@ export class CrmAudienceError extends Error {}
 export type CompiledAudience = {
   /** Filtre Mongo sur la collection subscribers. */
   profileFilter: Record<string, unknown>;
-  /** Conditions d'activité, toutes combinées en ET avec le filtre de profil. */
+  /**
+   * Conditions d'activité lues depuis les lignes d'activité (au moins une ne peut pas être remplie par un client
+   * sans activité : on part donc des clients qui ont des lignes). Toutes combinées en ET avec le profil.
+   */
   activityConditions: CrmActivityCondition[];
+  /**
+   * Conditions qu'un client sans activité remplit (« = 0 », « ≤ 5 »…), quand il n'y a aucune condition du type
+   * précédent : on parcourt les clients du profil en écartant ceux dont l'activité ne les remplit pas.
+   */
+  exclusionConditions: CrmActivityCondition[];
 };
 
 const DAY_MS = 24 * 3600 * 1000;
 const MAX_CONDITIONS = 50;
 const MAX_DEPTH = 5;
 const MAX_WINDOW_DAYS = 3650;
+
+const NEGATION: Record<CrmActivityOperator, string> = { gt: '$lte', gte: '$lt', lt: '$gte', lte: '$gt', eq: '$ne' };
 
 /**
  * Traduit l'arbre de conditions d'un segment en requêtes Mongo.
@@ -35,45 +52,63 @@ export function compileAudience(audience: CrmConditionGroup, now: Date): Compile
   if (count > MAX_CONDITIONS) throw new CrmAudienceError(`Pas plus de ${MAX_CONDITIONS} conditions`);
 
   const conditions = audience.conditions ?? [];
-  const activityConditions = conditions.filter(isActivity);
+  const activity = conditions.filter(isActivity);
 
-  if (activityConditions.length && audience.combinator !== 'and') {
+  if (activity.length && audience.combinator !== 'and') {
     throw new CrmAudienceError("Les conditions d'activité ne se combinent qu'avec « ET »");
   }
-  activityConditions.forEach(validateActivity);
+  activity.forEach(validateActivity);
 
   const profileParts = conditions.filter((condition) => !isActivity(condition)).map((c) => compileNode(c, now));
+  const fromRows: CrmActivityCondition[] = [];
+  const zeroInclusive: CrmActivityCondition[] = [];
 
-  return { profileFilter: combine(audience.combinator, profileParts), activityConditions };
+  for (const condition of activity) {
+    if (!acceptsZero(condition)) fromRows.push(condition);
+    else if (isNoTransaction(condition)) profileParts.push(noTransactionFilter(condition, now));
+    else zeroInclusive.push(condition);
+  }
+
+  const profileFilter = combine(audience.combinator, profileParts);
+
+  // Une condition impossible sans activité suffit à partir des lignes d'activité : les autres s'y testent aussi.
+  if (fromRows.length)
+    return { profileFilter, activityConditions: [...fromRows, ...zeroInclusive], exclusionConditions: [] };
+
+  return { profileFilter, activityConditions: [], exclusionConditions: zeroInclusive };
 }
 
 /**
- * Agrégation sur crm_activity_daily : identifiants des clients qui remplissent toutes les conditions d'activité.
- * N'ouvre que les lignes de la plus grande fenêtre (index {_environmentId, day}).
+ * Agrégation sur crm_activity_daily, une somme par condition sur la plus grande fenêtre (index {_environmentId, day}).
+ * « include » : clients qui remplissent toutes les conditions. « exclude » : clients qui en ratent au moins une,
+ * triés par identifiant pour être écartés au fil de l'eau d'une liste de clients triée de la même façon.
  */
 export function compileActivityPipeline(
   environmentId: unknown,
   conditions: CrmActivityCondition[],
-  now: Date
+  now: Date,
+  mode: 'include' | 'exclude' = 'include'
 ): Record<string, unknown>[] {
-  const starts = conditions.map((condition) => dayKey(new Date(now.getTime() - (condition.windowDays - 1) * DAY_MS)));
+  const starts = conditions.map((condition) => windowStart(condition, now));
   const earliest = starts.reduce((min, day) => (day < min ? day : min));
 
   const group: Record<string, unknown> = { _id: '$subscriberId' };
-  const match: Record<string, unknown> = {};
+  const tests: Record<string, unknown>[] = [];
 
   conditions.forEach((condition, index) => {
     const inWindow: unknown[] = [{ $gte: ['$day', starts[index]] }];
     if (condition.product) inWindow.push({ $eq: ['$product', condition.product] });
 
     group[`m${index}`] = { $sum: { $cond: [{ $and: inWindow }, `$${condition.metric}`, 0] } };
-    match[`m${index}`] = { [`$${condition.operator}`]: condition.value };
+    const operator = mode === 'include' ? `$${condition.operator}` : NEGATION[condition.operator];
+    tests.push({ [`m${index}`]: { [operator]: condition.value } });
   });
 
   return [
     { $match: { _environmentId: environmentId, day: { $gte: earliest } } },
     { $group: group },
-    { $match: match },
+    { $match: mode === 'include' ? Object.assign({}, ...tests) : { $or: tests } },
+    ...(mode === 'exclude' ? [{ $sort: { _id: 1 } }] : []),
     { $project: { _id: 1 } },
   ];
 }
@@ -82,8 +117,40 @@ export function dayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function windowStart(condition: CrmActivityCondition, now: Date): string {
+  return dayKey(new Date(now.getTime() - (condition.windowDays - 1) * DAY_MS));
+}
+
 function isActivity(condition: CrmCondition): condition is CrmActivityCondition {
   return condition?.type === 'activity';
+}
+
+/** Vrai si un client sans aucune activité (somme = 0) remplit la condition. */
+function acceptsZero(condition: CrmActivityCondition): boolean {
+  switch (condition.operator) {
+    case 'lt':
+    case 'lte':
+      return true;
+    case 'eq':
+      return condition.value === 0;
+    default:
+      return false;
+  }
+}
+
+/** « Aucune transaction réussie sur la fenêtre », tous produits : se lit sur la date de dernière transaction. */
+function isNoTransaction(condition: CrmActivityCondition): boolean {
+  if (condition.product || (condition.metric !== 'tx' && condition.metric !== 'volUsd')) return false;
+  if ((condition.operator === 'eq' || condition.operator === 'lte') && condition.value === 0) return true;
+
+  // Les transactions se comptent en entiers : « moins de 1 » veut dire aucune.
+  return condition.metric === 'tx' && condition.operator === 'lt' && condition.value <= 1;
+}
+
+function noTransactionFilter(condition: CrmActivityCondition, now: Date): Record<string, unknown> {
+  const cutoff = `${windowStart(condition, now)}T00:00:00.000Z`;
+
+  return { $or: [{ 'data.last_tx_at': { $lt: cutoff } }, { 'data.last_tx_at': { $exists: false } }] };
 }
 
 function compileNode(condition: CrmCondition, now: Date): Record<string, unknown> {
@@ -145,14 +212,17 @@ function validateActivity(condition: CrmActivityCondition): void {
   if (!Number.isInteger(condition.windowDays) || condition.windowDays < 1 || condition.windowDays > MAX_WINDOW_DAYS) {
     throw new CrmAudienceError(`Fenêtre d'activité invalide (1 à ${MAX_WINDOW_DAYS} jours)`);
   }
-  if (condition.operator !== 'gt' && condition.operator !== 'gte') {
-    throw new CrmAudienceError("Une condition d'activité s'exprime avec « > » ou « ≥ »");
+  if (!(CRM_ACTIVITY_OPERATORS as readonly string[]).includes(condition.operator)) {
+    throw new CrmAudienceError(`Opérateur d'activité inconnu : ${condition.operator}`);
   }
   if (typeof condition.value !== 'number' || !Number.isFinite(condition.value) || condition.value < 0) {
     throw new CrmAudienceError("Valeur d'activité invalide");
   }
   if (condition.operator === 'gte' && condition.value === 0) {
-    throw new CrmAudienceError('« ≥ 0 » inclut les clients sans activité : utilisez la date de dernière transaction');
+    throw new CrmAudienceError('« au moins 0 » vise tous les clients : retirez la condition');
+  }
+  if (condition.operator === 'lt' && condition.value === 0) {
+    throw new CrmAudienceError('« inférieur à 0 » ne vise aucun client');
   }
 }
 

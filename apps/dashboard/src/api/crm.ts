@@ -30,9 +30,12 @@ export type CrmProfileField = {
 
 export type CrmActivityMetric = 'tx' | 'volUsd' | 'txFailed';
 
+/** Un client sans activité compte pour 0 : « lt », « lte » et « eq 0 » l'incluent. */
+export type CrmActivityOperator = 'gt' | 'gte' | 'lt' | 'lte' | 'eq';
+
 export type CrmFields = {
   profile: CrmProfileField[];
-  activity: { metrics: { key: CrmActivityMetric; label: string }[]; operators: ('gt' | 'gte')[] };
+  activity: { metrics: { key: CrmActivityMetric; label: string }[]; operators: CrmActivityOperator[] };
   events: string[];
 };
 
@@ -43,7 +46,7 @@ export type CrmActivityCondition = {
   metric: CrmActivityMetric;
   windowDays: number;
   product?: string;
-  operator: 'gt' | 'gte';
+  operator: CrmActivityOperator;
   value: number;
 };
 

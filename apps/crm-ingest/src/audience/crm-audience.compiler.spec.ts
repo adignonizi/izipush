@@ -10,7 +10,11 @@ const and = (...conditions: CrmConditionGroup['conditions']): CrmConditionGroup 
 
 describe('compileAudience', () => {
   it('segment vide : tout le monde', () => {
-    expect(compileAudience(and(), now)).to.deep.equal({ profileFilter: {}, activityConditions: [] });
+    expect(compileAudience(and(), now)).to.deep.equal({
+      profileFilter: {},
+      activityConditions: [],
+      exclusionConditions: [],
+    });
   });
 
   it('pays ∈ {CI, SN} ET KYC validé ET inscrit il y a plus de 30 jours', () => {
@@ -72,9 +76,57 @@ describe('compileAudience', () => {
 
     expect(compiled.profileFilter).to.deep.equal({ 'data.country_code': 'CI' });
     expect(compiled.activityConditions).to.have.length(1);
+    expect(compiled.exclusionConditions).to.have.length(0);
   });
 
-  it('refuse l’activité hors d’un « ET » de premier niveau, et « ≥ 0 »', () => {
+  it('inactifs : « 0 transaction sur 30 jours » se lit sur la date de dernière transaction, jamais-transacté inclus', () => {
+    const compiled = compileAudience(
+      and(
+        { type: 'profile', field: 'country_code', operator: 'eq', value: 'CI' },
+        { type: 'activity', metric: 'tx', windowDays: 30, operator: 'eq', value: 0 }
+      ),
+      now
+    );
+
+    expect(compiled.activityConditions).to.have.length(0);
+    expect(compiled.exclusionConditions).to.have.length(0);
+    expect(compiled.profileFilter).to.deep.equal({
+      $and: [
+        { 'data.country_code': 'CI' },
+        {
+          $or: [{ 'data.last_tx_at': { $lt: '2026-08-16T00:00:00.000Z' } }, { 'data.last_tx_at': { $exists: false } }],
+        },
+      ],
+    });
+  });
+
+  it('seuil bas ou produit précis : clients écartés d’après leur activité', () => {
+    const compiled = compileAudience(
+      and(
+        { type: 'activity', metric: 'tx', windowDays: 30, operator: 'lte', value: 2 },
+        { type: 'activity', metric: 'volUsd', windowDays: 30, product: 'crypto', operator: 'eq', value: 0 }
+      ),
+      now
+    );
+
+    expect(compiled.activityConditions).to.have.length(0);
+    expect(compiled.exclusionConditions).to.have.length(2);
+  });
+
+  it('avec une condition impossible sans activité, tout se lit depuis les lignes d’activité', () => {
+    const compiled = compileAudience(
+      and(
+        { type: 'activity', metric: 'tx', windowDays: 30, operator: 'gte', value: 1 },
+        { type: 'activity', metric: 'volUsd', windowDays: 30, operator: 'lte', value: 100 }
+      ),
+      now
+    );
+
+    expect(compiled.activityConditions.map((condition) => condition.operator)).to.deep.equal(['gte', 'lte']);
+    expect(compiled.exclusionConditions).to.have.length(0);
+  });
+
+  it('refuse l’activité hors d’un « ET » de premier niveau, « ≥ 0 » et « < 0 »', () => {
     const activity = {
       type: 'activity' as const,
       metric: 'tx' as const,
@@ -90,6 +142,7 @@ describe('compileAudience', () => {
       CrmAudienceError
     );
     expect(() => compileAudience(and({ ...activity, operator: 'gte', value: 0 }), now)).to.throw(CrmAudienceError);
+    expect(() => compileAudience(and({ ...activity, operator: 'lt', value: 0 }), now)).to.throw(CrmAudienceError);
   });
 
   it('refuse un champ inconnu, un opérateur inadapté ou une valeur du mauvais type', () => {
@@ -129,5 +182,20 @@ describe('compileActivityPipeline', () => {
       },
     });
     expect(pipeline[2]).to.deep.equal({ $match: { m0: { $gt: 500 }, m1: { $gte: 2 } } });
+  });
+
+  it('exclusion : clients qui ratent au moins une condition, triés par identifiant', () => {
+    const pipeline = compileActivityPipeline(
+      'env',
+      [
+        { type: 'activity', metric: 'tx', windowDays: 30, operator: 'lte', value: 2 },
+        { type: 'activity', metric: 'volUsd', windowDays: 30, product: 'crypto', operator: 'eq', value: 0 },
+      ],
+      now,
+      'exclude'
+    );
+
+    expect(pipeline[2]).to.deep.equal({ $match: { $or: [{ m0: { $gt: 2 } }, { m1: { $ne: 0 } }] } });
+    expect(pipeline[3]).to.deep.equal({ $sort: { _id: 1 } });
   });
 });

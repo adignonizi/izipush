@@ -206,14 +206,15 @@ function IngestionTab() {
             <Label htmlFor="replay-count" className="text-label-xs text-text-sub">
               {t('monitoring.rejected.count')}
             </Label>
-            <Input
-              id="replay-count"
-              className="w-24"
-              size="xs"
-              inputMode="numeric"
-              value={limit}
-              onChange={(event) => setLimit(event.target.value.replace(/[^0-9]/g, ''))}
-            />
+            <div className="w-24">
+              <Input
+                id="replay-count"
+                size="xs"
+                inputMode="numeric"
+                value={limit}
+                onChange={(event) => setLimit(event.target.value.replace(/[^0-9]/g, ''))}
+              />
+            </div>
           </div>
           <Button
             variant="secondary"

@@ -93,15 +93,16 @@ export function CampaignSendingFields({
               <Label htmlFor="crm-sending-order" className="text-xs">
                 {t('sending.order')}
               </Label>
-              <Input
-                id="crm-sending-order"
-                inputMode="numeric"
-                size="xs"
-                className="max-w-[88px]"
-                value={value.order}
-                disabled={disabled}
-                onChange={(event) => set({ order: digits(event.target.value) })}
-              />
+              <div className="max-w-[88px]">
+                <Input
+                  id="crm-sending-order"
+                  inputMode="numeric"
+                  size="xs"
+                  value={value.order}
+                  disabled={disabled}
+                  onChange={(event) => set({ order: digits(event.target.value) })}
+                />
+              </div>
               <p className="text-text-soft text-paragraph-xs">{t('sending.order.hint')}</p>
             </div>
 

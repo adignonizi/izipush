@@ -3,7 +3,7 @@ import { Types } from 'mongoose';
 import { Subscriber } from '../subscriber/subscriber.schema';
 import { CrmActivityDaily } from './crm-activity-daily.schema';
 import { compileActivityPipeline, compileAudience } from './crm-audience.compiler';
-import type { CrmAudienceMember, CrmConditionGroup } from './crm-audience.types';
+import type { CrmActivityCondition, CrmAudienceMember, CrmConditionGroup } from './crm-audience.types';
 
 /** Jamais ciblés, quelles que soient les conditions (supprimés côté Izichange). */
 const ALWAYS_EXCLUDED = { 'data.isDeleted': { $ne: true } };
@@ -28,7 +28,7 @@ export class CrmAudienceRepository {
     const now = options.now ?? new Date();
     const compiled = compileAudience(audience, now);
 
-    if (!compiled.activityConditions.length) {
+    if (!compiled.activityConditions.length && !compiled.exclusionConditions.length) {
       return Subscriber.countDocuments(this.subscriberFilter(environmentId, compiled.profileFilter, options));
     }
 
@@ -48,6 +48,12 @@ export class CrmAudienceRepository {
     const compiled = compileAudience(audience, now);
     const filter = this.subscriberFilter(environmentId, compiled.profileFilter, options);
 
+    if (compiled.exclusionConditions.length) {
+      yield* this.iterateExcluding(environmentId, compiled.exclusionConditions, filter, now, batchSize, options);
+
+      return;
+    }
+
     if (!compiled.activityConditions.length) {
       const cursor = Subscriber.find(filter, { _id: 1, subscriberId: 1 }).lean<SubscriberRow[]>().cursor({ batchSize });
 
@@ -57,9 +63,7 @@ export class CrmAudienceRepository {
     }
 
     const pipeline = compileActivityPipeline(new Types.ObjectId(environmentId), compiled.activityConditions, now);
-    if (options.subscriberId) {
-      (pipeline[0] as { $match: Record<string, unknown> }).$match.subscriberId = options.subscriberId;
-    }
+    restrictToOne(pipeline, options.subscriberId);
     const activeIds = CrmActivityDaily.aggregate<{ _id: string }>(pipeline as never[])
       .allowDiskUse(true)
       .cursor({ batchSize });
@@ -71,6 +75,52 @@ export class CrmAudienceRepository {
       ).lean<SubscriberRow[]>();
 
       if (rows.length) yield rows.map(toMember);
+    }
+  }
+
+  /**
+   * Inactifs et seuils bas (« = 0 », « ≤ 5 ») : les clients du profil, triés par identifiant, moins ceux dont
+   * l'activité ne remplit pas la condition, triés de la même façon. Fusion au fil de l'eau : mémoire constante.
+   * Les identifiants clients sont ASCII : l'ordre binaire de Mongo et celui des chaînes JavaScript coïncident.
+   */
+  private async *iterateExcluding(
+    environmentId: string,
+    conditions: CrmActivityCondition[],
+    filter: Record<string, unknown>,
+    now: Date,
+    batchSize: number,
+    options: CrmAudienceOptions
+  ): AsyncGenerator<CrmAudienceMember[]> {
+    const pipeline = compileActivityPipeline(new Types.ObjectId(environmentId), conditions, now, 'exclude');
+    restrictToOne(pipeline, options.subscriberId);
+
+    const excluded = CrmActivityDaily.aggregate<{ _id: string }>(pipeline as never[])
+      .allowDiskUse(true)
+      .cursor({ batchSize });
+    const excludedIds = excluded[Symbol.asyncIterator]();
+    const subscribers = Subscriber.find(filter, { _id: 1, subscriberId: 1 })
+      .sort({ subscriberId: 1 })
+      .lean<SubscriberRow[]>()
+      .cursor({ batchSize });
+
+    let next = await excludedIds.next();
+    let batch: CrmAudienceMember[] = [];
+
+    try {
+      for await (const row of subscribers as AsyncIterable<SubscriberRow>) {
+        while (!next.done && next.value._id < row.subscriberId) next = await excludedIds.next();
+        if (!next.done && next.value._id === row.subscriberId) continue;
+
+        batch.push(toMember(row));
+        if (batch.length >= batchSize) {
+          yield batch;
+          batch = [];
+        }
+      }
+
+      if (batch.length) yield batch;
+    } finally {
+      await excluded.close().catch(() => undefined);
     }
   }
 
@@ -86,6 +136,10 @@ export class CrmAudienceRepository {
 
     return { _environmentId: environmentId, $and: parts };
   }
+}
+
+function restrictToOne(pipeline: Record<string, unknown>[], subscriberId?: string): void {
+  if (subscriberId) (pipeline[0] as { $match: Record<string, unknown> }).$match.subscriberId = subscriberId;
 }
 
 async function* batchesOf<T>(source: AsyncIterable<unknown>, size: number): AsyncGenerator<T[]> {
