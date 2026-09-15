@@ -76,7 +76,7 @@ export class InvitesController {
   async inviteMember(
     @UserSession() user: UserSessionData,
     @Body() body: InviteMemberDto
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ success: boolean; token: string }> {
     const command = InviteMemberCommand.create({
       userId: user._id,
       organizationId: user.organizationId,
@@ -84,10 +84,11 @@ export class InvitesController {
       role: MemberRoleEnum.OSS_ADMIN,
     });
 
-    await this.inviteMemberUsecase.execute(command);
+    const { token } = await this.inviteMemberUsecase.execute(command);
 
     return {
       success: true,
+      token,
     };
   }
 

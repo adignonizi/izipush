@@ -4,6 +4,7 @@ export const ROUTES = {
   LANDING_1_SIGN_UP: '/landing-1/signup',
   SIGNUP_ORGANIZATION_LIST: '/auth/organization-list',
   INVITATION_ACCEPT: '/auth/invitation/accept',
+  SELF_HOSTED_INVITATION: '/auth/invitation/:token',
   FORGOT_PASSWORD: '/auth/forgot-password',
   RESET_PASSWORD: '/auth/reset-password',
   SSO_SIGN_IN: '/auth/sso',

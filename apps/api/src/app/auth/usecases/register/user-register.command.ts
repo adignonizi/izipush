@@ -45,5 +45,10 @@ export class UserRegisterCommand extends BaseCommand {
   @IsBoolean()
   wasInvited?: boolean = false;
 
+  /** izipush : jeton d'invitation, qui autorise l'inscription même quand elle est fermée au public. */
+  @IsOptional()
+  @IsString()
+  invitationToken?: string;
+
   language?: string[];
 }

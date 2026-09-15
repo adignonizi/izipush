@@ -17,13 +17,14 @@ import { Card } from '@/components/primitives/card';
 import { InlineToast } from '@/components/primitives/inline-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/primitives/tabs';
 import { OrganizationSettings } from '@/components/settings/organization-settings';
-import { EE_AUTH_PROVIDER, IS_CLOUD } from '@/config';
+import { EE_AUTH_PROVIDER, IS_CLOUD, IS_SELF_HOSTED_CE } from '@/config';
 import { useFeatureFlag } from '@/hooks/use-feature-flag';
 import { useFetchSubscription } from '@/hooks/use-fetch-subscription';
 import { useHasPermission } from '@/hooks/use-has-permission';
 import { TeamMembers } from '@/utils/better-auth/components/team-members';
 import { UserProfile as BetterAuthUserProfile } from '@/utils/better-auth/index';
 import { ROUTES } from '@/utils/routes';
+import { SelfHostedTeamMembers } from '@/utils/self-hosted/team-members';
 import { getRequiredTierLabelForFeature } from '@/utils/upgrade-tier';
 
 // Pin Clerk's post-leave/delete redirect to the local `/auth/organization-list` so `AuthProvider`
@@ -237,7 +238,10 @@ export function SettingsTabs({ routes, rootRoute }: SettingsTabsProps) {
                     variant="tip"
                   />
                 )}
-                {EE_AUTH_PROVIDER === 'clerk' ? (
+                {/* izipush : en auto-hébergé communautaire, gestion de l'équipe par liens d'invitation. */}
+                {IS_SELF_HOSTED_CE ? (
+                  <SelfHostedTeamMembers />
+                ) : EE_AUTH_PROVIDER === 'clerk' ? (
                   <OrganizationProfile appearance={clerkAppearance} afterLeaveOrganizationUrl={AFTER_LEAVE_ORG_URL}>
                     <OrganizationProfile.Page label="general" />
                   </OrganizationProfile>

@@ -62,6 +62,7 @@ import { CrmMonitoringPage } from './pages/crm-monitoring';
 import { CrmReportsPage } from './pages/crm-reports';
 import { CrmSegmentEditorPage } from './pages/crm-segment-editor';
 import { CrmSegmentsPage } from './pages/crm-segments';
+import { SelfHostedInvitationPage } from './pages/self-hosted-invitation';
 import { CrmTemplateEditorPage } from './pages/crm-template-editor';
 import { CrmTemplatesPage } from './pages/crm-templates';
 import { DomainDetailPage } from './pages/domain-detail';
@@ -164,6 +165,11 @@ const router = createBrowserRouter([
           {
             path: ROUTES.FORGOT_PASSWORD,
             element: <ForgotPasswordPage />,
+          },
+          {
+            // izipush : invitation par lien en auto-hébergé communautaire (page publique).
+            path: ROUTES.SELF_HOSTED_INVITATION,
+            element: <SelfHostedInvitationPage />,
           },
           {
             path: ROUTES.RESET_PASSWORD,

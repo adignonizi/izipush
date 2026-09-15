@@ -67,5 +67,8 @@ export class InviteMember {
       role: command.role,
       email: command.email,
     });
+
+    // izipush : sans email d'invitation en auto-hébergé, le dashboard affiche le lien à transmettre.
+    return { token };
   }
 }
