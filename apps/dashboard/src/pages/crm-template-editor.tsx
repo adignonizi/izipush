@@ -102,7 +102,7 @@ export function CrmTemplateEditorPage() {
 
     void init({
       container: container.current,
-      content: hasDesign(template.design) ? (template.design as TemplateContent) : undefined,
+      content: hasDesign(template.design) ? (template.design as unknown as TemplateContent) : undefined,
       locale: crmLocale,
       mergeTags: { syntax: 'liquid', tags: MERGE_TAGS, autocomplete: true },
     }).then((created) => {
