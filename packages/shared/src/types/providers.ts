@@ -84,6 +84,7 @@ export enum EmailProviderIdEnum {
   Infobip = 'infobip-email',
   Resend = 'resend',
   Plunk = 'plunk',
+  ElasticEmail = 'elastic-email',
   MailerSend = 'mailersend',
   Mailtrap = 'mailtrap',
   Clickatell = 'clickatell',

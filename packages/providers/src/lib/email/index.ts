@@ -1,6 +1,7 @@
 export * from './anypost/anypost.provider';
 export * from './braze/braze.provider';
 export * from './brevo/brevo.provider';
+export * from './elastic-email/elastic-email.provider';
 export * from './email-webhook/email-webhook.provider';
 export * from './emailjs/emailjs.config';
 export * from './emailjs/emailjs.provider';

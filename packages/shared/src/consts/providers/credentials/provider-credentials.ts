@@ -233,6 +233,16 @@ export const resendConfig: IConfigCredential[] = [
   ...mailConfigBase,
 ];
 
+export const elasticEmailConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiKey,
+    displayName: 'API Key',
+    type: 'string',
+    required: true,
+  },
+  ...mailConfigBase,
+];
+
 export const anypostConfig: IConfigCredential[] = [
   {
     key: CredentialsKeyEnum.ApiKey,

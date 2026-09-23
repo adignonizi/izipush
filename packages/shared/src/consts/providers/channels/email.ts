@@ -20,6 +20,7 @@ import {
   netCoreConfig,
   nodemailerConfig,
   outlook365Config,
+  elasticEmailConfig,
   plunkConfig,
   postmarkConfig,
   resendConfig,
@@ -153,6 +154,14 @@ export const emailProviders: IProviderConfig[] = [
     credentials: brazeEmailConfig,
     docReference: 'https://www.braze.com/docs/api/endpoints/messaging/send_messages/post_send_messages/',
     logoFileName: { light: 'braze.svg', dark: 'braze.svg' },
+  },
+  {
+    id: EmailProviderIdEnum.ElasticEmail,
+    displayName: 'Elastic Email',
+    channel: ChannelTypeEnum.EMAIL,
+    credentials: elasticEmailConfig,
+    docReference: 'https://elasticemail.com/developers/api-documentation/rest-api',
+    logoFileName: { light: 'elastic-email.svg', dark: 'elastic-email.svg' },
   },
   {
     id: EmailProviderIdEnum.Resend,
