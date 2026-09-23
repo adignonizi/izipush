@@ -11,7 +11,26 @@ export class FcmPushProvider extends BaseProvider implements IPushProvider {
   channelType = ChannelTypeEnum.PUSH as ChannelTypeEnum.PUSH;
   protected casing: CasingEnum = CasingEnum.SNAKE_CASE;
 
-  private readonly INVALID_TOKEN_ERRORS = ['Requested entity was not found'];
+  /**
+   * Messages d'erreur FCM qui désignent un jeton DÉFINITIVEMENT mort, et non une panne passagère.
+   *
+   * `NotRegistered` manquait, alors que c'est de loin le cas le plus fréquent : FCM le renvoie dès
+   * qu'une application est désinstallée, ses données effacées, ou son jeton simplement renouvelé.
+   * Sans lui, un jeton périmé restait attaché à l'abonné indéfiniment et faisait échouer un envoi sur
+   * deux — l'exécution restant marquée « réussie » puisqu'un autre jeton passait.
+   *
+   * N'y mettre que de l'irrécupérable : un jeton retiré à tort ne revient qu'à la prochaine ouverture
+   * de l'application. Les pannes réseau et les quotas n'ont rien à faire ici.
+   */
+  private readonly INVALID_TOKEN_ERRORS = [
+    'Requested entity was not found',
+    'NotRegistered',
+    'Unregistered',
+    'InvalidRegistration',
+    'MismatchSenderId',
+    'SenderId mismatch',
+    'The registration token is not a valid FCM registration token',
+  ];
 
   private appName: string;
   private messaging: Messaging;

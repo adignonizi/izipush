@@ -177,10 +177,31 @@ export class UpdateSubscriberChannel {
     };
   }
 
+  /**
+   * Fusionne les jetons en REMPLAÇANT ceux du même appareil, au lieu de les empiler.
+   *
+   * Un jeton FCM s'écrit `<identifiant d'instance>:<signature>`. L'identifiant d'instance désigne
+   * l'installation de l'application ; la signature, elle, change à chaque renouvellement — et FCM en
+   * renouvelle à la réinstallation, à l'effacement des données, à la restauration d'une sauvegarde.
+   *
+   * L'union simple gardait donc les deux, et l'ancien restait attaché à vie. Les envois suivants
+   * échouaient sur lui en `NotRegistered` tout en réussissant sur le nouveau : l'exécution était
+   * marquée « réussie », le journal se remplissait d'erreurs, et le taux de livraison devenait
+   * illisible. Observé sur quatre abonnés, dont aucun n'avait réellement deux appareils.
+   *
+   * Les autres appareils sont INTACTS : leur identifiant d'instance diffère, donc leurs jetons ne
+   * sont jamais candidats au remplacement. Un abonné reste joignable sur tous ses appareils.
+   *
+   * Les jetons sans deux-points — APNs, Expo — n'ont pas d'identifiant d'instance : le préfixe vaut
+   * alors le jeton entier, et le comportement retombe exactement sur la déduplication d'origine.
+   */
   private unionDeviceTokens(existingDeviceTokens: string[], updateDeviceTokens: string[]): string[] {
     if (updateDeviceTokens?.length === 0) return [];
 
-    return [...new Set([...existingDeviceTokens, ...updateDeviceTokens])];
+    const renouveles = new Set(updateDeviceTokens.map(deviceInstanceOf));
+    const conserves = existingDeviceTokens.filter((token) => !renouveles.has(deviceInstanceOf(token)));
+
+    return [...new Set([...conserves, ...updateDeviceTokens])];
   }
 
   private async validateDeviceTokensLimit(
@@ -223,4 +244,11 @@ export class UpdateSubscriberChannel {
 
     return updatePayload;
   }
+}
+
+/** Identifiant de l'installation portée par un jeton push, ou le jeton entier s'il n'en porte pas. */
+function deviceInstanceOf(token: string): string {
+  const separateur = token.indexOf(':');
+
+  return separateur > 0 ? token.slice(0, separateur) : token;
 }

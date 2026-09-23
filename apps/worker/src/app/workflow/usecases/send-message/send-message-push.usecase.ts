@@ -703,9 +703,20 @@ export class SendMessagePush extends SendMessageBase {
             LOG_CONTEXT
           );
 
+          /*
+           * L'élagage est actif PAR DÉFAUT ici, là où Novu le laisse éteint.
+           *
+           * Un jeton que le fournisseur déclare mort ne ressuscite pas : le garder ne fait que
+           * reproduire l'échec à chaque envoi, salir le journal d'activité et rendre le taux de
+           * livraison illisible. Le coût d'un retrait à tort est faible en regard — le jeton est
+           * réenregistré à la prochaine ouverture de l'application.
+           *
+           * Le drapeau reste honoré pour pouvoir désactiver l'élagage sans redéploiement, mais sa
+           * valeur par défaut est inversée.
+           */
           const isExpiredTokensRemovalEnabled = await this.featureFlagsService.getFlag({
             key: FeatureFlagsKeysEnum.IS_EXPIRED_TOKENS_REMOVAL_ENABLED,
-            defaultValue: false,
+            defaultValue: true,
             organization: { _id: command.organizationId },
             user: { _id: command.userId },
             environment: { _id: command.environmentId },
