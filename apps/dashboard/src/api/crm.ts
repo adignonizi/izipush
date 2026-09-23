@@ -3,7 +3,7 @@ import { del, get, patch, post } from './api.client';
 
 // izipush-crm — segments et campagnes (routes /v1/crm/* du fork).
 
-export type CrmFieldType = 'string' | 'enum' | 'number' | 'date' | 'boolean';
+export type CrmFieldType = 'string' | 'enum' | 'number' | 'date' | 'boolean' | 'set';
 
 export type CrmProfileOperator =
   | 'eq'
@@ -17,7 +17,12 @@ export type CrmProfileOperator =
   | 'exists'
   | 'not_exists'
   | 'within_last_days'
-  | 'more_than_days_ago';
+  | 'more_than_days_ago'
+  // Champs « set » (produits utilisés par le client).
+  | 'has'
+  | 'has_not'
+  | 'has_all'
+  | 'has_any';
 
 export type CrmProfileField = {
   key: string;
@@ -25,6 +30,8 @@ export type CrmProfileField = {
   path: string;
   type: CrmFieldType;
   values?: { value: string; label: string }[];
+  /** Champ « set » dont les valeurs viennent du catalogue produits. */
+  valuesFrom?: 'products';
   operators: CrmProfileOperator[];
 };
 
@@ -37,6 +44,8 @@ export type CrmFields = {
   profile: CrmProfileField[];
   activity: { metrics: { key: CrmActivityMetric; label: string }[]; operators: CrmActivityOperator[] };
   events: string[];
+  /** Catalogue des produits actifs : valeurs des champs « set » et des conditions d'activité. */
+  products: { value: string; label: string }[];
 };
 
 export type CrmProfileCondition = { type: 'profile'; field: string; operator: CrmProfileOperator; value?: unknown };
@@ -45,7 +54,7 @@ export type CrmActivityCondition = {
   type: 'activity';
   metric: CrmActivityMetric;
   windowDays: number;
-  product?: string;
+  productId?: string;
   operator: CrmActivityOperator;
   value: number;
 };
@@ -81,6 +90,10 @@ export type CrmCampaign = {
   description?: string;
   workflowKey: string;
   segmentId: string;
+  /** Produit promu, facultatif : rattache la campagne à sa fiche produit. */
+  productId?: string;
+  /** Campagne de recrutement : les clients qui utilisent déjà le produit ne sont pas sollicités. */
+  excludeProductUsers?: boolean;
   payload?: Record<string, unknown>;
   schedule: CrmSchedule;
   status: CrmCampaignStatus;
@@ -114,6 +127,8 @@ export type CreateCrmCampaignBody = {
   description?: string;
   workflowKey: string;
   segmentId: string;
+  productId?: string;
+  excludeProductUsers?: boolean;
   schedule: CrmSchedule;
   payload?: Record<string, unknown>;
 };

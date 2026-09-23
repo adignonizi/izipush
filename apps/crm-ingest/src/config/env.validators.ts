@@ -34,7 +34,7 @@ export const envValidators = {
   AMQP_URL: url(),
   AMQP_EXCHANGE: str({ default: 'mailwizz-topic' }),
   AMQP_QUEUE: str({ default: 'izipush.crm-ingest' }),
-  AMQP_BINDINGS: str({ default: 'account.*,kyc.*,transaction.*' }),
+  AMQP_BINDINGS: str({ default: 'account.*,kyc.*,transaction.*,product.*' }),
   AMQP_PREFETCH: num({ default: 50 }),
 
   /** Redis des files BullMQ (recalcul des clients). */

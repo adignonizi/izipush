@@ -6,7 +6,6 @@ import { CrmEvent } from './crm-event.schema';
 const DUPLICATE_KEY = 11000;
 
 export const CRM_TRANSACTION_COMPLETED = 'transaction.completed';
-export const CRM_TRANSACTION_FAILED = 'transaction.failed';
 
 export type CrmJournalActivity = { tx: number; volUsd: number; txFailed: number; eventCount: number };
 
@@ -58,7 +57,7 @@ export class CrmEventRepository extends BaseRepositoryV2<CrmEventDBModel, CrmEve
     environmentId: string,
     subscriberId: string,
     day: string,
-    product: string
+    productId: string
   ): Promise<CrmJournalActivity> {
     const [result] = await this.MongooseModel.aggregate<CrmJournalActivity>([
       {
@@ -66,7 +65,7 @@ export class CrmEventRepository extends BaseRepositoryV2<CrmEventDBModel, CrmEve
           _environmentId: this.convertStringToObjectId(environmentId),
           subscriberId,
           day,
-          product,
+          productId,
         },
       },
       {
@@ -74,9 +73,9 @@ export class CrmEventRepository extends BaseRepositoryV2<CrmEventDBModel, CrmEve
           _id: null,
           tx: { $sum: { $cond: [{ $eq: ['$eventName', CRM_TRANSACTION_COMPLETED] }, 1, 0] } },
           volUsd: {
-            $sum: { $cond: [{ $eq: ['$eventName', CRM_TRANSACTION_COMPLETED] }, { $toDouble: '$data.amount' }, 0] },
+            $sum: { $cond: [{ $eq: ['$eventName', CRM_TRANSACTION_COMPLETED] }, { $toDouble: '$data.amount_usd' }, 0] },
           },
-          txFailed: { $sum: { $cond: [{ $eq: ['$eventName', CRM_TRANSACTION_FAILED] }, 1, 0] } },
+          txFailed: { $sum: 0 },
           eventCount: { $sum: 1 },
         },
       },

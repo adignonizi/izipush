@@ -1,3 +1,4 @@
+import { normalizeCrmProductId } from '@novu/dal';
 import { z } from 'zod';
 
 import { CrmEventName } from './envelope';
@@ -18,10 +19,17 @@ const amount = z
 
 const transaction = z
   .object({
-    transactionId: z.union([z.string().trim().min(1), z.number()]).transform(String),
-    amount,
-    product: z.string().trim().min(1).optional(),
+    amount_usd: amount,
     type: z.string().trim().min(1).optional(),
+    /**
+     * Rang de cette transaction pour ce client sur le produit de l'enveloppe. Facultatif : izipush sait
+     * déduire la première transaction de ce qu'il a reçu, mais cette déduction est fausse tant que
+     * l'historique n'est pas importé. Fourni, `txNo === 1` fait foi.
+     */
+    txNo: z
+      .union([z.number().int().positive(), z.string().trim().regex(/^\d+$/)])
+      .transform(Number)
+      .optional(),
   })
   .passthrough();
 
@@ -33,17 +41,13 @@ const SCHEMAS: Record<CrmEventName, z.ZodTypeAny> = {
   'account.registered': anyData,
   'account.profile_updated': anyData,
   'account.email_updated': emailUpdated,
-  'account.deleted': anyData,
   'account.logged_in': anyData,
-  'kyc.submitted': anyData,
-  'kyc.approved': anyData,
-  'kyc.rejected': anyData,
+  'kyc.validated': anyData,
   'transaction.completed': transaction,
-  'transaction.failed': transaction,
-  'consent.marketing_updated': z.object({ optIn: z.boolean() }).passthrough(),
+  'product.activated': anyData,
 };
 
-/** Valide et normalise les données (montant en nombre, identifiants en chaîne). */
+/** Valide et normalise les données (montant en nombre, rang en entier). */
 export function validateEventData(eventName: CrmEventName, data: Record<string, unknown>): Record<string, unknown> {
   const result = SCHEMAS[eventName].safeParse(data);
 
@@ -61,15 +65,14 @@ export function activityDay(occurredAt: Date): string {
   return occurredAt.toISOString().slice(0, 10);
 }
 
-/** Produit normalisé ; « unknown » tant qu'Izichange ne l'envoie pas. */
-export function activityProduct(data: Record<string, unknown>): string {
-  const raw = typeof data.product === 'string' ? data.product : '';
-  const normalized = raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 32);
-
-  return normalized || 'unknown';
+/**
+ * Identifiant du produit, tel qu'il arrive dans `product_code` de l'enveloppe. Clé de la ligne
+ * d'activité et du catalogue.
+ *
+ * La valeur est reprise telle quelle : la réécrire en « slug » (minuscules, tronquée) ferait se confondre
+ * deux identifiants opaques distincts. Sans produit, l'activité est rangée sous `unknown`, un produit du
+ * catalogue comme un autre, que l'on renomme le jour où l'on sait ce qu'il recouvre.
+ */
+export function activityProductId(productCode: unknown): string {
+  return normalizeCrmProductId(productCode);
 }

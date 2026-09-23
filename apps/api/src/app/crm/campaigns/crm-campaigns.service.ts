@@ -4,6 +4,7 @@ import {
   CrmCampaignRepository,
   CrmCampaignRunEntity,
   CrmCampaignRunRepository,
+  CrmProductRepository,
   CrmScheduleError,
   CrmSegmentRepository,
   firstRunAt,
@@ -19,6 +20,8 @@ export type CrmCampaignBody = {
   description?: unknown;
   workflowKey?: unknown;
   segmentId?: unknown;
+  productId?: unknown;
+  excludeProductUsers?: unknown;
   payload?: unknown;
   schedule?: unknown;
 };
@@ -31,6 +34,7 @@ export class CrmCampaignsService {
     private campaigns: CrmCampaignRepository,
     private runs: CrmCampaignRunRepository,
     private segments: CrmSegmentRepository,
+    private products: CrmProductRepository,
     private workflows: NotificationTemplateRepository
   ) {}
 
@@ -57,6 +61,8 @@ export class CrmCampaignsService {
         description: optionalText(body.description),
         workflowKey: await this.validWorkflowKey(user, body.workflowKey),
         segmentId: await this.validSegmentId(user, body.segmentId),
+        productId: await this.validProductId(user, body.productId),
+        excludeProductUsers: body.excludeProductUsers === true,
         payload: this.validPayload(body.payload),
         schedule: this.validSchedule(body.schedule),
         status: 'draft',
@@ -79,6 +85,8 @@ export class CrmCampaignsService {
     if (body.description !== undefined) set.description = optionalText(body.description);
     if (body.workflowKey !== undefined) set.workflowKey = await this.validWorkflowKey(user, body.workflowKey);
     if (body.segmentId !== undefined) set.segmentId = await this.validSegmentId(user, body.segmentId);
+    if (body.productId !== undefined) set.productId = await this.validProductId(user, body.productId);
+    if (body.excludeProductUsers !== undefined) set.excludeProductUsers = body.excludeProductUsers === true;
     if (body.payload !== undefined) set.payload = this.validPayload(body.payload);
     if (body.schedule !== undefined) set.schedule = this.validSchedule(body.schedule);
 
@@ -155,6 +163,17 @@ export class CrmCampaignsService {
     if (!workflow) throw new BadRequestException(`Aucun workflow « ${key} » dans cet environnement`);
 
     return key;
+  }
+
+  /** Produit promu, facultatif. Il doit exister au catalogue : sinon la fiche produit ne la retrouverait pas. */
+  private async validProductId(user: UserSessionData, value: unknown): Promise<string | undefined> {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value !== 'string') throw new BadRequestException('Produit invalide');
+
+    const product = await this.products.findByProductId(user.environmentId, value.trim());
+    if (!product) throw new BadRequestException('Produit introuvable');
+
+    return product.productId;
   }
 
   private async validSegmentId(user: UserSessionData, value: unknown): Promise<string> {

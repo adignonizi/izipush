@@ -25,6 +25,7 @@ export type CrmCampaignReport = {
 export type CrmReportRow = {
   campaignId: string;
   name: string;
+  productId?: string;
   mode: CrmScheduleMode;
   status: CrmCampaignStatus;
   runs: number;

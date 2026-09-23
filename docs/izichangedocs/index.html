@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>izipush SDK — Documentation</title>
+<meta name="description" content="Documentation du SDK push izipush : plateformes couvertes, intégration React Native et Web, API, autorisation et statistiques d'ouverture." />
 <style>
 :root{
   --canvas:#F9FAFB; --surface:#FFFFFF; --ink:#18181B; --steel:#52525B; --slate:#94A3B8;
@@ -66,9 +67,9 @@ footer{border-top:1px solid var(--border); margin-top:3rem; padding-top:1.5rem; 
     <p class="eyebrow">Izichange — izipush</p>
     <h1><code style="background:none;color:inherit;padding:0;font-size:1em">@gittestmag/izipush-sdk</code></h1>
     <p class="lede">
-      Un seul package pour brancher le push (Android, iOS, Web) sur Novu. Gère la permission de
-      notification, le token push, son enregistrement, son renouvellement et son affichage —
-      l'app hôte n'a que 1 à 2 fonctions à appeler.
+      Un seul package pour brancher le push (Android, iOS, Web) sur izipush. Il gère l'autorisation de
+      notification, le jeton, son enregistrement, son renouvellement, l'affichage et les statistiques
+      d'ouverture — l'app hôte n'a que deux ou trois fonctions à appeler.
     </p>
   </div>
 </header>
@@ -77,48 +78,114 @@ footer{border-top:1px solid var(--border); margin-top:3rem; padding-top:1.5rem; 
 
   <section>
     <span class="sec-num">01</span>
-    <h2>Comment le SDK parle à Novu</h2>
-    <p class="sec-sub">Aucun serveur intermédiaire, et jamais la clé secrète d'environnement côté client.</p>
+    <h2>Ce que le SDK fait, et ce qu'il ne fait pas</h2>
+    <p class="sec-sub">Pour savoir tout de suite ce qui reste à la charge de l'app.</p>
 
-    <p>
-      Le SDK utilise le flux public de Novu — le même que le widget notification center — plutôt
-      que les routes protégées par clé secrète :
-    </p>
-    <ol>
-      <li><code>POST /v1/widgets/session/initialize</code> — avec l'identifiant <strong>public</strong>
-        de l'environnement (<code>applicationIdentifier</code>, sans risque à embarquer côté client),
-        obtient un JWT scopé à un seul subscriber.</li>
-      <li><code>PUT /v1/widgets/credentials</code> — authentifié par ce JWT, enregistre le token push.
-        Le JWT empêche un appelant de toucher aux credentials d'un subscriber autre que le sien.</li>
-    </ol>
-
-    <div class="warn">
-      <strong>Mode sécurisé (HMAC)</strong>
-      Si le mode sécurisé est actif sur l'environnement ciblé (recommandé — déjà le cas en
-      production), l'étape 1 exige un <code>hmacHash</code>, calculé côté backend de l'app hôte —
-      jamais côté client. Sans lui, n'importe qui connaissant un <code>subscriberId</code> pourrait
-      obtenir une session en son nom et détourner ses notifications.
+    <div class="card">
+      <h3>Il s'en charge</h3>
+      <ul>
+        <li>Demander l'autorisation de notification, ou enregistrer un jeton que l'app détient déjà.</li>
+        <li>Enregistrer le jeton sur le profil du client côté izipush, et le ré-enregistrer à chaque rotation.</li>
+        <li><strong>Afficher</strong> les notifications reçues — Firebase n'affiche jamais rien tout seul, ni au
+          premier plan, ni en arrière-plan, ni app fermée. C'est le piège classique, et il est traité.</li>
+        <li>Signaler au CRM l'appui sur une notification de campagne, sur les deux plateformes.</li>
+      </ul>
     </div>
 
-    <p class="pre-title">Backend de l'app hôte (Node)</p>
-    <pre><code>import { createHmac } from 'crypto';
+    <div class="card">
+      <h3>À la charge de l'app hôte</h3>
+      <ul>
+        <li><strong>L'authentification.</strong> Le SDK ne sait pas qui est l'utilisateur : il faut lui passer
+          l'identifiant du compte connecté, jamais un identifiant généré côté client.</li>
+        <li><strong>Le calcul du <code>hmacHash</code></strong>, côté serveur (section 03).</li>
+        <li><strong>Le moment de la demande d'autorisation</strong> et l'écran qui l'explique (section 09).</li>
+        <li><strong>Le contenu des notifications</strong> : il vient des workflows izipush, pas du SDK.</li>
+        <li><strong>La navigation à l'appui</strong> sur une notification (deep-link), si le produit en a besoin.</li>
+      </ul>
+    </div>
 
-// subscriberId = l'identifiant interne de l'utilisateur/terminal authentifié
-const hmacHash = createHmac('sha256', process.env.NOVU_API_KEY)
-  .update(subscriberId)
-  .digest('hex');
-
-// à renvoyer à l'app, avec applicationIdentifier et novuApiUrl (voir plus bas)
-res.json({ hmacHash });</code></pre>
+    <div class="warn">
+      <strong>Le même identifiant partout</strong>
+      Le <code>userId</code> passé au SDK doit être exactement celui publié dans les événements métier
+      (<code>userId</code> des messages RabbitMQ). C'est ce qui fait converger le profil push et le profil
+      enrichi par le CRM sur un seul et même client. Deux identifiants différents produisent deux profils,
+      donc deux fois chaque campagne.
+    </div>
   </section>
 
   <section>
     <span class="sec-num">02</span>
+    <h2>Plateformes couvertes</h2>
+    <p class="sec-sub">L'API publique est identique partout ; seule la forme de la configuration change.</p>
+
+    <table>
+      <thead><tr><th>Plateforme</th><th>Transport</th><th>État</th></tr></thead>
+      <tbody>
+        <tr><td>Android (React&nbsp;Native)</td><td>FCM</td><td>Couvert. Android 13+ demande l'autorisation à l'exécution.</td></tr>
+        <tr><td>iOS (React&nbsp;Native)</td><td>APNs via FCM</td><td>Couvert. L'autorisation ne se demande qu'une fois.</td></tr>
+        <tr><td>Chrome, Edge, Firefox, Opera</td><td>Web Push via FCM</td><td>Couvert. Service worker requis, il est fourni.</td></tr>
+        <tr><td>Safari macOS</td><td>Web Push via FCM</td><td>Couvert à partir de Safari&nbsp;16.</td></tr>
+        <tr><td>Safari iOS / iPadOS</td><td>Web Push</td><td><strong>Seulement si le site est installé sur l'écran d'accueil</strong> (PWA, iOS&nbsp;16.4+).</td></tr>
+      </tbody>
+    </table>
+
+    <div class="warn">
+      <strong>Sur iPhone, le web ne remplace pas l'app</strong>
+      Un onglet Safari classique <em>ne peut pas</em> recevoir de notification push : c'est une limite d'Apple,
+      pas du SDK. Tant que l'utilisateur n'a pas ajouté le site à son écran d'accueil, l'application native
+      reste le seul canal fiable sur iPhone. <code>getPermissionStatus()</code> renvoie
+      <code>'unsupported'</code> dans ce cas : utilisez-le pour masquer l'option plutôt que de proposer une
+      action qui ne produira rien.
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-num">03</span>
+    <h2>Comment le SDK parle à izipush</h2>
+    <p class="sec-sub">Aucun serveur intermédiaire, et jamais la clé secrète d'environnement côté client.</p>
+
+    <p>
+      Le SDK utilise le flux public de Novu — le même que le widget notification center — plutôt que les
+      routes protégées par clé secrète :
+    </p>
+    <ol>
+      <li><code>POST /v1/widgets/session/initialize</code> — avec l'identifiant <strong>public</strong> de
+        l'environnement (<code>applicationIdentifier</code>, sans risque à embarquer côté client), obtient un
+        JWT limité à un seul abonné.</li>
+      <li><code>PUT /v1/widgets/credentials</code> — authentifié par ce JWT, enregistre le jeton push. Le JWT
+        empêche un appelant de toucher aux identifiants d'un autre abonné que le sien.</li>
+    </ol>
+
+    <div class="card">
+      <h3>Mode sécurisé (HMAC)</h3>
+      <p>
+        Si le mode sécurisé est actif sur l'environnement visé — recommandé, et déjà le cas en production —
+        l'étape 1 exige un <code>hmacHash</code> calculé <strong>côté backend de l'app hôte</strong>, jamais
+        côté client. Sans lui, quiconque connaît un <code>subscriberId</code> peut obtenir une session en son
+        nom et détourner ses notifications.
+      </p>
+    </div>
+
+    <p class="pre-title">Backend de l'app hôte (Node)</p>
+<pre><code>import { createHmac } from 'crypto';
+
+// subscriberId = l'identifiant interne de l'utilisateur authentifié
+const hmacHash = createHmac('sha256', process.env.NOVU_API_KEY)
+  .update(subscriberId)
+  .digest('hex');
+
+// renvoyé à l'app, avec applicationIdentifier et novuApiUrl
+res.json({ hmacHash });</code></pre>
+  </section>
+
+  <section>
+    <span class="sec-num">04</span>
     <h2>Installation</h2>
-    <pre><code>npm install @gittestmag/izipush-sdk</code></pre>
-    <p style="color:var(--steel); font-size:.85rem">Nécessite un accès au registre GitHub Packages de l'organisation.</p>
+<pre><code>npm install @gittestmag/izipush-sdk</code></pre>
+    <p>Nécessite un accès au registre GitHub Packages de l'organisation.</p>
+
     <p class="pre-title">Puis, selon la plateforme</p>
-    <pre><code># React Native
+<pre><code># React Native
 npm install @react-native-firebase/app @react-native-firebase/messaging @notifee/react-native
 
 # Web
@@ -126,54 +193,65 @@ npm install firebase</code></pre>
   </section>
 
   <section>
-    <span class="sec-num">03</span>
+    <span class="sec-num">05</span>
     <h2>Intégration React Native (Android + iOS)</h2>
-    <p class="sec-sub">Metro résout automatiquement <code>dist/index.native.js</code> — même API que le web, config propre à la plateforme.</p>
+    <p class="sec-sub">Metro résout automatiquement <code>dist/index.native.js</code>.</p>
 
-    <div class="card">
-      <h3>Prérequis</h3>
-      <ul>
-        <li>Un projet Firebase avec une app Android et une app iOS enregistrées.</li>
-        <li><code>google-services.json</code> (Android) dans <code>android/app/</code>.</li>
-        <li><code>GoogleService-Info.plist</code> (iOS) ajouté au projet Xcode.</li>
-        <li>Permission Android : <code>android.permission.POST_NOTIFICATIONS</code>.</li>
-      </ul>
-    </div>
+    <h3>Prérequis</h3>
+    <ol>
+      <li>Un projet Firebase avec une app Android et une app iOS enregistrées — le même que celui du web.</li>
+      <li><code>google-services.json</code> (Android) dans <code>android/app/</code>.</li>
+      <li><code>GoogleService-Info.plist</code> (iOS) ajouté au projet Xcode.</li>
+      <li><strong>iOS uniquement</strong> — la clé APNs (<code>.p8</code>) ou le certificat téléversé dans la
+        console Firebase (Paramètres du projet &gt; Cloud Messaging). Sans elle, Firebase ne peut pas
+        atteindre APNs : le jeton s'obtient, mais aucun envoi n'arrive.</li>
+      <li>Le plugin Gradle Firebase appliqué (voir la documentation de <code>@react-native-firebase/app</code>).</li>
+      <li>Permission Android déclarée : <code>android.permission.POST_NOTIFICATIONS</code>.</li>
+    </ol>
 
     <p class="pre-title">index.js — avant AppRegistry, jamais dans un composant</p>
-    <pre><code>import { AppRegistry } from 'react-native';
+<pre><code>import { AppRegistry } from 'react-native';
 import App from './App';
 import { name as appName } from './app.json';
 import { registerBackgroundHandler } from '@gittestmag/izipush-sdk';
 
 registerBackgroundHandler({
   novuApiUrl: 'https://&lt;host-izipush&gt;/api',
-  applicationIdentifier: '&lt;identifiant public de l’environnement Novu&gt;',
+  applicationIdentifier: '&lt;identifiant public de l’environnement&gt;',
 });
 
-AppRegistry.registerComponent(appName, () => App);</code></pre>
+AppRegistry.registerComponent(appName, () =&gt; App);</code></pre>
+
+    <div class="warn">
+      <strong>Sans cet appel, rien ne s'affiche app fermée</strong>
+      Firebase exige ce gestionnaire au niveau module pour pouvoir réveiller l'app. Placé dans un composant,
+      il n'est jamais enregistré à temps — et les notifications arrivent sans jamais être visibles.
+    </div>
 
     <p class="pre-title">Après authentification de l'utilisateur</p>
-    <pre><code>import { initPush } from '@gittestmag/izipush-sdk';
+<pre><code>import { initPush } from '@gittestmag/izipush-sdk';
 
 const { hmacHash } = await backend.getPushSession(currentUser.id);
 
 const subscription = await initPush(currentUser.id, {
   novuApiUrl: 'https://&lt;host-izipush&gt;/api',
-  applicationIdentifier: '&lt;identifiant public de l’environnement Novu&gt;',
+  applicationIdentifier: '&lt;identifiant public de l’environnement&gt;',
   hmacHash,
 });
 
 if (subscription === null) {
-  // permission refusée — proposer de réactiver dans les paramètres
+  // autorisation refusée — proposer de la réactiver dans les réglages du système
 }</code></pre>
 
+    <h3>Configuration (natif)</h3>
     <table>
       <thead><tr><th>Champ</th><th>Obligatoire</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td>novuApiUrl</td><td>Oui</td><td>URL de base de l'API Novu</td></tr>
+        <tr><td>novuApiUrl</td><td>Oui</td><td>URL de base de l'API izipush</td></tr>
         <tr><td>applicationIdentifier</td><td>Oui</td><td>Identifiant public de l'environnement</td></tr>
-        <tr><td>hmacHash</td><td>Selon l'environnement</td><td>Calculé côté backend (voir section 01)</td></tr>
+        <tr><td>hmacHash</td><td>Selon l'environnement</td><td>Calculé côté backend (section 03)</td></tr>
+        <tr><td>firebaseToken</td><td>Non</td><td>Jeton d'inscription FCM déjà obtenu par l'app. Fourni, <strong>aucune autorisation n'est demandée</strong>.</td></tr>
+        <tr><td>token + providerId</td><td>Non</td><td>Échappatoire : jeton venu d'un autre service push (section 07).</td></tr>
         <tr><td>androidChannelId</td><td>Non</td><td>Défaut <code>izipush-default</code></td></tr>
         <tr><td>androidChannelName</td><td>Non</td><td>Défaut <code>Notifications</code></td></tr>
       </tbody>
@@ -181,74 +259,399 @@ if (subscription === null) {
   </section>
 
   <section>
-    <span class="sec-num">04</span>
-    <h2>Intégration Web (React)</h2>
-    <p class="sec-sub">Les bundlers web résolvent <code>dist/index.js</code>. Une asymétrie avec le mobile : le service worker.</p>
+    <span class="sec-num">06</span>
+    <h2>Intégration Web</h2>
+    <p class="sec-sub">Les bundlers web résolvent <code>dist/index.js</code>. Une seule asymétrie avec le mobile : le service worker.</p>
+
+    <h3>Prérequis</h3>
+    <ol>
+      <li>Le même projet Firebase, avec une app Web enregistrée.</li>
+      <li>Une clé VAPID (console Firebase &gt; Cloud Messaging &gt; Web Push certificates).</li>
+      <li>
+        Le service worker packagé, copié dans le dossier public de l'app — un navigateur ne peut recevoir de
+        push onglet fermé qu'à travers un fichier statique servi <strong>à la racine du site</strong> :
+<pre><code>cp node_modules/@gittestmag/izipush-sdk/web/firebase-messaging-sw.js public/firebase-messaging-sw.js</code></pre>
+      </li>
+    </ol>
 
     <div class="card">
-      <h3>Prérequis</h3>
-      <ul>
-        <li>Le même projet Firebase, avec une app Web enregistrée.</li>
-        <li>Une clé VAPID (console Firebase &gt; Cloud Messaging &gt; Web Push certificates).</li>
-        <li>Le service worker packagé, copié dans le dossier public de l'app — un navigateur ne
-          peut recevoir de push app fermée/onglet en arrière-plan que via un fichier statique
-          servi à sa racine :
-          <pre><code>cp node_modules/@gittestmag/izipush-sdk/web/firebase-messaging-sw.js public/firebase-messaging-sw.js</code></pre>
-        </li>
-      </ul>
+      <h3>Le fichier ne se modifie jamais à la main</h3>
+      <p>
+        La configuration Firebase <em>et</em> l'URL de l'API izipush lui sont transmises par les paramètres
+        d'URL au moment de l'enregistrement. Le même fichier convient donc à toutes les applications et à
+        tous les environnements. Recopiez-le tel quel à chaque montée de version du SDK.
+      </p>
     </div>
 
     <p class="pre-title">Après authentification de l'utilisateur</p>
-    <pre><code>import { initPush } from '@gittestmag/izipush-sdk';
+<pre><code>import { initPush } from '@gittestmag/izipush-sdk';
 
 const { hmacHash } = await backend.getPushSession(currentUser.id);
 
 const subscription = await initPush(currentUser.id, {
   novuApiUrl: 'https://&lt;host-izipush&gt;/api',
-  applicationIdentifier: '&lt;identifiant public de l’environnement Novu&gt;',
+  applicationIdentifier: '&lt;identifiant public de l’environnement&gt;',
   hmacHash,
-  firebaseConfig: {
-    apiKey: '...',
-    projectId: '...',
-    messagingSenderId: '...',
-    appId: '...',
-  },
+  firebaseConfig: { apiKey: '...', projectId: '...', messagingSenderId: '...', appId: '...' },
   vapidKey: '...',
 });</code></pre>
 
+    <h3>Configuration (web)</h3>
     <table>
       <thead><tr><th>Champ</th><th>Obligatoire</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td>novuApiUrl</td><td>Oui</td><td>URL de base de l'API Novu</td></tr>
+        <tr><td>novuApiUrl</td><td>Oui</td><td>URL de base de l'API izipush</td></tr>
         <tr><td>applicationIdentifier</td><td>Oui</td><td>Identifiant public de l'environnement</td></tr>
-        <tr><td>hmacHash</td><td>Selon l'environnement</td><td>Calculé côté backend (voir section 01)</td></tr>
-        <tr><td>firebaseConfig</td><td>Oui</td><td>Config du projet Firebase (console Firebase)</td></tr>
+        <tr><td>hmacHash</td><td>Selon l'environnement</td><td>Calculé côté backend (section 03)</td></tr>
+        <tr><td>firebaseToken</td><td>Non</td><td>Jeton d'inscription FCM déjà obtenu par l'app. Fourni, <strong>aucune autorisation n'est demandée</strong>.</td></tr>
+        <tr><td>token + providerId</td><td>Non</td><td>Échappatoire : jeton venu d'un autre service push (section 07).</td></tr>
+        <tr><td>firebaseConfig</td><td>Oui</td><td>Config du projet Firebase</td></tr>
         <tr><td>vapidKey</td><td>Oui</td><td>Clé VAPID publique</td></tr>
         <tr><td>serviceWorkerUrl</td><td>Non</td><td>Défaut <code>firebase-messaging-sw.js</code></td></tr>
-        <tr><td>icon / badge</td><td>Non</td><td>Icônes des notifications au premier plan</td></tr>
+        <tr><td>icon / badge</td><td>Non</td><td>Icônes des notifications affichées au premier plan</td></tr>
       </tbody>
     </table>
   </section>
 
   <section>
-    <span class="sec-num">05</span>
-    <h2>API commune</h2>
+    <span class="sec-num">07</span>
+    <h2>Brancher sur une application existante</h2>
+    <p class="sec-sub">Quand l'app a déjà sa pile push et ne veut du SDK que le rattachement à izipush.</p>
+
+    <div class="warn">
+      <strong>Le jeton attendu est le jeton d'inscription FCM — sur Android <em>et</em> sur iOS</strong>
+      Sur iOS, ce n'est <strong>pas</strong> le jeton APNs brut rendu par
+      <code>didRegisterForRemoteNotificationsWithDeviceToken</code> : Firebase encapsule APNs et émet son
+      propre jeton. Les deux ne sont pas interchangeables. Enregistrer un jeton APNs en le déclarant
+      <code>fcm</code> est accepté sans erreur — izipush stocke la chaîne telle quelle — et
+      <strong>tous les envois échouent ensuite en silence</strong>.
+    </div>
+
+    <h3>Trouver son cas</h3>
+    <table>
+      <thead><tr><th>L'app utilise déjà…</th><th>Le jeton à passer</th><th>À faire</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-family:inherit;white-space:normal"><code>@react-native-firebase/messaging</code></td>
+          <td style="font-family:inherit;white-space:normal"><code>await messaging().getToken()</code></td>
+          <td>Rien de plus : c'est exactement le jeton attendu, à passer dans <code>firebaseToken</code>.</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">APNs en direct (pas de Firebase)</td>
+          <td style="font-family:inherit;white-space:normal">Le jeton APNs</td>
+          <td>Passer <code>token</code> avec <code>providerId: 'apns'</code>, <strong>et</strong> configurer une intégration APNs dans izipush (clé .p8 ou certificat).</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">Expo Notifications</td>
+          <td style="font-family:inherit;white-space:normal"><code>getExpoPushTokenAsync()</code></td>
+          <td>Passer <code>token</code> avec <code>providerId: 'expo'</code> et configurer l'intégration Expo. Attention : <code>getDevicePushTokenAsync()</code> rend du FCM sur Android mais de l'APNs sur iOS — les deux ne se mélangent pas sous un seul <code>providerId</code>.</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">OneSignal</td>
+          <td style="font-family:inherit;white-space:normal">L'identifiant d'abonné OneSignal</td>
+          <td>Passer <code>token</code> avec <code>providerId: 'one-signal'</code> et configurer l'intégration correspondante.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card">
+      <h3>Dans tous les cas : le même projet des deux côtés</h3>
+      <p>
+        Un jeton n'a de sens que pour le projet qui l'a émis. Le projet Firebase de l'app doit être celui
+        dont le compte de service est configuré dans l'intégration push d'izipush. Deux projets différents,
+        et les envois échouent — sans que rien ne le signale au moment de l'enregistrement.
+      </p>
+      <p>
+        La vérification tient en une comparaison : le <code>project_id</code> du
+        <code>google-services.json</code> (ou le <code>PROJECT_ID</code> du
+        <code>GoogleService-Info.plist</code>) doit être identique au <em>Project ID</em> de l'intégration
+        FCM dans izipush. S'ils diffèrent, le fournisseur répond <code>SenderId mismatch</code> ou
+        <code>Requested entity was not found</code> au premier envoi, et le jeton est retiré du profil.
+      </p>
+    </div>
+
+    <h3>Le point d'entrée dédié</h3>
     <p>
-      <code>initPush(userId: string, config: IzipushConfig): Promise&lt;{ subscriberId; topic } | null&gt;</code>
-      — demande la permission, récupère le token, l'enregistre, et met en place l'affichage.
-      Retourne <code>null</code> si la permission est refusée ou la plateforme non compatible.
+      <code>@gittestmag/izipush-sdk/register</code> n'expose que le rattachement, et <strong>ne charge ni
+      Firebase ni Notifee</strong> : il s'importe dans une application qui n'a aucune de ces dépendances.
+      L'app garde la main sur l'autorisation, l'affichage et la navigation.
     </p>
+
+<pre><code>import { registerPushToken } from '@gittestmag/izipush-sdk/register';
+
+// Le jeton vient de la pile push que l'app possède déjà.
+const token = await messaging().getToken();
+
+await registerPushToken(currentUser.id, {
+  novuApiUrl: 'https://&lt;host-izipush&gt;/api',
+  applicationIdentifier: '&lt;identifiant public de l’environnement&gt;',
+  hmacHash,
+  firebaseToken: token,          // le champ dit de quel jeton il s'agit
+  // token, providerId: 'apns',  // pile push autre que Firebase
+});</code></pre>
+
+    <div class="warn">
+      <strong>Le renouvellement du jeton reste à la charge de l'app</strong>
+      C'est le seul point que le SDK ne peut pas reprendre : il n'écoute rien dans ce mode. Rappelez
+      <code>registerPushToken</code> à chaque rotation, sinon le client devient injoignable au bout de
+      quelques semaines, sans erreur visible. Les jetons ne sont pas remplacés mais ajoutés — un même client
+      reste joignable sur plusieurs appareils.
+    </div>
+
+    <h3>Un jeton gardé en stockage local</h3>
     <p>
-      <code>userId</code> doit être le <strong>même identifiant</strong> que celui utilisé côté
-      métier (ex. le même <code>user_id</code>) — c'est ce qui permet au profil push de converger
-      avec le profil enrichi par ailleurs sur le même abonné.
+      C'est une bonne optimisation et une mauvaise source de vérité. <strong>La plateforme fait autorité, pas
+      le stockage</strong> : relisez le jeton courant à chaque lancement, et ne réenregistrez que s'il a
+      changé. Le stockage sert à éviter un appel inutile, jamais à remplacer la question.
     </p>
+
+<pre><code>// à chaque lancement, après authentification
+const courant = await messaging().getToken();          // la plateforme fait autorité
+if (courant !== (await storage.get('pushToken'))) {
+  await registerPushToken(userId, { ...config, firebaseToken: courant });
+  await storage.set('pushToken', courant);
+}
+
+// et surtout, la rotation :
+messaging().onTokenRefresh(async (jeton) =&gt; {
+  await registerPushToken(userId, { ...config, firebaseToken: jeton });
+  await storage.set('pushToken', jeton);
+});</code></pre>
+
+    <div class="warn">
+      <strong>Sur iOS, le piège est le trousseau (Keychain)</strong>
+      Contrairement à Android, <strong>le trousseau iOS survit à la désinstallation de l'app</strong>. Un jeton
+      rangé dans <code>react-native-keychain</code> ou <code>expo-secure-store</code> est donc relu après une
+      réinstallation — alors qu'iOS en a émis un nouveau et que l'ancien est mort. L'app réenregistre
+      consciencieusement un jeton invalide, et le client ne reçoit plus rien. Avec
+      <code>AsyncStorage</code> ou <code>UserDefaults</code>, effacés à la désinstallation, le problème ne se
+      pose pas.
+    </div>
+
+    <div class="card">
+      <h3>Trois autres moments où iOS invalide un jeton sans prévenir</h3>
+      <ul>
+        <li>Restauration d'une sauvegarde sur un nouvel appareil.</li>
+        <li>Réinstallation de l'application.</li>
+        <li>Certaines mises à jour majeures du système.</li>
+      </ul>
+      <p>
+        Dans les trois cas, APNs révoque et Firebase émet un nouveau jeton d'inscription. Seuls
+        <code>getToken()</code> au lancement et <code>onTokenRefresh</code> le voient — un jeton relu en
+        stockage, non.
+      </p>
+      <p>
+        À noter aussi : <strong>sur iOS, aucun jeton n'existe tant que l'enregistrement APNs n'a pas abouti</strong>.
+        Lire le stockage au démarrage, avant l'autorisation, ne rend donc rien la première fois. Et le
+        simulateur iOS n'émet pas de jeton du tout : un test qui « ne marche pas » commence souvent là.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>Un jeton mort ne s'accumule pas</h3>
+      <p>
+        izipush <strong>ajoute</strong> les jetons plutôt que de les remplacer — un client reste joignable sur
+        plusieurs appareils. Un jeton devenu invalide n'encombre pas pour autant le profil : au premier envoi,
+        l'erreur du fournisseur (<code>BadDeviceToken</code>, <code>ExpiredPushToken</code>,
+        <code>NotRegistered</code>…) le fait retirer automatiquement, et la trace apparaît dans le fil
+        d'activité du message. Le client reste néanmoins injoignable tant qu'un jeton valide n'a pas été
+        enregistré à la place.
+      </p>
+    </div>
+
+    <h3>Remonter les ouvertures soi-même</h3>
+    <p>
+      Dans ce mode, le SDK n'écoute pas les appuis : sans cet appel, les taux d'ouverture push des rapports
+      restent à zéro. Passez-lui les données de la notification depuis le gestionnaire de l'app — il y
+      cherche l'identifiant de message posé par izipush et ignore tout le reste, sans appel réseau.
+    </p>
+<pre><code>import { reportOpened } from '@gittestmag/izipush-sdk/register';
+
+// dans le gestionnaire d'appui existant de l'app
+await reportOpened({ novuApiUrl, applicationIdentifier }, notification.data);</code></pre>
   </section>
 
-  <footer>
-    izipush — documentation SDK · <a href="https://github.com/GITTESTMAG/izipush-sdk">github.com/GITTESTMAG/izipush-sdk</a>
-  </footer>
+  <section>
+    <span class="sec-num">08</span>
+    <h2>API commune</h2>
+    <p class="sec-sub">Les trois premières fonctions existent à l'identique sur les deux plateformes et renvoient les mêmes types.</p>
+
+    <div class="card">
+      <h3><code>initPush(userId, config): Promise&lt;IzipushSubscription | null&gt;</code></h3>
+      <p>
+        Enregistre le jeton, met en place l'affichage et la remontée des ouvertures. Deux usages, selon que
+        l'app détient déjà un jeton ou non :
+      </p>
+<pre><code>// 1. L'app a déjà son jeton : il est enregistré tel quel, AUCUNE autorisation n'est demandée.
+await initPush(currentUser.id, { ...config, firebaseToken: monJeton });
+
+// 2. L'app n'a pas de jeton : le SDK demande lui-même l'autorisation.
+await initPush(currentUser.id, config);</code></pre>
+      <p>Renvoie <code>null</code> si l'autorisation est refusée ou la plateforme non compatible.</p>
+    </div>
+
+    <div class="card">
+      <h3><code>initPermissions(userId, config): Promise&lt;IzipushSubscription | null&gt;</code></h3>
+      <p>
+        Demande l'autorisation, récupère le jeton de la plateforme et l'enregistre. C'est exactement ce
+        qu'appelle <code>initPush</code> lorsqu'aucun <code>token</code> ne lui est passé — l'exposer
+        séparément permet de <strong>choisir le moment</strong> de la demande (section 09).
+      </p>
+    </div>
+
+    <div class="card">
+      <h3><code>getPermissionStatus(): Promise&lt;IzipushPermission&gt;</code></h3>
+      <p>État actuel de l'autorisation, <strong>sans rien demander</strong>.</p>
+      <table>
+        <thead><tr><th>Valeur</th><th>Signification</th></tr></thead>
+        <tbody>
+          <tr><td>'granted'</td><td>Autorisé : les notifications arrivent.</td></tr>
+          <tr><td>'denied'</td><td>Refusé. Redemander ne sert à rien : seul un passage par les réglages le change.</td></tr>
+          <tr><td>'undetermined'</td><td>La question n'a jamais été posée — le seul état où une demande peut aboutir.</td></tr>
+          <tr><td>'unsupported'</td><td>La plateforme ne sait pas recevoir de push (voir section 02).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3><code>registerBackgroundHandler(config): void</code> <em>— natif uniquement</em></h3>
+      <p>
+        Enregistre l'affichage des notifications reçues app fermée ou en arrière-plan, et la remontée des
+        appuis. À appeler une seule fois, au niveau module de <code>index.js</code>. N'existe pas côté web :
+        son équivalent est le service worker packagé.
+      </p>
+    </div>
+
+    <h3>IzipushSubscription</h3>
+    <table>
+      <thead><tr><th>Champ</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>subscriberId</td><td>L'identifiant passé par l'app hôte</td></tr>
+        <tr><td>token</td><td>Le jeton effectivement enregistré côté izipush</td></tr>
+        <tr><td>permission</td><td>L'état de l'autorisation au moment de l'enregistrement</td></tr>
+        <tr><td>topic</td><td>Réservé — le CRM gère ses listes côté serveur</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <span class="sec-num">09</span>
+    <h2>Choisir le moment de la demande</h2>
+    <p class="sec-sub">La question ne se pose qu'une fois. C'est la décision produit la plus lourde de conséquences de toute l'intégration.</p>
+
+    <p>
+      Sur iOS comme sur Android 13+ et dans tous les navigateurs, un refus est <strong>définitif</strong> :
+      le système ne repose plus la question, et seul un passage par les réglages peut le revenir dessus —
+      ce que presque personne ne fait. Demander au premier lancement, avant que l'utilisateur ait compris ce
+      qu'il y gagne, c'est donc perdre définitivement une partie de l'audience joignable.
+    </p>
+
+    <p class="pre-title">Le schéma recommandé</p>
+<pre><code>import { getPermissionStatus, initPermissions, initPush } from '@gittestmag/izipush-sdk';
+
+// À la connexion : on enregistre ce qu'on a déjà, sans jamais demander.
+const status = await getPermissionStatus();
+if (status === 'granted') {
+  await initPush(currentUser.id, config);
+}
+
+// Plus tard, au bon moment : après une première transaction, sur un écran
+// « soyez prévenu quand … », jamais à froid.
+if (status === 'undetermined') {
+  const accepte = await montrerEcranDExplication();   // écran maison, pas le SDK
+  if (accepte) await initPermissions(currentUser.id, config);
+}
+
+// 'denied' : ne rien demander. Au mieux, expliquer où réactiver, dans les réglages.
+// 'unsupported' : masquer l'option.</code></pre>
+
+    <div class="warn">
+      <strong>Ne demandez jamais deux fois</strong>
+      Appeler <code>initPermissions</code> alors que le statut est <code>'denied'</code> ne produit aucune
+      boîte de dialogue — l'appel retourne simplement <code>null</code>. C'est sans danger, mais sans effet :
+      c'est l'écran de réglages qu'il faut proposer.
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-num">10</span>
+    <h2>Statistiques d'ouverture</h2>
+    <p class="sec-sub">Automatique, sur les deux plateformes. Rien à appeler.</p>
+
+    <p>
+      L'appui sur une notification de campagne est signalé au CRM izipush, ce qui alimente les taux
+      d'ouverture des rapports :
+    </p>
+    <ul>
+      <li><strong>Mobile</strong> — par Firebase et Notifee, que l'app soit au premier plan, en arrière-plan
+        ou fermée.</li>
+      <li><strong>Web</strong> — par le service worker, seul endroit qui reçoit l'appui que la notification
+        ait été affichée par la page ou par lui.</li>
+    </ul>
+
+    <div class="card">
+      <h3>Ce qui n'est pas mesuré</h3>
+      <p>
+        Une notification <em>affichée mais jamais touchée</em> ne peut pas être comptée : aucune plateforme
+        ne le permet. Un taux d'ouverture push est donc un taux d'<strong>appui</strong> — il est fiable,
+        mais plus bas qu'un taux d'ouverture email, qui compte lui des affichages. Les deux ne se comparent pas.
+      </p>
+      <p>
+        Les notifications hors campagne ne portent pas d'identifiant de message et ne déclenchent aucun appel
+        réseau. Une statistique perdue (réseau coupé) n'a jamais d'effet visible pour l'utilisateur.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-num">11</span>
+    <h2>Dépannage</h2>
+    <p class="sec-sub">Les pannes qu'on rencontre réellement, et ce qu'elles veulent dire.</p>
+
+    <table>
+      <thead><tr><th>Symptôme</th><th>Cause la plus probable</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">Rien ne s'affiche app fermée (natif)</td>
+          <td><code>registerBackgroundHandler</code> n'est pas appelé au niveau module de <code>index.js</code>, ou l'est après <code>AppRegistry</code>.</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">Rien ne s'affiche onglet fermé (web)</td>
+          <td>Le service worker n'est pas servi à la racine du site, ou n'a pas été recopié après une montée de version.</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">Aucune notification sur iPhone, en web</td>
+          <td>Le site n'est pas installé sur l'écran d'accueil. Limite d'Apple — voir la section 02.</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">« session refusée par Novu (400) »</td>
+          <td>Le mode sécurisé est actif et le <code>hmacHash</code> manque, ou a été calculé avec une autre clé que celle de l'environnement visé.</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">Le client ne reçoit plus rien après quelques semaines</td>
+          <td>Jeton tourné sans être ré-enregistré : c'est ce que fait le SDK automatiquement, mais seulement si <code>initPush</code> a bien été appelé au démarrage de la session.</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">Le client reçoit deux fois chaque campagne</td>
+          <td>Deux profils : le <code>userId</code> passé au SDK n'est pas celui des événements métier.</td>
+        </tr>
+        <tr>
+          <td style="font-family:inherit;white-space:normal">Les taux d'ouverture push sont à zéro</td>
+          <td>Web : service worker d'une version antérieure du SDK, qui ne remontait pas les appuis. Le recopier.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
 
 </div>
+
+<footer>
+  <div class="wrap" style="padding-top:0;padding-bottom:0">
+    izipush — documentation SDK · <a href="https://github.com/GITTESTMAG/izipush-sdk">github.com/GITTESTMAG/izipush-sdk</a><br />
+    Voir aussi <a href="architecture-crm.html">architecture-crm.html</a> (architecture du CRM) et
+    <a href="contrat-evenements.md">contrat-evenements.md</a> (événements attendus d'Izichange).
+  </div>
+</footer>
+
 </body>
 </html>

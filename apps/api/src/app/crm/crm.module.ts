@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import {
+  CrmActivityDailyRepository,
   CrmAudienceRepository,
   CrmCampaignRepository,
   CrmCampaignRunRepository,
@@ -7,6 +8,7 @@ import {
   CrmEmailTemplateRepository,
   CrmEngagementRepository,
   CrmOpsRepository,
+  CrmProductRepository,
   CrmProfileStateRepository,
   CrmProviderUsageRepository,
   CrmReportRepository,
@@ -22,6 +24,8 @@ import { CrmQuotaRedis } from './email-providers/crm-quota-redis.service';
 import { CrmFieldsController } from './fields/crm-fields.controller';
 import { CrmMonitoringController } from './monitoring/crm-monitoring.controller';
 import { CrmMonitoringService } from './monitoring/crm-monitoring.service';
+import { CrmProductsController } from './products/crm-products.controller';
+import { CrmProductsService } from './products/crm-products.service';
 import { CrmPublicController } from './public/crm-public.controller';
 import { CrmReportsController } from './reports/crm-reports.controller';
 import { CrmReportsService } from './reports/crm-reports.service';
@@ -39,6 +43,7 @@ import { CrmTemplatesService } from './templates/crm-templates.service';
   controllers: [
     CrmFieldsController,
     CrmSegmentsController,
+    CrmProductsController,
     CrmCampaignsController,
     CrmTemplatesController,
     CrmPublicController,
@@ -65,6 +70,10 @@ import { CrmTemplatesService } from './templates/crm-templates.service';
     CrmReportRepository,
     CrmMonitoringService,
     CrmReportsService,
+    CrmProductRepository,
+    // La fiche produit lit l'activité pour en donner le poids : clients liés, transactions, volume.
+    CrmActivityDailyRepository,
+    CrmProductsService,
   ],
 })
 export class CrmModule {}

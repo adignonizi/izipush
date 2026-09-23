@@ -34,6 +34,15 @@ export class CrmCampaignEntity {
 
   segmentId: string;
 
+  /**
+   * Produit promu par la campagne. Sert à retrouver ses campagnes depuis la fiche produit, et à écarter
+   * du ciblage les clients qui utilisent déjà ce produit (`excludeProductUsers`).
+   */
+  productId?: string;
+
+  /** Campagne de recrutement : les clients déjà liés au produit promu ne sont pas sollicités. */
+  excludeProductUsers?: boolean;
+
   /** Données transmises au workflow à chaque déclenchement. */
   payload?: Record<string, unknown>;
 

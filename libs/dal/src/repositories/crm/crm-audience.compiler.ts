@@ -69,6 +69,8 @@ export function compileAudience(audience: CrmConditionGroup, now: Date): Compile
     else zeroInclusive.push(condition);
   }
 
+  rejectLoneSetNegation(conditions);
+
   const profileFilter = combine(audience.combinator, profileParts);
 
   // Une condition impossible sans activité suffit à partir des lignes d'activité : les autres s'y testent aussi.
@@ -97,7 +99,7 @@ export function compileActivityPipeline(
 
   conditions.forEach((condition, index) => {
     const inWindow: unknown[] = [{ $gte: ['$day', starts[index]] }];
-    if (condition.product) inWindow.push({ $eq: ['$product', condition.product] });
+    if (condition.productId) inWindow.push({ $eq: ['$productId', condition.productId] });
 
     group[`m${index}`] = { $sum: { $cond: [{ $and: inWindow }, `$${condition.metric}`, 0] } };
     const operator = mode === 'include' ? `$${condition.operator}` : NEGATION[condition.operator];
@@ -140,7 +142,7 @@ function acceptsZero(condition: CrmActivityCondition): boolean {
 
 /** « Aucune transaction réussie sur la fenêtre », tous produits : se lit sur la date de dernière transaction. */
 function isNoTransaction(condition: CrmActivityCondition): boolean {
-  if (condition.product || (condition.metric !== 'tx' && condition.metric !== 'volUsd')) return false;
+  if (condition.productId || (condition.metric !== 'tx' && condition.metric !== 'volUsd')) return false;
   if ((condition.operator === 'eq' || condition.operator === 'lte') && condition.value === 0) return true;
 
   // Les transactions se comptent en entiers : « moins de 1 » veut dire aucune.
@@ -151,6 +153,20 @@ function noTransactionFilter(condition: CrmActivityCondition, now: Date): Record
   const cutoff = `${windowStart(condition, now)}T00:00:00.000Z`;
 
   return { $or: [{ 'data.last_tx_at': { $lt: cutoff } }, { 'data.last_tx_at': { $exists: false } }] };
+}
+
+/**
+ * « N'a pas le produit X » ne se lit pas sur un index : un index multiclé ne sait pas retrouver les documents
+ * où une valeur est absente, Mongo parcourt donc tout le fichier client. Combinée à une autre condition la
+ * négation ne coûte rien (elle filtre un ensemble déjà réduit) ; seule, elle est refusée.
+ */
+function rejectLoneSetNegation(conditions: CrmCondition[]): void {
+  const lone = conditions.length === 1 ? conditions[0] : undefined;
+  if (lone?.type !== 'profile' || lone.operator !== 'has_not') return;
+
+  throw new CrmAudienceError(
+    "« N'a pas ce produit » ne peut pas être la seule condition : ajoutez un produit utilisé, un pays ou un statut KYC"
+  );
 }
 
 function compileNode(condition: CrmCondition, now: Date): Record<string, unknown> {
@@ -191,6 +207,15 @@ function compileProfile(condition: CrmProfileCondition, now: Date): Record<strin
     case 'in':
     case 'nin':
       return { [path]: { [`$${condition.operator}`]: list(field, condition.value) } };
+    // Champs « set » : data.products porte les produits du client, un index multiclé les couvre.
+    case 'has':
+      return { [path]: scalar(field, condition.value) };
+    case 'has_not':
+      return { [path]: { $ne: scalar(field, condition.value) } };
+    case 'has_all':
+      return { [path]: { $all: list(field, condition.value) } };
+    case 'has_any':
+      return { [path]: { $in: list(field, condition.value) } };
     case 'gt':
     case 'gte':
     case 'lt':

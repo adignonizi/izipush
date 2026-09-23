@@ -124,6 +124,24 @@ export class CrmAudienceRepository {
     }
   }
 
+  /**
+   * Nombre de clients liés à chaque produit. Un comptage par produit plutôt qu'un `$unwind` sur toute la
+   * collection : chaque comptage se lit entièrement dans l'index multiclé de `data.products`.
+   */
+  async countByProduct(environmentId: string, productIds: string[]): Promise<Record<string, number>> {
+    const counts = await Promise.all(
+      productIds.map((productId) =>
+        Subscriber.countDocuments({
+          _environmentId: environmentId,
+          'data.products': productId,
+          ...ALWAYS_EXCLUDED,
+        })
+      )
+    );
+
+    return Object.fromEntries(productIds.map((productId, index) => [productId, counts[index]]));
+  }
+
   private subscriberFilter(
     environmentId: string,
     profileFilter: Record<string, unknown>,

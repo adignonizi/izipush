@@ -18,16 +18,18 @@ RabbitMQ ─ file ────┘                                               
 | RabbitMQ | File `AMQP_QUEUE` liée à l'exchange existant `AMQP_EXCHANGE` (motifs `AMQP_BINDINGS`). Les autres consommateurs ne sont pas affectés. |
 | Keycloak | `POST /v1/webhooks/keycloak`, signature `X-Keycloak-Signature` (HMAC-SHA256 hex du corps) si `KEYCLOAK_WEBHOOK_SECRET` est défini. |
 
+Contrat complet : `docs/izichangedocs/contrat-evenements.md`.
+
 | Événement | Effet |
 |---|---|
-| `account.registered` (REGISTER) | crée le profil : identité, pays, `data.account_created_at` |
+| `account.registered` (REGISTER) | crée le profil : identité, pays, langue, fuseau, `data.account_created_at` |
 | `account.profile_updated`, `account.email_updated` | met à jour l'identité |
-| `account.deleted` | `data.isDeleted = true`, tokens push effacés |
 | `account.logged_in` (LOGIN) | `data.last_login_at` |
-| `kyc.submitted` / `approved` / `rejected` | `data.kyc_status` (+ date de validation, motif de rejet) |
-| `transaction.completed` / `failed` | ligne d'activité du jour, `data.lifetime_*`, `data.first_tx_at*`, `data.last_tx_at` |
+| `kyc.validated` | `data.kyc_status`, `data.kyc_validated_at` |
+| `transaction.completed` | ligne d'activité du jour, `data.lifetime_*`, `data.product_*`, `data.last_tx_at` |
+| `product.activated` | lie le client au produit sans attendre une transaction (`product_state.{id}.activated_at`) |
 
-Tout autre événement est acquitté et ignoré. Un message inexploitable part dans la file `AMQP_QUEUE.dlq` ; `POST /v1/crm-ingest/dead-letters/replay?limit=100` (en-tête `x-crm-admin-token`) le remet en file une fois la cause corrigée.
+Tout autre événement est acquitté et ignoré. Un événement portant `test_flag: true` l'est aussi : les données de recette n'entrent jamais dans un profil. Un message inexploitable part dans la file `AMQP_QUEUE.dlq` ; `POST /v1/crm-ingest/dead-letters/replay?limit=100` (en-tête `x-crm-admin-token`) le remet en file une fois la cause corrigée.
 
 ## Garanties
 

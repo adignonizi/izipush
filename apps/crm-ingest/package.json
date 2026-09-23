@@ -14,6 +14,7 @@
     "start:prod": "node dist/main",
     "test": "cross-env TS_NODE_TRANSPILE_ONLY=true NODE_ENV=test NODE_OPTIONS=--no-experimental-strip-types mocha --timeout 10000 --require ts-node/register --exit 'src/**/*.spec.ts'",
     "demo:lot1": "node scripts/demo-lot1.mjs",
+    "migrate:products": "cross-env TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=--no-experimental-strip-types ts-node src/scripts/migrate-products.ts",
     "check": "biome check .",
     "check:fix": "biome check --write ."
   },

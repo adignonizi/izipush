@@ -46,12 +46,18 @@ const mock = createServer((request, response) => {
   });
 });
 
-function event(eventType, userId, minutes, data = {}) {
+function event(eventName, userId, minutes, { productCode, ...payload } = {}) {
   return {
-    eventType,
-    eventId: `${userId}-${eventType}-${minutes}`,
-    timestamp: minutesAgo(minutes),
-    data: { userId, ...data },
+    event_id: `${userId}-${eventName}-${minutes}`,
+    event_name: eventName,
+    schema_version: 1,
+    occurred_at: minutesAgo(minutes),
+    published_at: new Date().toISOString(),
+    user_id: userId,
+    ...(productCode ? { product_code: productCode } : {}),
+    source: 'backend_core',
+    test_flag: false,
+    payload,
   };
 }
 
@@ -76,7 +82,7 @@ async function main() {
   const connection = await amqp.connect(AMQP_URL);
   const channel = await connection.createChannel();
   const publish = (message) =>
-    channel.publish(EXCHANGE, message.eventType, Buffer.from(JSON.stringify(message)), { persistent: true });
+    channel.publish(EXCHANGE, message.event_name, Buffer.from(JSON.stringify(message)), { persistent: true });
 
   const clients = [
     { id: awa, country: 'CI', volume: 600 },
@@ -87,12 +93,12 @@ async function main() {
     publish(
       event('account.profile_updated', client.id, 3000, { email: `${client.id}@example.com`, country: client.country })
     );
-    publish(event('kyc.approved', client.id, 2900));
+    publish(event('kyc.validated', client.id, 2900));
     publish(
       event('transaction.completed', client.id, 2800, {
         transactionId: `${client.id}-t1`,
-        amount: client.volume,
-        product: 'crypto',
+        amount_usd: client.volume,
+        productCode: 'crypto',
       })
     );
   }
@@ -150,7 +156,7 @@ async function main() {
   );
   console.log(`Segment figé prêt : ${frozenReady.memberCount} membre(s) dans ${frozenReady.topicKey}`);
 
-  // ---- 3. Campagnes : immédiate sur chaque segment, et « sur événement » kyc.approved ---------------
+  // ---- 3. Campagnes : immédiate sur chaque segment, et « sur événement » kyc.validated ---------------
   const campaign = (name, segmentId, schedule, nextRunAt) => ({
     ...base,
     name: `${tag} ${name}`,
@@ -170,7 +176,7 @@ async function main() {
     .insertOne(campaign('relance figée', frozenId, { mode: 'immediate' }, now));
   const { insertedId: onEventCampaignId } = await db
     .collection('crm_campaigns')
-    .insertOne(campaign('bienvenue KYC', dynamicId, { mode: 'on_event', eventName: 'kyc.approved' }, null));
+    .insertOne(campaign('bienvenue KYC', dynamicId, { mode: 'on_event', eventName: 'kyc.validated' }, null));
 
   const runOf = (campaignId) =>
     waitFor(`exécution ${campaignId}`, () =>
@@ -180,7 +186,7 @@ async function main() {
   const frozenRun = await runOf(frozenCampaignId);
 
   // Nouvel événement récent pour Bintou : doit déclencher la campagne « sur événement », pour elle seule.
-  publish(event('kyc.approved', bintou, 1));
+  publish(event('kyc.validated', bintou, 1));
   const onEventTrigger = await waitFor('déclenchement sur événement', () =>
     triggers.find((trigger) => trigger.payload?.__crm?.campaignId === String(onEventCampaignId))
   );
@@ -233,7 +239,7 @@ async function main() {
     ],
     [
       'sur événement : Bintou seule, avec l’événement',
-      onEventTrigger.to.join() === bintou && onEventTrigger.payload.event?.name === 'kyc.approved',
+      onEventTrigger.to.join() === bintou && onEventTrigger.payload.event?.name === 'kyc.validated',
     ],
     [
       'événements anciens ignorés par la campagne sur événement',

@@ -19,7 +19,7 @@ const crmEventSchema = new Schema<CrmEventDBModel>(
     source: { type: Schema.Types.String, required: true },
     data: { type: Schema.Types.Mixed, default: {} },
     day: Schema.Types.String,
-    product: Schema.Types.String,
+    productId: Schema.Types.String,
     derivedAt: { type: Schema.Types.Date, default: null },
   },
   { ...schemaOptions, collection: 'crm_events', minimize: false }
@@ -28,7 +28,7 @@ const crmEventSchema = new Schema<CrmEventDBModel>(
 crmEventSchema.index({ _environmentId: 1, eventId: 1 }, { name: 'crm_events_unique_event', unique: true });
 crmEventSchema.index({ _environmentId: 1, subscriberId: 1, derivedAt: 1 }, { name: 'crm_events_pending' });
 crmEventSchema.index(
-  { _environmentId: 1, subscriberId: 1, day: 1, product: 1 },
+  { _environmentId: 1, subscriberId: 1, day: 1, productId: 1 },
   { name: 'crm_events_activity', partialFilterExpression: { day: { $exists: true } } }
 );
 crmEventSchema.index({ derivedAt: 1, receivedAt: 1 }, { name: 'crm_events_sweep' });

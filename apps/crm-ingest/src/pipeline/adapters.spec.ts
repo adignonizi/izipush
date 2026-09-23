@@ -38,25 +38,69 @@ describe('adaptKeycloak', () => {
 });
 
 describe('adaptRabbit', () => {
+  // Enveloppe Izichange (02_Contrat_Evenement).
   const completed = {
-    eventType: 'transaction.completed',
-    eventId: 'evt-tx-completed-1',
-    timestamp: '2026-06-09T12:00:00.000Z',
-    data: { userId: 'usr-abc123', transactionId: 'tx-001', amount: 250 },
+    event_id: 'evt-tx-completed-1',
+    event_name: 'transaction.completed',
+    schema_version: 1,
+    occurred_at: '2026-06-09T12:00:00.000Z',
+    published_at: '2026-06-09T12:00:01.000Z',
+    user_id: 'usr-abc123',
+    tenant_id: 'country-ci',
+    product_code: 'crypto',
+    source: 'backend_core',
+    marketing_priority: 'M1',
+    test_flag: false,
+    payload: { amount_usd: 250, type: 'buy', txNo: 1 },
   };
 
-  it('garde le nom d’événement et préfixe eventId par la source', () => {
+  it('lit l’enveloppe, préfixe l’identifiant par la source et remonte le produit', () => {
     const result = adaptRabbit(completed);
 
     expect(result.kind).to.equal('event');
     if (result.kind !== 'event') return;
-    expect(result.event.eventId).to.equal('rabbitmq:evt-tx-completed-1');
-    expect(result.event.eventName).to.equal('transaction.completed');
-    expect(result.event.userId).to.equal('usr-abc123');
+    expect(result.event).to.deep.include({
+      eventId: 'rabbitmq:evt-tx-completed-1',
+      eventName: 'transaction.completed',
+      userId: 'usr-abc123',
+      productCode: 'crypto',
+      source: 'rabbitmq',
+    });
+    expect(result.event.occurredAt.toISOString()).to.equal('2026-06-09T12:00:00.000Z');
+    expect(result.event.data).to.deep.equal(completed.payload);
   });
 
-  it('ignore un événement inconnu, rejette un message sans data.userId', () => {
-    expect(adaptRabbit({ ...completed, eventType: 'wallet.opened' }).kind).to.equal('ignored');
-    expect(adaptRabbit({ ...completed, data: { amount: 1 } }).kind).to.equal('invalid');
+  it('les champs d’enveloppe non exploités n’empêchent rien', () => {
+    const { schema_version, published_at, tenant_id, marketing_priority, ...minimal } = completed;
+
+    expect(adaptRabbit(minimal).kind).to.equal('event');
+  });
+
+  it('un événement de recette n’est jamais appliqué à un profil', () => {
+    const result = adaptRabbit({ ...completed, test_flag: true });
+
+    expect(result.kind).to.equal('ignored');
+    if (result.kind !== 'ignored') return;
+    expect(result.reason).to.contain('test_flag');
+  });
+
+  it('ignore un événement hors catalogue', () => {
+    expect(adaptRabbit({ ...completed, event_name: 'wallet.opened' }).kind).to.equal('ignored');
+  });
+
+  it('rejette une enveloppe incomplète', () => {
+    expect(adaptRabbit({ ...completed, user_id: ' ' }).kind).to.equal('invalid');
+    expect(adaptRabbit({ ...completed, event_id: '' }).kind).to.equal('invalid');
+    expect(adaptRabbit({ ...completed, occurred_at: 'pas une date' }).kind).to.equal('invalid');
+    expect(adaptRabbit({ ...completed, event_name: undefined }).kind).to.equal('invalid');
+  });
+
+  it('exige le code produit sur les événements qui en portent un', () => {
+    expect(adaptRabbit({ ...completed, product_code: undefined }).kind).to.equal('invalid');
+    expect(adaptRabbit({ ...completed, event_name: 'product.activated', product_code: undefined }).kind).to.equal(
+      'invalid'
+    );
+    // kyc.validated n'en porte pas : son absence est normale.
+    expect(adaptRabbit({ ...completed, event_name: 'kyc.validated', product_code: undefined }).kind).to.equal('event');
   });
 });

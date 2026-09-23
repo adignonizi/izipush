@@ -52,6 +52,8 @@ export const QueryKeys = Object.freeze({
   // izipush-crm
   fetchCrmFields: 'fetchCrmFields',
   fetchCrmSegments: 'fetchCrmSegments',
+  fetchCrmProducts: 'fetchCrmProducts',
+  fetchCrmProduct: 'fetchCrmProduct',
   fetchCrmCampaigns: 'fetchCrmCampaigns',
   fetchCrmCampaign: 'fetchCrmCampaign',
   fetchCrmCampaignRuns: 'fetchCrmCampaignRuns',

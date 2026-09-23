@@ -127,7 +127,12 @@ function TrendTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 
   const rows = [
     { key: 'sent', label: t('stat.sent'), value: formatNumber(point.sent), color: SENT_COLOR },
-    { key: 'rate', label: t('stat.openRate'), value: `${point.openRate.toLocaleString(crmLocale)} %`, color: RATE_COLOR },
+    {
+      key: 'rate',
+      label: t('stat.openRate'),
+      value: `${point.openRate.toLocaleString(crmLocale)} %`,
+      color: RATE_COLOR,
+    },
   ];
 
   return (
@@ -203,7 +208,13 @@ export function CrmRunsTrend({ runs, isLoading }: { runs: CrmRunReport[]; isLoad
         <ChartContainer config={trendConfig} className="aspect-auto h-[200px] w-full">
           <ComposedChart data={data} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10 }}
+              interval="preserveStartEnd"
+            />
             <YAxis
               yAxisId="count"
               axisLine={false}

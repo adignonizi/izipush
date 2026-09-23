@@ -26,10 +26,11 @@ export class CrmEventEntity {
 
   data: Record<string, unknown>;
 
-  /** Transactions uniquement : jour UTC (YYYY-MM-DD) et produit, clés de la ligne d'activité. */
+  /** Transactions uniquement : jour UTC (YYYY-MM-DD) et identifiant du produit, clés de la ligne d'activité.
+   *  Une transaction sans produit est rangée sous `unknown`, un produit du catalogue comme un autre. */
   day?: string;
 
-  product?: string;
+  productId?: string;
 
   /** Date de prise en compte dans le profil et l'activité ; null tant que l'événement est en attente. */
   derivedAt?: Date | null;

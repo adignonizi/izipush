@@ -12,6 +12,8 @@ export type CrmCampaignCreate = Pick<
   | 'description'
   | 'workflowKey'
   | 'segmentId'
+  | 'productId'
+  | 'excludeProductUsers'
   | 'payload'
   | 'schedule'
   | 'status'
@@ -29,6 +31,20 @@ export class CrmCampaignRepository extends BaseRepositoryV2<CrmCampaignDBModel, 
     const docs = await this.MongooseModel.find({ _environmentId: environmentId }).sort({ createdAt: -1 }).lean();
 
     return docs.map((doc) => toCrmEntity<CrmCampaignEntity>(doc));
+  }
+
+  /** Campagnes rattachées à un produit, pour sa fiche. */
+  async listByProduct(environmentId: string, productId: string): Promise<CrmCampaignEntity[]> {
+    const docs = await this.MongooseModel.find({ _environmentId: environmentId, productId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return docs.map((doc) => toCrmEntity<CrmCampaignEntity>(doc));
+  }
+
+  /** Une campagne rattachée empêche de supprimer un produit. */
+  async countByProduct(environmentId: string, productId: string): Promise<number> {
+    return this.MongooseModel.countDocuments({ _environmentId: environmentId, productId });
   }
 
   async findCampaign(environmentId: string, id: string): Promise<CrmCampaignEntity | null> {

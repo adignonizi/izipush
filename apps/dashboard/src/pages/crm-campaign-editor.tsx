@@ -45,6 +45,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/primitives/select';
 import { Skeleton } from '@/components/primitives/skeleton';
 import { showErrorToast, showSuccessToast } from '@/components/primitives/sonner-helpers';
+import { Switch } from '@/components/primitives/switch';
 import { UnsavedChangesAlertDialog } from '@/components/unsaved-changes-alert-dialog';
 import { useEnvironment } from '@/context/environment/hooks';
 import { useBeforeUnload } from '@/hooks/use-before-unload';
@@ -79,9 +80,14 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
 
 type PayloadRow = { key: string; value: string };
 
+/** Radix n'accepte pas une valeur vide : « aucun produit » a donc son propre jeton. */
+const NO_PRODUCT = '__none__';
+
 type Draft = {
   name: string;
   segmentId?: string;
+  productId?: string;
+  excludeProductUsers: boolean;
   workflowKey?: string;
   mode: CrmScheduleMode;
   /** Valeur d'un champ datetime-local (heure locale). */
@@ -94,6 +100,7 @@ type Draft = {
 
 const EMPTY_DRAFT: Draft = {
   name: '',
+  excludeProductUsers: false,
   mode: 'immediate',
   at: '',
   recurrence: DEFAULT_RECURRENCE,
@@ -113,6 +120,8 @@ function draftFromCampaign(campaign: CrmCampaign): Draft {
   return {
     name: campaign.name,
     segmentId: campaign.segmentId,
+    productId: campaign.productId,
+    excludeProductUsers: campaign.excludeProductUsers ?? false,
     workflowKey: campaign.workflowKey,
     mode: campaign.schedule.mode,
     at: toLocalInput(campaign.schedule.at),
@@ -403,6 +412,8 @@ export function CrmCampaignEditorPage() {
     const body = {
       name: draft.name.trim(),
       segmentId: draft.segmentId ?? '',
+      productId: draft.productId ?? '',
+      excludeProductUsers: draft.excludeProductUsers,
       workflowKey: draft.workflowKey ?? '',
       schedule: scheduleOf(draft),
       payload: payloadOf(draft),
@@ -529,6 +540,45 @@ export function CrmCampaignEditorPage() {
                         </Field>
 
                         {segment && <SegmentSummary segment={segment} />}
+
+                        <Field id="campaign-product" label={t('editor.product')} hint={t('editor.product.hint')}>
+                          <Select
+                            value={draft.productId ?? NO_PRODUCT}
+                            onValueChange={(productId) =>
+                              set({
+                                productId: productId === NO_PRODUCT ? undefined : productId,
+                                ...(productId === NO_PRODUCT ? { excludeProductUsers: false } : {}),
+                              })
+                            }
+                          >
+                            <SelectTrigger id="campaign-product">
+                              <SelectValue placeholder={t('editor.product.placeholder')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={NO_PRODUCT}>{t('editor.product.placeholder')}</SelectItem>
+                              {(fields?.products ?? []).map((product) => (
+                                <SelectItem key={product.value} value={product.value}>
+                                  {product.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+
+                        {draft.productId && (
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-label-sm text-text-strong">{t('editor.excludeProductUsers')}</span>
+                              <p className="text-text-soft text-paragraph-xs max-w-[52ch]">
+                                {t('editor.excludeProductUsers.hint')}
+                              </p>
+                            </div>
+                            <Switch
+                              checked={draft.excludeProductUsers}
+                              onCheckedChange={(excludeProductUsers) => set({ excludeProductUsers })}
+                            />
+                          </div>
+                        )}
 
                         {usableSegments.length > 0 && (
                           <Link

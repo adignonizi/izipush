@@ -10,7 +10,12 @@ export function isSupportedEvent(eventName: string): eventName is CrmEventName {
 }
 
 export function isTransactionEvent(eventName: string): boolean {
-  return eventName === 'transaction.completed' || eventName === 'transaction.failed';
+  return eventName === 'transaction.completed';
+}
+
+/** Les événements qui portent un produit : le code vient de l'enveloppe, jamais du payload. */
+export function carriesProduct(eventName: string): boolean {
+  return isTransactionEvent(eventName) || eventName === 'product.activated';
 }
 
 /** Enveloppe interne unique, quelle que soit la source. */
@@ -20,5 +25,7 @@ export type CrmEnvelope = {
   occurredAt: Date;
   userId: string;
   source: CrmEventSource;
+  /** Code produit de l'enveloppe Izichange, pour les événements qui en portent un. */
+  productCode?: string;
   data: Record<string, unknown>;
 };

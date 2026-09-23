@@ -9,14 +9,14 @@ export type CrmProfileCondition = {
 };
 
 /**
- * Condition sur l'activité d'une fenêtre glissante (ex. volume crypto des 30 derniers jours > 500 USD).
+ * Condition sur l'activité d'une fenêtre glissante (ex. volume des 30 derniers jours sur un produit > 500 USD).
  * Un client sans aucune activité sur la fenêtre compte pour 0 : « = 0 », « ≤ 5 » ou « < 10 » l'incluent.
  */
 export type CrmActivityCondition = {
   type: 'activity';
   metric: CrmActivityMetric;
   windowDays: number;
-  product?: string;
+  productId?: string;
   operator: CrmActivityOperator;
   value: number;
 };

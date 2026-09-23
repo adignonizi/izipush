@@ -28,6 +28,10 @@ export const OPERATOR_LABELS: Record<CrmProfileOperator, string> = {
   not_exists: t('op.not_exists'),
   within_last_days: t('op.within_last_days'),
   more_than_days_ago: t('op.more_than_days_ago'),
+  has: t('op.has'),
+  has_not: t('op.has_not'),
+  has_all: t('op.has_all'),
+  has_any: t('op.has_any'),
 };
 
 export const ACTIVITY_OPERATOR_LABELS: Record<CrmActivityOperator, string> = {

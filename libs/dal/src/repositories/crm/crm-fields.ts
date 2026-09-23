@@ -2,7 +2,7 @@
  * izipush-crm — catalogue des champs proposés dans le constructeur de segments.
  * Déclaré dans le code : un champ n'est ciblable que s'il est calculé par crm-ingest (et indexé s'il est fréquent).
  */
-export type CrmFieldType = 'string' | 'enum' | 'number' | 'date' | 'boolean';
+export type CrmFieldType = 'string' | 'enum' | 'number' | 'date' | 'boolean' | 'set';
 
 export type CrmProfileOperator =
   | 'eq'
@@ -16,7 +16,12 @@ export type CrmProfileOperator =
   | 'exists'
   | 'not_exists'
   | 'within_last_days'
-  | 'more_than_days_ago';
+  | 'more_than_days_ago'
+  // Champs « set » (data.products) : appartenance à une liste portée par le profil.
+  | 'has'
+  | 'has_not'
+  | 'has_all'
+  | 'has_any';
 
 export type CrmFieldDefinition = {
   key: string;
@@ -25,6 +30,8 @@ export type CrmFieldDefinition = {
   path: string;
   type: CrmFieldType;
   values?: { value: string; label: string }[];
+  /** Champ « set » dont les valeurs viennent du catalogue produits, pas d'une liste écrite en dur. */
+  valuesFrom?: 'products';
 };
 
 export const CRM_OPERATORS_BY_TYPE: Record<CrmFieldType, CrmProfileOperator[]> = {
@@ -33,6 +40,7 @@ export const CRM_OPERATORS_BY_TYPE: Record<CrmFieldType, CrmProfileOperator[]> =
   number: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'exists', 'not_exists'],
   date: ['within_last_days', 'more_than_days_ago', 'gt', 'lt', 'exists', 'not_exists'],
   boolean: ['eq', 'exists', 'not_exists'],
+  set: ['has', 'has_not', 'has_all', 'has_any', 'exists', 'not_exists'],
 };
 
 const COUNTRIES = [
@@ -71,6 +79,14 @@ export const CRM_PROFILE_FIELDS: CrmFieldDefinition[] = [
   { key: 'lifetime_tx', label: 'Transactions (depuis toujours)', path: 'data.lifetime_tx', type: 'number' },
   { key: 'lifetime_vol_usd', label: 'Volume USD (depuis toujours)', path: 'data.lifetime_vol_usd', type: 'number' },
   { key: 'marketing_optin', label: 'Accepte le marketing', path: 'data.marketing_optin', type: 'boolean' },
+  {
+    key: 'products',
+    label: 'Produits utilisés',
+    path: 'data.products',
+    type: 'set',
+    valuesFrom: 'products',
+  },
+  { key: 'product_count', label: 'Nombre de produits', path: 'data.product_count', type: 'number' },
   { key: 'email', label: 'Email', path: 'email', type: 'string' },
   { key: 'locale', label: 'Langue', path: 'locale', type: 'string' },
 ];
@@ -88,19 +104,21 @@ export const CRM_ACTIVITY_METRICS: { key: CrmActivityMetric; label: string }[] =
   { key: 'txFailed', label: 'Transactions échouées' },
 ];
 
-/** Événements reçus d'Izichange et traités par crm-ingest ; déclencheurs possibles d'une campagne « sur événement ». */
+/**
+ * Événements reçus d'Izichange et traités par crm-ingest ; déclencheurs possibles d'une campagne
+ * « sur événement ». Contrat : docs/izichangedocs/contrat-evenements.md.
+ *
+ * Tout nom absent de cette liste est acquitté et ignoré : le catalogue métier d'Izichange en compte
+ * beaucoup d'autres, mais le CRM compose lui-même tout ce qui se déduit de ces faits.
+ */
 export const CRM_EVENT_NAMES = [
   'account.registered',
   'account.profile_updated',
   'account.email_updated',
-  'account.deleted',
   'account.logged_in',
-  'kyc.submitted',
-  'kyc.approved',
-  'kyc.rejected',
+  'kyc.validated',
   'transaction.completed',
-  'transaction.failed',
-  'consent.marketing_updated',
+  'product.activated',
 ] as const;
 
 export type CrmEventName = (typeof CRM_EVENT_NAMES)[number];

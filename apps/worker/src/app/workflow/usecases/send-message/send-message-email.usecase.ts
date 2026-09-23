@@ -19,6 +19,7 @@ import {
   SendWebhookMessage,
 } from '@novu/application-generic';
 import {
+  applyEmailTracking,
   CrmProviderUsageRepository,
   EnvironmentEntity,
   EnvironmentRepository,
@@ -393,21 +394,51 @@ export class SendMessageEmail extends SendMessageBase {
         : payload;
     }
 
-    // izipush-crm — emails de campagne : adresse exclue (bounce, plainte) et désinscription en un clic.
+    // izipush-crm — emails de campagne : adresse exclue (bounce, plainte), désinscription en un clic,
+    // et suivi des ouvertures et des clics.
     const crmData = (subscriber?.data ?? {}) as Record<string, unknown>;
     if (command.payload?.__crm) {
       if (crmData.email_suppressed === true) return await this.skipSuppressedEmail(message, command);
 
-      if (typeof crmData.unsubscribe_url === 'string') {
+      const unsubscribeUrl = typeof crmData.unsubscribe_url === 'string' ? crmData.unsubscribe_url : undefined;
+      if (unsubscribeUrl) {
         mailData.headers = {
           ...mailData.headers,
-          'List-Unsubscribe': `<${crmData.unsubscribe_url}>`,
+          'List-Unsubscribe': `<${unsubscribeUrl}>`,
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         };
       }
+
+      const tracked = this.withCrmTracking(mailData.html, message, command.environmentId, unsubscribeUrl);
+      if (tracked !== undefined) mailData.html = tracked;
     }
 
     return await this.sendMessage(integration, mailData, message, command);
+  }
+
+  /**
+   * izipush-crm — pixel d'ouverture et liens réécrits, pour les seuls emails de campagne.
+   *
+   * Sans secret ni URL publique configurés, l'email part inchangé : le suivi est une statistique,
+   * jamais une raison de ne pas livrer un message.
+   */
+  private withCrmTracking(
+    html: string | undefined,
+    message: MessageEntity,
+    environmentId: string,
+    unsubscribeUrl?: string
+  ): string | undefined {
+    const secret = process.env.CRM_UNSUBSCRIBE_SECRET;
+    const publicApiUrl = process.env.CRM_PUBLIC_API_URL;
+    if (!html || !secret || !publicApiUrl) return html;
+
+    return applyEmailTracking(html, {
+      publicApiUrl,
+      secret,
+      environmentId,
+      messageId: String(message._id),
+      unsubscribeUrl,
+    });
   }
 
   private async getReplyTo(command: SendMessageChannelCommand, messageId: string): Promise<string | null> {

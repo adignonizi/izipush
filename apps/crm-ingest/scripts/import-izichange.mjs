@@ -29,28 +29,23 @@ const DEFAULT_MAPPING = {
     createdAt: 'created_at',
     kycStatus: 'kyc_status',
     kycAt: 'kyc_updated_at',
-    marketingOptIn: 'newsletter',
     lastLoginAt: 'last_login_at',
-    deletedAt: 'deleted_at',
+    timezone: 'timezone',
   },
-  kycValues: {
-    approved: ['approved', 'validated', 'verified', 'valide', 'validé'],
-    rejected: ['rejected', 'refused', 'rejete', 'rejeté'],
-    submitted: ['pending', 'submitted', 'in_review', 'en_cours'],
-  },
-  optInValues: ['1', 'true', 'yes', 'oui', 'y'],
+  /** Seule la validation est reprise : l'absence d'événement vaut « non validé ». */
+  kycValidatedValues: ['approved', 'validated', 'verified', 'valide', 'validé'],
   transactions: {
     id: 'id',
     userId: 'user_id',
     amountUsd: 'amount_usd',
     status: 'status',
-    product: 'product',
+    productId: 'productId',
     type: 'type',
     createdAt: 'created_at',
   },
+  /** Seules les transactions réussies alimentent l'activité. */
   transactionStatus: {
     completed: ['completed', 'success', 'successful', 'done', 'validated', 'paid'],
-    failed: ['failed', 'error', 'cancelled', 'canceled', 'rejected', 'expired'],
   },
 };
 
@@ -108,31 +103,22 @@ function userEvents(row) {
   const events = [
     event('account.registered', `user:${userId}:registered`, createdAt, userId, {
       email: col('email') || undefined,
-      firstName: col('firstName') || undefined,
-      lastName: col('lastName') || undefined,
-      phone: col('phone') || undefined,
-      country: col('country') || undefined,
-      locale: col('locale') || undefined,
+      first_name: col('firstName') || undefined,
+      last_name: col('lastName') || undefined,
+      phone_number: col('phone') || undefined,
+      country_code: col('country') || undefined,
+      language: col('locale') || undefined,
+      timezone: col('timezone') || undefined,
     }),
   ];
 
-  const kyc = kycEvent(col('kycStatus'));
-  if (kyc) events.push(event(kyc, `user:${userId}:${kyc}`, date(col('kycAt')) ?? createdAt, userId));
-
-  const optIn = col('marketingOptIn');
-  if (optIn !== '') {
-    events.push(
-      event('consent.marketing_updated', `user:${userId}:consent`, createdAt, userId, {
-        optIn: mapping.optInValues.includes(optIn.toLowerCase()),
-      })
-    );
+  // Seule la validation est reprise : l'absence d'événement vaut « non validé ».
+  if (kycValidated(col('kycStatus'))) {
+    events.push(event('kyc.validated', `user:${userId}:kyc`, date(col('kycAt')) ?? createdAt, userId));
   }
 
   const lastLogin = date(col('lastLoginAt'));
   if (lastLogin) events.push(event('account.logged_in', `user:${userId}:last-login`, lastLogin, userId));
-
-  const deletedAt = date(col('deletedAt'));
-  if (deletedAt) events.push(event('account.deleted', `user:${userId}:deleted`, deletedAt, userId));
 
   return events;
 }
@@ -144,12 +130,9 @@ function transactionEvents(row) {
   if (!transactionId || !userId) return skip('transaction sans id ou sans utilisateur');
 
   const status = col('status').toLowerCase();
-  const name = mapping.transactionStatus.completed.includes(status)
-    ? 'transaction.completed'
-    : mapping.transactionStatus.failed.includes(status)
-      ? 'transaction.failed'
-      : null;
-  if (!name) return skip(`transaction au statut non suivi (${status || 'vide'})`);
+  if (!mapping.transactionStatus.completed.includes(status)) {
+    return skip(`transaction au statut non suivi (${status || 'vide'})`);
+  }
 
   const occurredAt = date(col('createdAt'));
   if (!occurredAt) return skip('transaction sans date valide');
@@ -158,32 +141,34 @@ function transactionEvents(row) {
   if (!/^\d+(\.\d+)?$/.test(amount)) return skip('transaction sans montant USD valide');
 
   return [
-    event(name, `tx:${transactionId}`, occurredAt, userId, {
-      transactionId,
-      amount,
-      product: col('product') || undefined,
+    event('transaction.completed', `tx:${transactionId}`, occurredAt, userId, {
+      productCode: col('productId') || 'unknown',
+      amount_usd: amount,
       type: col('type') || undefined,
     }),
   ];
 }
 
-function kycEvent(value) {
-  const status = value.toLowerCase();
-  for (const [name, values] of Object.entries(mapping.kycValues)) {
-    if (values.includes(status)) return `kyc.${name}`;
-  }
-
-  return null;
+function kycValidated(value) {
+  return mapping.kycValidatedValues.includes(value.toLowerCase());
 }
 
-function event(eventType, id, occurredAt, userId, data = {}) {
-  const clean = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+// Enveloppe Izichange (02_Contrat_Evenement). `imported` reste dans le payload : il marque les faits
+// repris de l'historique, qui ne doivent déclencher aucune campagne.
+function event(eventName, id, occurredAt, userId, { productCode, ...payload } = {}) {
+  const clean = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
 
   return {
-    eventType,
-    eventId: `import:${id}`,
-    timestamp: occurredAt.toISOString(),
-    data: { userId, ...clean, imported: true },
+    event_id: `import:${id}`,
+    event_name: eventName,
+    schema_version: 1,
+    occurred_at: occurredAt.toISOString(),
+    published_at: new Date().toISOString(),
+    user_id: userId,
+    ...(productCode ? { product_code: productCode } : {}),
+    source: 'batch_crm',
+    test_flag: false,
+    payload: { ...clean, imported: true },
   };
 }
 
@@ -212,14 +197,14 @@ async function importFile(file, toEvents) {
 
   for await (const row of readCsv(file)) {
     for (const message of toEvents(row)) {
-      stats.byEvent[message.eventType] = (stats.byEvent[message.eventType] ?? 0) + 1;
+      stats.byEvent[message.event_name] = (stats.byEvent[message.event_name] ?? 0) + 1;
 
       if (dryRun) {
         if (preview.length < 5) preview.push(message);
         continue;
       }
 
-      channel.publish(EXCHANGE, message.eventType, Buffer.from(JSON.stringify(message)), { persistent: true });
+      channel.publish(EXCHANGE, message.event_name, Buffer.from(JSON.stringify(message)), { persistent: true });
       stats.published++;
       inWindow++;
 

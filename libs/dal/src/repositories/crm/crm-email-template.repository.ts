@@ -26,7 +26,16 @@ export class CrmEmailTemplateRepository extends BaseRepositoryV2<
   async list(environmentId: string): Promise<CrmEmailTemplateSummary[]> {
     const docs = await this.MongooseModel.find(
       { _environmentId: environmentId },
-      { name: 1, description: 1, subject: 1, version: 1, createdAt: 1, updatedAt: 1, _environmentId: 1, _organizationId: 1 }
+      {
+        name: 1,
+        description: 1,
+        subject: 1,
+        version: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        _environmentId: 1,
+        _organizationId: 1,
+      }
     )
       .sort({ updatedAt: -1 })
       .lean();

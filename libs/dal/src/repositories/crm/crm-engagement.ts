@@ -76,6 +76,33 @@ export class CrmEngagementRepository {
     );
   }
 
+  /**
+   * Ouverture ou clic d'un email de campagne, depuis le pixel ou un lien réécrit.
+   *
+   * Le message est relu pour deux raisons : vérifier qu'il s'agit bien d'un email de campagne — un jeton
+   * ne doit rien pouvoir compter d'autre — et retrouver le client et l'exécution auxquels le rattacher.
+   * Faux si le message est inconnu, sans que l'appelant en tire quoi que ce soit : les deux routes
+   * répondent la même chose dans tous les cas.
+   */
+  async recordEmailEngagement(environmentId: string, messageId: string, kind: CrmEngagementKind): Promise<boolean> {
+    if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(environmentId)) return false;
+
+    const message = (await Message.findOne(
+      {
+        _id: messageId,
+        _environmentId: environmentId,
+        channel: 'email',
+        'payload.__crm': { $exists: true },
+      },
+      { _environmentId: 1, _subscriberId: 1, transactionId: 1, channel: 1 }
+    ).lean()) as EngagedMessage | null;
+    if (!message) return false;
+
+    await this.record(message, kind);
+
+    return true;
+  }
+
   /** Push ouvert depuis l'app : seuls les messages de campagne sont suivis. Faux si le message est inconnu. */
   async recordPushOpen(messageId: string): Promise<boolean> {
     if (!Types.ObjectId.isValid(messageId)) return false;

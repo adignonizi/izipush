@@ -27,9 +27,19 @@ type ConditionBuilderProps = {
   onChange: (value: CrmConditionGroup) => void;
 };
 
+/** Radix n'accepte pas une valeur vide : « tous produits » a donc son propre jeton. */
+const ALL_PRODUCTS = '__all__';
+
 const NO_VALUE: CrmProfileOperator[] = ['exists', 'not_exists'];
 const DAYS: CrmProfileOperator[] = ['within_last_days', 'more_than_days_ago'];
-const LIST: CrmProfileOperator[] = ['in', 'nin'];
+const LIST: CrmProfileOperator[] = ['in', 'nin', 'has_all', 'has_any'];
+/** « Utilise » / « n'utilise pas » : un seul produit, choisi au catalogue. */
+const ONE_OF_SET: CrmProfileOperator[] = ['has', 'has_not'];
+
+/** Un champ « set » tire ses valeurs du catalogue produits plutôt que d'une liste écrite en dur. */
+function withCatalogue(fields: CrmFields, field: CrmProfileField): CrmProfileField {
+  return field.valuesFrom === 'products' ? { ...field, values: fields.products ?? [] } : field;
+}
 
 /** Un critère sans valeur ne peut pas être compté : l'aperçu attend qu'il soit complet. */
 export function isConditionComplete(condition: CrmCondition): boolean {
@@ -154,7 +164,7 @@ function ProfileRow({
   condition: CrmProfileCondition;
   onChange: (condition: CrmProfileCondition) => void;
 }) {
-  const field = fields.profile.find((candidate) => candidate.key === condition.field) ?? fields.profile[0];
+  const field = withCatalogue(fields, fields.profile.find((c) => c.key === condition.field) ?? fields.profile[0]);
 
   return (
     <>
@@ -252,6 +262,23 @@ function ProfileValue({
           }
         />
       </div>
+    );
+  }
+
+  if (ONE_OF_SET.includes(condition.operator) && field.values) {
+    return (
+      <Select value={typeof condition.value === 'string' ? condition.value : undefined} onValueChange={set}>
+        <SelectTrigger className="w-56" size="2xs">
+          <SelectValue placeholder={t('segEditor.products.choose')} />
+        </SelectTrigger>
+        <SelectContent>
+          {field.values.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     );
   }
 
@@ -378,15 +405,24 @@ function ActivityRow({
       <span className="text-text-sub text-paragraph-sm">
         {t('segEditor.activity.days')}, {t('segEditor.activity.product')}
       </span>
-      <div className={cn('shrink-0', 'w-28')}>
-        <Input
-          size="2xs"
-          aria-label={t('segEditor.activity.product')}
-          placeholder={t('segEditor.activity.allProducts')}
-          value={condition.product ?? ''}
-          onChange={(event) => onChange({ ...condition, product: event.target.value.trim() || undefined })}
-        />
-      </div>
+      <Select
+        value={condition.productId ?? ALL_PRODUCTS}
+        onValueChange={(productId) =>
+          onChange({ ...condition, productId: productId === ALL_PRODUCTS ? undefined : productId })
+        }
+      >
+        <SelectTrigger className="w-48" size="2xs" aria-label={t('segEditor.activity.product')}>
+          <SelectValue placeholder={t('segEditor.activity.allProducts')} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_PRODUCTS}>{t('segEditor.activity.allProducts')}</SelectItem>
+          {(fields.products ?? []).map((product) => (
+            <SelectItem key={product.value} value={product.value}>
+              {product.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </>
   );
 }

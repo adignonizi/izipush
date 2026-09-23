@@ -12,6 +12,8 @@ const crmCampaignSchema = new Schema<CrmCampaignDBModel>(
     description: Schema.Types.String,
     workflowKey: { type: Schema.Types.String, required: true },
     segmentId: { type: Schema.Types.String, required: true },
+    productId: Schema.Types.String,
+    excludeProductUsers: { type: Schema.Types.Boolean, default: false },
     payload: { type: Schema.Types.Mixed, default: {} },
     schedule: {
       mode: { type: Schema.Types.String, required: true },
@@ -32,6 +34,10 @@ const crmCampaignSchema = new Schema<CrmCampaignDBModel>(
 
 crmCampaignSchema.index({ _environmentId: 1, name: 1 }, { name: 'crm_campaigns_unique_name', unique: true });
 crmCampaignSchema.index({ _environmentId: 1, createdAt: -1 }, { name: 'crm_campaigns_list' });
+crmCampaignSchema.index(
+  { _environmentId: 1, productId: 1 },
+  { name: 'crm_campaigns_product', partialFilterExpression: { productId: { $exists: true } } }
+);
 crmCampaignSchema.index({ status: 1, nextRunAt: 1 }, { name: 'crm_campaigns_due' });
 crmCampaignSchema.index(
   { _environmentId: 1, status: 1, 'schedule.mode': 1, 'schedule.eventName': 1 },

@@ -60,6 +60,8 @@ import { CrmCampaignRunPage } from './pages/crm-campaign-run';
 import { CrmCampaignEditorPage } from './pages/crm-campaign-editor';
 import { CrmCampaignsPage } from './pages/crm-campaigns';
 import { CrmMonitoringPage } from './pages/crm-monitoring';
+import { CrmProductDetailPage } from './pages/crm-product-detail';
+import { CrmProductsPage } from './pages/crm-products';
 import { CrmReportsPage } from './pages/crm-reports';
 import { CrmSegmentEditorPage } from './pages/crm-segment-editor';
 import { CrmSegmentsPage } from './pages/crm-segments';
@@ -489,6 +491,22 @@ const router = createBrowserRouter([
                 element: (
                   <ProtectedRoute>
                     <SdkDocsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_PRODUCTS,
+                element: (
+                  <ProtectedRoute>
+                    <CrmProductsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_PRODUCT_DETAIL,
+                element: (
+                  <ProtectedRoute>
+                    <CrmProductDetailPage />
                   </ProtectedRoute>
                 ),
               },

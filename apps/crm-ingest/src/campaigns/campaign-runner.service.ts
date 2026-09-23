@@ -86,7 +86,7 @@ export class CampaignRunner {
     let audienceSize = 0;
     let excludedCount = 0;
     for await (const batch of source) {
-      const eligible = await this.eligible(environmentId, batch);
+      const eligible = await this.eligible(environmentId, batch, campaign);
 
       await this.topics.addMembers(topic, eligible);
       audienceSize += eligible.length;
@@ -124,9 +124,19 @@ export class CampaignRunner {
     );
   }
 
-  /** Au lancement, même pour un segment figé : clients supprimés et refus du marketing écartés. */
-  private async eligible(environmentId: string, batch: CrmAudienceMember[]): Promise<CrmAudienceMember[]> {
+  /**
+   * Au lancement, même pour un segment figé : clients supprimés et refus du marketing écartés.
+   * Campagne de recrutement (`excludeProductUsers`) : ceux qui utilisent déjà le produit promu le sont aussi —
+   * un client peut avoir adopté le produit entre le figeage du segment et l'envoi.
+   */
+  private async eligible(
+    environmentId: string,
+    batch: CrmAudienceMember[],
+    campaign: CrmCampaignEntity
+  ): Promise<CrmAudienceMember[]> {
     if (!batch.length) return [];
+
+    const promoted = campaign.excludeProductUsers && campaign.productId ? campaign.productId : undefined;
 
     const rows = await this.subscribers._model
       .find(
@@ -135,6 +145,7 @@ export class CampaignRunner {
           _id: { $in: batch.map((member) => member._id) },
           'data.isDeleted': { $ne: true },
           'data.marketing_optin': { $ne: false },
+          ...(promoted ? { 'data.products': { $ne: promoted } } : {}),
         },
         { _id: 1, subscriberId: 1 }
       )

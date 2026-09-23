@@ -4,10 +4,10 @@
  *
  *   node scripts/send-events.mjs <subscriberId> [<subscriberId>…]
  *       → inscription (pays, prénom), KYC validé, deux transactions crypto récentes, pour chaque client
- *   node scripts/send-events.mjs --event kyc.approved <subscriberId>
+ *   node scripts/send-events.mjs --event kyc.validated <subscriberId>
  *       → un seul événement, horodaté maintenant (utile pour une campagne « sur événement »)
  *
- * Options : --country CI  --amount 150  --product crypto
+ * Options : --country CI  --amount 150  --product crypto   (identifiant du produit)
  */
 import { randomUUID } from 'node:crypto';
 import amqp from 'amqplib';
@@ -35,21 +35,28 @@ if (!AMQP_URL || !subscriberIds.length) {
 }
 
 const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
-const message = (eventType, userId, minutes, data = {}) => ({
-  eventType,
-  eventId: `test-${randomUUID()}`,
-  timestamp: minutesAgo(minutes),
-  data: { userId, ...data },
+// Enveloppe Izichange (02_Contrat_Evenement) : product_code à la racine, payload à part.
+const message = (eventName, userId, minutes, { productCode, ...payload } = {}) => ({
+  event_id: `test-${randomUUID()}`,
+  event_name: eventName,
+  schema_version: 1,
+  occurred_at: minutesAgo(minutes),
+  published_at: new Date().toISOString(),
+  user_id: userId,
+  ...(productCode ? { product_code: productCode } : {}),
+  source: 'batch_crm',
+  test_flag: false,
+  payload,
 });
 
 function eventsFor(userId) {
   if (singleEvent) return [message(singleEvent, userId, 0)];
 
   return [
-    message('account.profile_updated', userId, 120, { country, firstName: 'Client test' }),
-    message('kyc.approved', userId, 90),
-    message('transaction.completed', userId, 60, { transactionId: randomUUID(), amount, product }),
-    message('transaction.completed', userId, 30, { transactionId: randomUUID(), amount: amount / 2, product }),
+    message('account.profile_updated', userId, 120, { country_code: country, first_name: 'Client test' }),
+    message('kyc.validated', userId, 90),
+    message('transaction.completed', userId, 60, { productCode: product, amount_usd: amount, type: 'buy', txNo: 1 }),
+    message('transaction.completed', userId, 30, { productCode: product, amount_usd: amount / 2, type: 'sell', txNo: 2 }),
   ];
 }
 
@@ -59,7 +66,7 @@ const channel = await connection.createConfirmChannel();
 let sent = 0;
 for (const userId of subscriberIds) {
   for (const event of eventsFor(userId)) {
-    channel.publish(EXCHANGE, event.eventType, Buffer.from(JSON.stringify(event)), { persistent: true });
+    channel.publish(EXCHANGE, event.event_name, Buffer.from(JSON.stringify(event)), { persistent: true });
     sent++;
   }
 }

@@ -5,13 +5,14 @@ import {
   CrmActivityDailyRepository,
   CrmEventEntity,
   CrmEventRepository,
+  CrmProductRepository,
   CrmProfileStateRepository,
   SubscriberEntity,
   SubscriberRepository,
 } from '@novu/dal';
 
 import { OnEventCampaigns } from '../campaigns/on-event-campaigns.service';
-import { computeProfileUpdate, computeTransactionFacts } from './profile-rules';
+import { computeProfileUpdate, computeTransactionFacts, zeroActivityDefaults } from './profile-rules';
 
 const BATCH_SIZE = 200;
 const MAX_BATCHES_PER_JOB = 50;
@@ -28,6 +29,7 @@ export class DeriveService {
   constructor(
     private events: CrmEventRepository,
     private activity: CrmActivityDailyRepository,
+    private products: CrmProductRepository,
     private profileState: CrmProfileStateRepository,
     private subscribers: SubscriberRepository,
     private invalidateCache: InvalidateCacheService,
@@ -53,12 +55,32 @@ export class DeriveService {
     if (unsubscribeUrl) set['data.unsubscribe_url'] = unsubscribeUrl;
 
     const activityKeys = uniqueActivityKeys(pending);
-    for (const { day, product } of activityKeys) {
-      const journal = await this.events.sumActivity(this.environmentId, subscriberId, day, product);
-      await this.activity.setFromJournal(this.environmentId, this.organizationId, subscriberId, day, product, journal);
+    // Une activation de produit n'a pas de ligne d'activité mais doit quand même être reportée au profil.
+    const hasProductEvent = activityKeys.length > 0 || pending.some((event) => event.eventName === 'product.activated');
+    for (const { day, productId } of activityKeys) {
+      const journal = await this.events.sumActivity(this.environmentId, subscriberId, day, productId);
+      await this.activity.setFromJournal(
+        this.environmentId,
+        this.organizationId,
+        subscriberId,
+        day,
+        productId,
+        journal
+      );
     }
 
-    if (activityKeys.length) {
+    // Avant toute activité : les compteurs existent, à zéro, pour que « = 0 » puisse les trouver.
+    Object.assign(set, zeroActivityDefaults(subscriber.data ?? {}));
+
+    if (hasProductEvent) {
+      // Un produit encore absent du catalogue y entre avec son identifiant pour libellé : la transaction
+      // n'est jamais perdue, et la page Produits signale qu'il reste à nommer.
+      await this.products.ensureProducts(
+        this.environmentId,
+        this.organizationId,
+        pending.map((event) => event.productId).filter((productId): productId is string => !!productId)
+      );
+
       const lifetime = await this.activity.sumLifetime(this.environmentId, subscriberId);
       Object.assign(set, computeTransactionFacts(pending, subscriber.data ?? {}, lifetime));
     }
@@ -135,12 +157,12 @@ export class DeriveService {
   }
 }
 
-function uniqueActivityKeys(events: CrmEventEntity[]): { day: string; product: string }[] {
-  const keys = new Map<string, { day: string; product: string }>();
+function uniqueActivityKeys(events: CrmEventEntity[]): { day: string; productId: string }[] {
+  const keys = new Map<string, { day: string; productId: string }>();
 
   for (const event of events) {
-    if (event.day && event.product)
-      keys.set(`${event.day}|${event.product}`, { day: event.day, product: event.product });
+    if (event.day && event.productId)
+      keys.set(`${event.day}|${event.productId}`, { day: event.day, productId: event.productId });
   }
 
   return [...keys.values()];

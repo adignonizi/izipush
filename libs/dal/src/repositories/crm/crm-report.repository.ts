@@ -129,7 +129,8 @@ export class CrmReportRepository {
     const status = STATUS_OF[options.filter];
     if (status) match.status = status;
     if (options.subscriberIds) match._subscriberId = { $in: options.subscriberIds.map((id) => new Types.ObjectId(id)) };
-    if (options.cursor && Types.ObjectId.isValid(options.cursor)) match._id = { $gt: new Types.ObjectId(options.cursor) };
+    if (options.cursor && Types.ObjectId.isValid(options.cursor))
+      match._id = { $gt: new Types.ObjectId(options.cursor) };
 
     const engagementMatch = ENGAGEMENT_MATCH[options.filter];
     const pipeline: PipelineStage[] = [{ $match: match }, { $sort: { _id: 1 } }];

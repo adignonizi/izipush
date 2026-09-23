@@ -16,7 +16,7 @@ const crmActivityDailySchema = new Schema<CrmActivityDailyDBModel>(
     _organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
     subscriberId: { type: Schema.Types.String, required: true },
     day: { type: Schema.Types.String, required: true },
-    product: { type: Schema.Types.String, required: true },
+    productId: { type: Schema.Types.String, required: true },
     ...totalsSchema,
     base: totalsSchema,
     journal: { ...totalsSchema, eventCount: { type: Schema.Types.Number, default: 0 } },
@@ -25,7 +25,7 @@ const crmActivityDailySchema = new Schema<CrmActivityDailyDBModel>(
 );
 
 crmActivityDailySchema.index(
-  { _environmentId: 1, subscriberId: 1, day: 1, product: 1 },
+  { _environmentId: 1, subscriberId: 1, day: 1, productId: 1 },
   { name: 'crm_activity_unique_day', unique: true }
 );
 crmActivityDailySchema.index({ _environmentId: 1, day: 1 }, { name: 'crm_activity_window' });

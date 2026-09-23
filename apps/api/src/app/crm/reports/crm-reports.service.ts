@@ -66,7 +66,8 @@ export class CrmReportsService {
     let scope: CrmRecipientScope;
 
     if (runId === 'events') {
-      if (campaign.schedule.mode !== 'on_event') throw new NotFoundException('Cette campagne ne se déclenche pas sur événement');
+      if (campaign.schedule.mode !== 'on_event')
+        throw new NotFoundException('Cette campagne ne se déclenche pas sur événement');
 
       const since = daysAgo(ON_EVENT_DAYS);
       scope = { prefix: `crm-${campaign._id}-`, since };
@@ -94,14 +95,19 @@ export class CrmReportsService {
     return { run, onEvent, ...page };
   }
 
-  /** Rapport client : par campagne, sur la période (exécutions déclenchées et envois « sur événement »). */
-  async overview(user: UserSessionData, days: unknown) {
+  /**
+   * Rapport client : par campagne, sur la période (exécutions déclenchées et envois « sur événement »).
+   * Avec `productId`, seules les campagnes de ce produit sont rendues — et toutes, y compris celles qui
+   * n'ont encore rien envoyé : sur une fiche produit, une campagne créée mais jamais lancée doit se voir.
+   */
+  async overview(user: UserSessionData, days: unknown, productId?: string) {
     const span = Math.min(365, Math.max(1, Math.floor(Number(days) || 30)));
     const since = daysAgo(span);
-    const [campaigns, runs] = await Promise.all([
+    const [all, runs] = await Promise.all([
       this.campaigns.list(user.environmentId),
       this.runs.listTriggeredSince(user.environmentId, since, OVERVIEW_MAX_RUNS),
     ]);
+    const campaigns = productId ? all.filter((campaign) => campaign.productId === productId) : all;
     const reported = await this.withStats(user.environmentId, runs);
 
     const rows = await Promise.all(
@@ -115,6 +121,7 @@ export class CrmReportsService {
         return {
           campaignId: campaign._id,
           name: campaign.name,
+          productId: campaign.productId,
           mode: campaign.schedule.mode,
           status: campaign.status,
           runs: own.length,
@@ -128,7 +135,7 @@ export class CrmReportsService {
       from: since.toISOString(),
       days: span,
       truncated: runs.length === OVERVIEW_MAX_RUNS,
-      rows: rows.filter((row) => row.runs > 0 || row.stats.length > 0),
+      rows: productId ? rows : rows.filter((row) => row.runs > 0 || row.stats.length > 0),
     };
   }
 

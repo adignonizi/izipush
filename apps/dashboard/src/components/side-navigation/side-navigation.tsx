@@ -14,6 +14,7 @@ import {
   RiLineChartLine,
   RiMailLine,
   RiMegaphoneLine,
+  RiPriceTag3Line,
   RiPulseLine,
   RiRobot2Line,
   RiRouteFill,
@@ -297,6 +298,16 @@ export const LegacySideNavigation = () => {
             </Protect>
             {/* izipush-crm */}
             <NavigationGroup label="CRM">
+              <NavigationLink
+                to={
+                  currentEnvironment?.slug
+                    ? buildRoute(ROUTES.CRM_PRODUCTS, { environmentSlug: currentEnvironment.slug })
+                    : undefined
+                }
+              >
+                <RiPriceTag3Line className="size-4" />
+                <span>{t('nav.products')}</span>
+              </NavigationLink>
               <NavigationLink
                 to={
                   currentEnvironment?.slug

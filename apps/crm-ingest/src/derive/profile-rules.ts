@@ -1,4 +1,4 @@
-import type { CrmEventEntity, CrmLifetimeActivity } from '@novu/dal';
+import { CRM_UNKNOWN_PRODUCT_ID, type CrmEventEntity, type CrmLifetimeBreakdown } from '@novu/dal';
 
 type ProfileEvent = Pick<CrmEventEntity, 'eventName' | 'data' | 'occurredAt'>;
 
@@ -44,15 +44,63 @@ export function computeProfileUpdate(events: ProfileEvent[], currentFieldsAt: Re
   return update;
 }
 
-/** Champs dérivés des transactions : cumuls à vie, première et dernière transaction (globales et par produit). */
+/**
+ * Compteurs posés à zéro sur un client qui n'a encore aucune activité.
+ *
+ * Sans eux, un client qui n'a jamais transigé ne porte simplement pas `lifetime_tx` ni `product_count` —
+ * et un champ absent ne répond pas à « = 0 ». Les segments les plus utiles du plan Growth (« KYC validé
+ * sans transaction », « n'utilise aucun produit ») ne trouveraient donc personne. Les vraies valeurs,
+ * calculées ensuite depuis l'activité, les écrasent.
+ */
+export function zeroActivityDefaults(currentData: Record<string, unknown>): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {
+    lifetime_tx: 0,
+    lifetime_vol_usd: 0,
+    products: [],
+    product_count: 0,
+  };
+  const set: Record<string, unknown> = {};
+
+  for (const [field, value] of Object.entries(defaults)) {
+    if (currentData[field] === undefined) set[`data.${field}`] = value;
+  }
+
+  return set;
+}
+
+/** État d'un client sur un produit : cumuls recalculés, dates de première et dernière transaction. */
+export type CrmProductState = {
+  tx: number;
+  tx_failed: number;
+  vol_usd: number;
+  first_tx_at?: string;
+  last_tx_at?: string;
+  /** Produit obtenu sans encore avoir servi (`product.activated`). Conservé entre deux recalculs. */
+  activated_at?: string;
+};
+
+/**
+ * Le client est lié à ce produit : une transaction l'y lie, et une activation explicite aussi — un produit
+ * obtenu mais jamais utilisé reste un produit détenu, et c'est même la cible d'activation la plus utile.
+ */
+function isLinked(product: CrmProductState): boolean {
+  return product.tx > 0 || product.tx_failed > 0 || !!product.first_tx_at || !!product.activated_at;
+}
+
+/**
+ * Champs dérivés des transactions : cumuls à vie, première et dernière transaction, et le lien du client
+ * à ses produits. Un client est lié à un produit dès qu'il a tenté de l'utiliser — une transaction échouée
+ * le lie aussi, elle dit qu'il a essayé. Les transactions sans produit sont rangées sous `unknown`,
+ * un produit du catalogue comme un autre.
+ */
 export function computeTransactionFacts(
-  events: Pick<CrmEventEntity, 'eventName' | 'occurredAt' | 'product'>[],
+  events: Pick<CrmEventEntity, 'eventName' | 'occurredAt' | 'productId'>[],
   currentData: Record<string, unknown>,
-  lifetime: CrmLifetimeActivity
+  lifetime: CrmLifetimeBreakdown
 ): Record<string, unknown> {
   const set: Record<string, unknown> = {
     'data.lifetime_tx': lifetime.tx,
-    'data.lifetime_vol_usd': Math.round(lifetime.volUsd * 100) / 100,
+    'data.lifetime_vol_usd': round(lifetime.volUsd),
   };
 
   const completed = events.filter((event) => event.eventName === 'transaction.completed');
@@ -62,10 +110,85 @@ export function computeTransactionFacts(
 
     keepExtreme(set, currentData, 'last_tx_at', at, 'max');
     keepExtreme(set, currentData, 'first_tx_at', at, 'min');
-    keepExtreme(set, currentData, `first_tx_at_${event.product ?? 'unknown'}`, at, 'min');
   }
 
+  const state = computeProductState(events, currentData, lifetime);
+  const owned = Object.entries(state)
+    .filter(([, product]) => isLinked(product))
+    .map(([productId]) => productId)
+    .sort();
+
+  // Écrit d'un bloc : un chemin « data.product_state.X.tx » produirait une clé à points sur un profil
+  // dont l'objet data n'existe pas encore, que Mongo refuse.
+  set['data.product_state'] = state;
+  set['data.products'] = owned;
+  set['data.product_count'] = owned.length;
+
   return set;
+}
+
+/** Entrée vide d'un produit : ce que porte `unknown` sur un client qui n'a jamais transigé sans produit. */
+function emptyProductState(): CrmProductState {
+  return { tx: 0, tx_failed: 0, vol_usd: 0 };
+}
+
+/**
+ * Réécrit l'état par produit à partir du cumul d'activité (autoritaire, recalculé) et des dates portées par
+ * les événements. Rejouable : rien n'est incrémenté, le résultat ne dépend que du journal et de l'état des dates.
+ *
+ * `unknown` y figure toujours, même à zéro : l'objet `data.product_state` a donc au moins une entrée sur
+ * tout client passé par la dérivation, et un template peut lire `data.product_state.unknown.*` sans garde.
+ */
+function computeProductState(
+  events: Pick<CrmEventEntity, 'eventName' | 'occurredAt' | 'productId'>[],
+  currentData: Record<string, unknown>,
+  lifetime: CrmLifetimeBreakdown
+): Record<string, CrmProductState> {
+  const previous = (currentData.product_state ?? {}) as Record<string, Partial<CrmProductState>>;
+  const state: Record<string, CrmProductState> = { [CRM_UNKNOWN_PRODUCT_ID]: emptyProductState() };
+
+  // Un produit activé mais jamais utilisé n'a aucune ligne d'activité : sans ce report, chaque recalcul
+  // le ferait disparaître du profil.
+  for (const [productId, before] of Object.entries(previous)) {
+    if (before?.activated_at) state[productId] = { ...emptyProductState(), activated_at: before.activated_at };
+  }
+
+  for (const product of lifetime.byProduct) {
+    const before = previous[product.productId];
+
+    state[product.productId] = {
+      tx: product.tx,
+      tx_failed: product.txFailed,
+      vol_usd: round(product.volUsd),
+      ...(before?.first_tx_at ? { first_tx_at: before.first_tx_at } : {}),
+      ...(before?.last_tx_at ? { last_tx_at: before.last_tx_at } : {}),
+      ...(before?.activated_at ? { activated_at: before.activated_at } : {}),
+    };
+  }
+
+  for (const event of events) {
+    const productId = event.productId ?? CRM_UNKNOWN_PRODUCT_ID;
+    state[productId] ??= emptyProductState();
+    const product = state[productId];
+    const at = event.occurredAt.toISOString();
+
+    if (event.eventName === 'product.activated') {
+      // La plus ancienne activation fait foi : un rejeu ne doit pas rajeunir la date.
+      if (!product.activated_at || at < product.activated_at) product.activated_at = at;
+      continue;
+    }
+
+    if (event.eventName !== 'transaction.completed') continue;
+
+    if (!product.first_tx_at || at < product.first_tx_at) product.first_tx_at = at;
+    if (!product.last_tx_at || at > product.last_tx_at) product.last_tx_at = at;
+  }
+
+  return state;
+}
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function keepExtreme(
@@ -98,35 +221,33 @@ function changesFor(event: ProfileEvent): FieldChange[] {
       return identityChanges(data, at);
     case 'account.email_updated':
       return latest('email', text(data.updated_email));
-    case 'account.deleted':
-      return latest('data.isDeleted', true);
     case 'account.logged_in':
       return latest('data.last_login_at', at.toISOString());
-    case 'kyc.submitted':
-      return latest('data.kyc_status', 'submitted');
-    case 'kyc.approved':
+    case 'kyc.validated':
       return [...latest('data.kyc_status', 'validated'), ...latest('data.kyc_validated_at', at.toISOString())];
-    case 'kyc.rejected':
-      return [
-        ...latest('data.kyc_status', 'rejected'),
-        ...latest('data.kyc_rejection_reason', text(data.reason) ?? null),
-      ];
-    case 'consent.marketing_updated':
-      return latest('data.marketing_optin', typeof data.optIn === 'boolean' ? data.optIn : undefined);
     default:
       return [];
   }
 }
 
-/** Identité : champs natifs Novu + pays. Plusieurs noms acceptés tant que le format Izichange n'est pas figé. */
+/**
+ * Identité : champs natifs Novu + pays.
+ *
+ * Plusieurs noms sont acceptés pour chaque champ, et ce n'est pas de la complaisance : **Keycloak émet ses
+ * `details` en snake_case** (`first_name` à l'inscription, `updated_first_name` à la mise à jour du profil),
+ * là où un message RabbitMQ d'Izichange arrive en camelCase. Ne lire que l'une des deux formes ferait
+ * silencieusement disparaître le prénom et le nom de tous les comptes créés via Keycloak.
+ */
 function identityChanges(data: Record<string, unknown>, at: Date): FieldChange[] {
   const country = text(data.country_code ?? data.countryCode ?? data.country)?.toUpperCase();
   const candidates: [string, unknown][] = [
-    ['firstName', text(data.firstName)],
-    ['lastName', text(data.lastName)],
-    ['email', text(data.email)],
-    ['phone', text(data.phone ?? data.phoneNumber)],
+    ['firstName', text(data.firstName ?? data.first_name ?? data.updated_first_name)],
+    ['lastName', text(data.lastName ?? data.last_name ?? data.updated_last_name)],
+    ['email', text(data.email ?? data.updated_email)],
+    ['phone', text(data.phone ?? data.phoneNumber ?? data.phone_number)],
     ['locale', text(data.locale ?? data.language)],
+    // Champ natif Novu : c'est lui qui permettra d'envoyer à l'heure locale du client.
+    ['timezone', text(data.timezone ?? data.time_zone)],
     ['data.country_code', country],
   ];
 

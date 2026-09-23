@@ -22,42 +22,30 @@ const userId = `demo-${Date.now()}`;
 const t0 = Date.parse('2026-09-01T08:00:00.000Z');
 const iso = (offsetMinutes) => new Date(t0 + offsetMinutes * 60_000).toISOString();
 
+// Enveloppe Izichange (02_Contrat_Evenement).
+const bus = (eventName, id, offset, { productCode, ...payload } = {}) => ({
+  event_id: `${userId}-${id}`,
+  event_name: eventName,
+  schema_version: 1,
+  occurred_at: iso(offset),
+  published_at: new Date().toISOString(),
+  user_id: userId,
+  ...(productCode ? { product_code: productCode } : {}),
+  source: 'backend_core',
+  test_flag: false,
+  payload,
+});
+
 const rabbitMessages = [
-  // Arrive avant le « submitted » mais s'est produit après : le statut final doit rester « validated ».
-  { eventType: 'kyc.approved', eventId: `${userId}-kyc-2`, timestamp: iso(120), data: { userId, kycId: 'kyc-1' } },
-  { eventType: 'kyc.submitted', eventId: `${userId}-kyc-1`, timestamp: iso(60), data: { userId, kycId: 'kyc-1' } },
-  {
-    eventType: 'transaction.completed',
-    eventId: `${userId}-tx-1`,
-    timestamp: iso(180),
-    data: { userId, transactionId: 'tx-1', amount: 120.5, product: 'crypto' },
-  },
-  {
-    eventType: 'transaction.completed',
-    eventId: `${userId}-tx-2`,
-    timestamp: iso(240),
-    data: { userId, transactionId: 'tx-2', amount: '30', product: 'crypto' },
-  },
+  bus('kyc.validated', 'kyc', 120),
+  bus('transaction.completed', 'tx-1', 180, { productCode: 'crypto', amount_usd: 120.5, type: 'buy', txNo: 1 }),
+  bus('transaction.completed', 'tx-2', 240, { productCode: 'crypto', amount_usd: '30', type: 'sell', txNo: 2 }),
   // Doublon exact de tx-1 (republication) : ne doit pas compter deux fois.
-  {
-    eventType: 'transaction.completed',
-    eventId: `${userId}-tx-1`,
-    timestamp: iso(180),
-    data: { userId, transactionId: 'tx-1', amount: 120.5, product: 'crypto' },
-  },
-  {
-    eventType: 'transaction.failed',
-    eventId: `${userId}-tx-3`,
-    timestamp: iso(300),
-    data: { userId, transactionId: 'tx-3', amount: 99, product: 'crypto' },
-  },
+  bus('transaction.completed', 'tx-1', 180, { productCode: 'crypto', amount_usd: 120.5, type: 'buy', txNo: 1 }),
+  // Événement de recette : acquitté, jamais appliqué au profil.
+  { ...bus('transaction.completed', 'tx-test', 305, { productCode: 'crypto', amount_usd: 999 }), test_flag: true },
   // Inexploitable : doit finir dans la file d'erreurs.
-  {
-    eventType: 'transaction.completed',
-    eventId: `${userId}-tx-bad`,
-    timestamp: iso(310),
-    data: { userId, transactionId: 'tx-bad', amount: 'abc' },
-  },
+  bus('transaction.completed', 'tx-bad', 310, { productCode: 'crypto', amount_usd: 'abc' }),
 ];
 
 async function main() {
@@ -81,7 +69,7 @@ async function main() {
   const channel = await connection.createChannel();
   const deadLettersBefore = (await channel.checkQueue(DEAD_LETTERS)).messageCount;
   for (const message of rabbitMessages) {
-    channel.publish(EXCHANGE, message.eventType, Buffer.from(JSON.stringify(message)), { persistent: true });
+    channel.publish(EXCHANGE, message.event_name, Buffer.from(JSON.stringify(message)), { persistent: true });
   }
   console.log(`RabbitMQ → ${rabbitMessages.length} messages publiés sur ${EXCHANGE}\n`);
 
@@ -109,20 +97,19 @@ async function main() {
   });
   console.log(
     'Activité :',
-    activity.map(({ day, product, tx, volUsd, txFailed }) => ({ day, product, tx, volUsd, txFailed }))
+    activity.map(({ day, productId, tx, volUsd, txFailed }) => ({ day, productId, tx, volUsd, txFailed }))
   );
 
   const checks = [
     ['profil créé depuis Keycloak', subscriber?.email === `${userId}@example.com` && subscriber?.firstName === 'Awa'],
     ['pays normalisé', subscriber?.data?.country_code === 'CI'],
-    ['KYC « validated » malgré l’ordre d’arrivée', subscriber?.data?.kyc_status === 'validated'],
+    ['KYC validé', subscriber?.data?.kyc_status === 'validated'],
     ['doublon ignoré : 2 transactions', subscriber?.data?.lifetime_tx === 2],
     ['volume à vie 150.5 USD', subscriber?.data?.lifetime_vol_usd === 150.5],
-    [
-      'activité du jour : 2 réussies, 1 échouée',
-      activity.length === 1 && activity[0].tx === 2 && activity[0].txFailed === 1,
-    ],
-    ['6 événements journalisés, aucun en attente', events === 6 && pending === 0],
+    ['activité du jour : 2 transactions', activity.length === 1 && activity[0].tx === 2],
+    ['client lié au produit crypto', subscriber?.data?.products?.join() === 'crypto'],
+    ['événement de recette écarté', subscriber?.data?.lifetime_vol_usd === 150.5],
+    ['4 événements journalisés, aucun en attente', events === 4 && pending === 0],
     ['message invalide dans la file d’erreurs', deadLettersAfter === deadLettersBefore + 1],
   ];
 

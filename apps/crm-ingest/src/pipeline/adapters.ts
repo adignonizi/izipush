@@ -1,4 +1,4 @@
-import { CrmEnvelope, CrmEventName, isSupportedEvent } from './envelope';
+import { CrmEnvelope, CrmEventName, carriesProduct, isSupportedEvent } from './envelope';
 
 export type AdapterResult =
   | { kind: 'event'; event: CrmEnvelope }
@@ -9,7 +9,6 @@ const KEYCLOAK_TYPES: Record<string, CrmEventName> = {
   REGISTER: 'account.registered',
   UPDATE_PROFILE: 'account.profile_updated',
   UPDATE_EMAIL: 'account.email_updated',
-  DELETE_ACCOUNT: 'account.deleted',
   LOGIN: 'account.logged_in',
 };
 
@@ -43,26 +42,49 @@ export function adaptKeycloak(body: unknown): AdapterResult {
   };
 }
 
-/** Message RabbitMQ : `{ eventType, eventId, timestamp (ISO), data: { userId, … } }`. */
+/**
+ * Message RabbitMQ, enveloppe Izichange (`02_Contrat_Evenement`) :
+ * `{ event_id, event_name, occurred_at, user_id, product_code, payload, … }`.
+ *
+ * Les champs de l'enveloppe qu'izipush n'exploite pas — `schema_version`, `published_at`, `tenant_id`,
+ * `source`, `marketing_priority`, `dedup_key`, `correlation_id` — sont acceptés sans être lus.
+ *
+ * `test_flag` fait exception : un événement de recette est acquitté et **jamais** appliqué à un profil.
+ * L'ingérer polluerait des profils de production avec des données fictives, et rien ensuite ne permettrait
+ * de les distinguer.
+ */
 export function adaptRabbit(body: unknown): AdapterResult {
   if (!isRecord(body)) return invalid('message JSON attendu');
 
-  if (typeof body.eventType !== 'string') return invalid('eventType manquant');
-  if (!isSupportedEvent(body.eventType)) return { kind: 'ignored', reason: `événement non suivi : ${body.eventType}` };
+  if (body.test_flag === true) return { kind: 'ignored', reason: 'événement de test (test_flag)' };
 
-  const eventId = nonEmptyString(body.eventId);
-  if (!eventId) return invalid('eventId manquant');
+  const eventName = nonEmptyString(body.event_name);
+  if (!eventName) return invalid('event_name manquant');
+  if (!isSupportedEvent(eventName)) return { kind: 'ignored', reason: `événement non suivi : ${eventName}` };
 
-  const occurredAt = toDate(body.timestamp);
-  if (!occurredAt) return invalid('timestamp invalide');
+  const eventId = nonEmptyString(body.event_id);
+  if (!eventId) return invalid('event_id manquant');
 
-  const data = isRecord(body.data) ? body.data : {};
-  const userId = nonEmptyString(data.userId);
-  if (!userId) return invalid('data.userId manquant');
+  const occurredAt = toDate(body.occurred_at);
+  if (!occurredAt) return invalid('occurred_at invalide');
+
+  const userId = nonEmptyString(body.user_id);
+  if (!userId) return invalid('user_id manquant');
+
+  const productCode = nonEmptyString(body.product_code);
+  if (carriesProduct(eventName) && !productCode) return invalid(`product_code manquant pour ${eventName}`);
 
   return {
     kind: 'event',
-    event: { eventId: `rabbitmq:${eventId}`, eventName: body.eventType, occurredAt, userId, source: 'rabbitmq', data },
+    event: {
+      eventId: `rabbitmq:${eventId}`,
+      eventName,
+      occurredAt,
+      userId,
+      source: 'rabbitmq',
+      productCode,
+      data: isRecord(body.payload) ? body.payload : {},
+    },
   };
 }
 
