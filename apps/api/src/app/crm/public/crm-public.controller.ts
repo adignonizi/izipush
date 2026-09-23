@@ -1,15 +1,23 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Res } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
-import { buildSubscriberKey, InvalidateCacheService } from '@novu/application-generic';
+import {
+  buildSubscriberKey,
+  CreateExecutionDetails,
+  CreateExecutionDetailsCommand,
+  DetailEnum,
+  InvalidateCacheService,
+} from '@novu/application-generic';
 import {
   CRM_TRACKING_PIXEL,
   CrmEngagementRepository,
   CrmProfileStateRepository,
   SubscriberRepository,
+  type TrackedPushMessage,
   verifyClickToken,
   verifyOpenToken,
   verifyUnsubscribeToken,
 } from '@novu/dal';
+import { ExecutionDetailsSourceEnum, ExecutionDetailsStatusEnum, StepTypeEnum } from '@novu/shared';
 import type { Response } from 'express';
 
 type Outcome = 'unsubscribed' | 'invalid' | 'unavailable';
@@ -27,7 +35,8 @@ export class CrmPublicController {
     private subscribers: SubscriberRepository,
     private profileState: CrmProfileStateRepository,
     private invalidateCache: InvalidateCacheService,
-    private engagement: CrmEngagementRepository
+    private engagement: CrmEngagementRepository,
+    private createExecutionDetails: CreateExecutionDetails
   ) {}
 
   @Get('/unsubscribe')
@@ -47,11 +56,85 @@ export class CrmPublicController {
     res.status(outcome === 'unsubscribed' ? HttpStatus.OK : HttpStatus.BAD_REQUEST).json({ outcome });
   }
 
-  /** Toujours 204 : la réponse ne dit pas si le message existe. Seuls les push de campagne sont comptés. */
+  /**
+   * Remise d'un push sur l'appareil, signalée par le SDK dès la réception.
+   *
+   * C'est le maillon qui manquait au suivi : le worker ne sait que « accepté par FCM », ce qui ne dit
+   * rien de la remise réelle. Le tableau de bord affiche désormais la différence.
+   *
+   * Toujours 204, jeton ou message inconnu compris : une réponse qui varierait révélerait à qui la
+   * sollicite l'existence d'un message.
+   */
+  @Post('/push-delivered')
+  @HttpCode(204)
+  async pushDelivered(@Body() body: { messageId?: unknown }): Promise<void> {
+    const message = await this.trackedPush(body?.messageId);
+    if (!message) return;
+
+    // Seule la PREMIÈRE remise écrit une ligne : un service worker qui signale deux fois ne doit pas
+    // remplir le journal d'activité de doublons.
+    if (await this.engagement.markPushDelivered(message)) {
+      await this.trace(message, DetailEnum.MESSAGE_DELIVERED);
+    }
+  }
+
+  /**
+   * Ouverture d'un push : appui sur la notification, signalé par le SDK.
+   *
+   * Compté pour TOUT push, campagne ou non — un push d'essai déclenché depuis le tableau de bord doit
+   * rendre le même retour d'information, sans quoi rien n'est éprouvable avant une vraie campagne. Les
+   * rapports CRM, eux, restent réservés aux messages de campagne.
+   */
   @Post('/push-opened')
   @HttpCode(204)
   async pushOpened(@Body() body: { messageId?: unknown }): Promise<void> {
-    if (typeof body?.messageId === 'string') await this.engagement.recordPushOpen(body.messageId);
+    const message = await this.trackedPush(body?.messageId);
+    if (!message) return;
+
+    if (await this.engagement.markPushOpened(message)) {
+      await this.trace(message, DetailEnum.MESSAGE_SEEN);
+    }
+  }
+
+  private async trackedPush(messageId: unknown): Promise<TrackedPushMessage | null> {
+    return typeof messageId === 'string' ? this.engagement.findPushMessage(messageId) : null;
+  }
+
+  /**
+   * Écrit la ligne du journal d'activité.
+   *
+   * `source: WEBHOOK` : la valeur que Novu réserve aux signaux venus de l'extérieur — ici l'appareil du
+   * destinataire, comme les ouvertures d'emails rapportées par les fournisseurs. Ce n'est pas une
+   * décision de Novu, et le journal doit le dire.
+   * Une trace perdue ne doit jamais faire échouer la route — le signal du terminal a déjà été enregistré
+   * sur le message, qui reste la source de vérité.
+   */
+  private async trace(message: TrackedPushMessage, detail: DetailEnum): Promise<void> {
+    try {
+      await this.createExecutionDetails.execute(
+        CreateExecutionDetailsCommand.create({
+          environmentId: String(message._environmentId),
+          organizationId: String(message._organizationId),
+          subscriberId: String(message._subscriberId),
+          _subscriberId: String(message._subscriberId),
+          workflowRunIdentifier: message.transactionId,
+          jobId: String(message._jobId),
+          notificationId: String(message._notificationId),
+          notificationTemplateId: String(message._templateId),
+          messageId: String(message._id),
+          providerId: message.providerId,
+          transactionId: message.transactionId,
+          channel: StepTypeEnum.PUSH,
+          detail,
+          source: ExecutionDetailsSourceEnum.WEBHOOK,
+          status: ExecutionDetailsStatusEnum.SUCCESS,
+          isTest: false,
+          isRetry: false,
+        })
+      );
+    } catch {
+      // journal d'activité indisponible : le message porte déjà l'information
+    }
   }
 
   /**
