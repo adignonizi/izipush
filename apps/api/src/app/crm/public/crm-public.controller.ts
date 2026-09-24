@@ -67,14 +67,14 @@ export class CrmPublicController {
    */
   @Post('/push-delivered')
   @HttpCode(204)
-  async pushDelivered(@Body() body: { messageId?: unknown }): Promise<void> {
+  async pushDelivered(@Body() body: { messageId?: unknown; source?: unknown }): Promise<void> {
     const message = await this.trackedPush(body?.messageId);
     if (!message) return;
 
     // Seule la PREMIÈRE remise écrit une ligne : un service worker qui signale deux fois ne doit pas
     // remplir le journal d'activité de doublons.
     if (await this.engagement.markPushDelivered(message)) {
-      await this.trace(message, DetailEnum.MESSAGE_DELIVERED);
+      await this.trace(message, DetailEnum.MESSAGE_DELIVERED, deliverySource(body?.source));
     }
   }
 
@@ -109,7 +109,7 @@ export class CrmPublicController {
    * Une trace perdue ne doit jamais faire échouer la route — le signal du terminal a déjà été enregistré
    * sur le message, qui reste la source de vérité.
    */
-  private async trace(message: TrackedPushMessage, detail: DetailEnum): Promise<void> {
+  private async trace(message: TrackedPushMessage, detail: DetailEnum, raw?: string): Promise<void> {
     try {
       await this.createExecutionDetails.execute(
         CreateExecutionDetailsCommand.create({
@@ -130,6 +130,7 @@ export class CrmPublicController {
           status: ExecutionDetailsStatusEnum.SUCCESS,
           isTest: false,
           isRetry: false,
+          ...(raw ? { raw } : {}),
         })
       );
     } catch {
@@ -237,4 +238,18 @@ function html(title: string, text: string): string {
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
 <style>body{font-family:system-ui,sans-serif;background:#f5f6fa;color:#14171f;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px}main{background:#fff;border:1px solid #dce0e6;border-radius:12px;padding:32px;max-width:440px}h1{font-size:20px;margin:0 0 8px}p{color:#5b6472;margin:0;line-height:1.5}</style>
 </head><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`;
+}
+
+/**
+ * Provenance déclarée par le SDK, reprise telle quelle dans le journal d'activité.
+ *
+ * `foreground` — l'application ou l'onglet était au premier plan et a reçu le message lui-même.
+ * `background` — le message a été pris par le gestionnaire d'arrière-plan, application fermée comprise.
+ *
+ * La distinction est ce qui sépare « tout va bien » de « cet abonné ne reçoit que lorsqu'il regarde »,
+ * deux situations que « Message delivered » seul confond. Toute autre valeur est ignorée : ce corps de
+ * requête n'est pas authentifié, il ne doit rien pouvoir écrire de libre dans le journal.
+ */
+function deliverySource(value: unknown): string | undefined {
+  return value === 'foreground' || value === 'background' ? JSON.stringify({ source: value }) : undefined;
 }
