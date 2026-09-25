@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spécifications de déploiement izipush</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #F1F3F1;
+    --surface: #FFFFFF;
+    --surface-sunk: #E9ECEA;
+    --ink: #151F1E;
+    --muted: #5B6A67;
+    --faint: #7E8C89;
+    --line: #D6DCD9;
+    --line-strong: #BEC7C3;
+    --accent: #0E6A60;
+    --accent-ink: #0B4F47;
+    --accent-soft: #E0EDEA;
+    --core: #6A5A7B;
+    --core-soft: #EDE8F1;
+    --warn: #8A5A1A;
+    --warn-soft: #F5ECDF;
+    --stop: #96322B;
+    --stop-soft: #F6E7E5;
+    --sans: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    --r: 6px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0F1514; --surface: #17201F; --surface-sunk: #121A19;
+      --ink: #E4EBE9; --muted: #93A29F; --faint: #7A8785;
+      --line: #283533; --line-strong: #3A4A47;
+      --accent: #4ECCBA; --accent-ink: #7FDECF; --accent-soft: #123330;
+      --core: #BCA7D2; --core-soft: #241D2C;
+      --warn: #D9A85F; --warn-soft: #2C2415;
+      --stop: #E08A80; --stop-soft: #2E1B19;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #0F1514; --surface: #17201F; --surface-sunk: #121A19;
+    --ink: #E4EBE9; --muted: #93A29F; --faint: #7A8785;
+    --line: #283533; --line-strong: #3A4A47;
+    --accent: #4ECCBA; --accent-ink: #7FDECF; --accent-soft: #123330;
+    --core: #BCA7D2; --core-soft: #241D2C;
+    --warn: #D9A85F; --warn-soft: #2C2415;
+    --stop: #E08A80; --stop-soft: #2E1B19;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding-inline: 20px; padding-block: 44px 72px; }
+
+  h1, h2, h3 { text-wrap: balance; margin: 0; letter-spacing: -0.02em; }
+  h1 { font-size: clamp(29px, 5vw, 44px); font-weight: 700; line-height: 1.12; }
+  h2 { font-size: clamp(20px, 3vw, 25px); font-weight: 600; }
+  h3 { font-size: 15.5px; font-weight: 600; }
+  p { margin: 0; }
+
+  code, .mono { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--surface-sunk); padding: 1px 5px; border-radius: 3px; word-break: break-word; }
+
+  header.top {
+    display: flex; flex-direction: column; gap: 17px;
+    padding-bottom: 32px; border-bottom: 1px solid var(--line);
+  }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  }
+
+  .lede { font-size: 17px; color: var(--muted); max-width: 66ch; }
+
+  .stamp {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+    background: var(--surface-sunk); padding: 5px 10px; border-radius: 4px;
+    align-self: flex-start;
+  }
+
+  .sheet {
+    background: #FBFCFB;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r);
+    padding: 18px 12px;
+    overflow-x: auto;
+  }
+  .sheet pre.mermaid { margin: 0; background: transparent; min-width: 760px; text-align: center; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 18px;
+    margin-top: 13px; font-size: 13px; color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .swatch { width: 11px; height: 11px; border-radius: 2px; border: 1px solid var(--line-strong); flex: none; }
+
+  section { padding-top: 50px; }
+  .sec-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+  .sec-head p { color: var(--muted); max-width: 68ch; }
+
+  .tablewrap {
+    overflow-x: auto; border: 1px solid var(--line);
+    border-radius: var(--r); background: var(--surface);
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    font-size: 11px; font-family: var(--mono); font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint);
+    background: var(--surface-sunk); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.m { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.k { font-family: var(--mono); font-size: 12.5px; color: var(--accent-ink); white-space: nowrap; }
+  td.n { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  td.d { color: var(--muted); }
+
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+  }
+  .pill.pub { background: var(--warn-soft); color: var(--warn); }
+  .pill.priv { background: var(--accent-soft); color: var(--accent-ink); }
+  .pill.sec { background: var(--stop-soft); color: var(--stop); }
+  .pill.cfg { background: var(--core-soft); color: var(--core); }
+
+  .notes { display: flex; flex-direction: column; gap: 13px; }
+  .note {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: var(--r);
+    padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;
+  }
+  .note.stop { border-left-color: var(--stop); }
+  .note.warn { border-left-color: var(--warn); }
+  .note p { font-size: 13.8px; color: var(--muted); line-height: 1.55; }
+  .note .why { font-size: 12.5px; color: var(--faint); border-top: 1px dashed var(--line); padding-top: 8px; }
+  .note .why b { color: var(--muted); font-weight: 600; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 13px; }
+  .box {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 15px 16px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .box .sub {
+    font-family: var(--mono); font-size: 10.5px; color: var(--faint);
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .box ul { margin: 0; padding-left: 17px; font-size: 13.3px; color: var(--muted); line-height: 1.6; }
+  .box ul code { font-size: 11.5px; }
+  .box p { font-size: 13.3px; color: var(--muted); }
+
+  footer {
+    margin-top: 54px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--faint);
+    display: flex; flex-wrap: wrap; gap: 6px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">izipush · spécifications de déploiement</span>
+    <h1>Spécifications de déploiement izipush</h1>
+    <p class="lede">
+      Ce qu'il faut savoir pour déployer le service ailleurs que sur l'hôte actuel : socle d'exécution,
+      services, dépendances, variables, et les trois pièges qui ne se voient qu'à l'exécution.
+    </p>
+    <span class="stamp">Relevé sur le déploiement en service — 25 septembre 2026</span>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>Vue d'ensemble</h2>
+      <p>
+        Six services, quatre systèmes de données. Les traits pleins sont des appels directs, les
+        pointillés des échanges par file ou par message — c'est là que le découplage se joue.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+flowchart LR
+  NAV([Navigateurs<br/>et applications])
+  IZI([Izichange<br/>services metier])
+  FCM([FCM / APNs])
+  MAIL([Resend<br/>Elastic Email])
+
+  subgraph ENTREE [" Entree "]
+    RT[routeur<br/>nginx ou ALB]
+  end
+
+  subgraph APP [" Services applicatifs "]
+    API[api<br/>:3000]
+    WS[ws<br/>:3002]
+    DASH[dashboard<br/>:4000]
+    NEWS[izinews<br/>:8080]
+    WORK[worker<br/>sans port]
+    ING[crm-ingest<br/>:3010]
+  end
+
+  subgraph DONNEES [" Donnees "]
+    MDB[(MongoDB 8<br/>57 collections)]
+    RDS[(Redis<br/>6 files + cache)]
+    AMQ[(RabbitMQ<br/>mailwizz-topic)]
+    S3[(S3<br/>pieces jointes)]
+  end
+
+  NAV --> RT
+  RT --> DASH
+  RT --> API
+  RT --> WS
+  RT --> NEWS
+
+  NEWS --> API
+
+  API --> MDB
+  API --> S3
+  API -.met en file.-> RDS
+  RDS -.depile.-> WORK
+  WORK --> MDB
+  WS --> RDS
+
+  IZI -.publie.-> AMQ
+  AMQ -.consomme.-> ING
+  ING --> MDB
+  ING --> RDS
+  ING -->|declenche| API
+
+  WORK --> FCM
+  WORK --> MAIL
+
+  classDef svc fill:#E0EDEA,stroke:#0E6A60,color:#0B4F47
+  classDef data fill:#EDE8F1,stroke:#6A5A7B,color:#3F3350
+  classDef edge fill:#F5ECDF,stroke:#8A5A1A,color:#5E3D11
+  classDef ext fill:#FFFFFF,stroke:#BEC7C3,color:#5B6A67
+
+  class API,WS,DASH,NEWS,WORK,ING svc
+  class MDB,RDS,AMQ,S3 data
+  class RT edge
+  class NAV,IZI,FCM,MAIL ext
+</pre>
+    </div>
+
+    <div class="legend">
+      <span><i class="swatch" style="background:#E0EDEA;border-color:#0E6A60"></i> service applicatif</span>
+      <span><i class="swatch" style="background:#EDE8F1;border-color:#6A5A7B"></i> systeme de donnees</span>
+      <span><i class="swatch" style="background:#F5ECDF;border-color:#8A5A1A"></i> entree</span>
+      <span><i class="swatch" style="background:#FFFFFF"></i> hors perimetre</span>
+    </div>
+
+    <div class="notes" style="margin-top:16px">
+      <article class="note">
+        <h3>Ce que le schéma montre et qu'il faut retenir</h3>
+        <p>
+          <b>Le worker ne reçoit rien de l'extérieur.</b> Il ne dépile que Redis et n'a ni port ni
+          sonde HTTP. Il n'a donc pas sa place derrière un équilibreur, et sa santé se lit au retard
+          de traitement, pas à une réponse.
+        </p>
+        <p>
+          <b>MongoDB a quatre écrivains</b> — <code>api</code>, <code>worker</code>,
+          <code>crm-ingest</code> et, indirectement, le déclenchement de campagnes. C'est la seule
+          ressource partagée par tout le monde : son indisponibilité arrête le service entier.
+        </p>
+        <p>
+          <b><code>crm-ingest</code> écrit en base ET appelle l'api.</b> Il dérive les profils
+          directement en base, mais passe par <code>POST /v1/events/trigger</code> pour lancer une
+          campagne — il ne court-circuite jamais le moteur de workflows.
+        </p>
+        <p class="why">
+          <b>Seules sorties vers Internet</b> — le <code>worker</code> vers FCM, APNs et les
+          fournisseurs d'email. Aucun autre service n'a besoin de joindre l'extérieur.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Socle d'exécution</h2>
+      <p>Identique pour tous les services applicatifs. Le dépôt est un monorepo pnpm.</p>
+    </div>
+
+    <div class="grid">
+      <article class="box">
+        <span class="sub">Exécution</span>
+        <ul>
+          <li>Node <code>22.22</code> — la racine impose <code>&gt;=22 &lt;23</code></li>
+          <li>pnpm <code>11.0.9</code></li>
+          <li>Alpine <code>3.23</code></li>
+          <li>PM2 <code>6.0.14</code> comme superviseur</li>
+        </ul>
+      </article>
+
+      <article class="box">
+        <span class="sub">Construction</span>
+        <ul>
+          <li>Monorepo pnpm avec espaces de travail</li>
+          <li>Contexte élagué par <code>scripts/pnpm-context.mjs</code></li>
+          <li>Une image par service, publiée dans un registre</li>
+          <li>Compilation TypeScript vers <code>dist/</code></li>
+        </ul>
+      </article>
+
+      <article class="box">
+        <span class="sub">Base de données</span>
+        <ul>
+          <li>MongoDB <code>8.x</code> — réplication requise</li>
+          <li>57 collections, dont 15 propres au CRM</li>
+          <li>20 index partiels, 3 index TTL</li>
+          <li>Transactions multi-documents utilisées</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Services</h2>
+      <p>
+        Six services applicatifs. Seuls trois reçoivent du trafic entrant ; les autres travaillent sur
+        des files ou des messages.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th><th>Rôle</th><th>Port</th><th>Sonde de santé</th><th>Exposition</th><th>État</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">api</td>
+            <td class="d">REST, administration, routes publiques de suivi</td>
+            <td class="n">3000</td>
+            <td class="k">GET /v1/health-check</td>
+            <td><span class="pill pub">public</span></td>
+            <td class="d">Sans état</td>
+          </tr>
+          <tr>
+            <td class="m">worker</td>
+            <td class="d">Exécution des workflows, envois push et email</td>
+            <td class="n">—</td>
+            <td class="k">interne</td>
+            <td><span class="pill priv">privé</span></td>
+            <td class="d">Sans état</td>
+          </tr>
+          <tr>
+            <td class="m">ws</td>
+            <td class="d">WebSocket temps réel pour l'inbox</td>
+            <td class="n">3002</td>
+            <td class="k">/socket.io/</td>
+            <td><span class="pill pub">public</span></td>
+            <td class="d">Connexions longues</td>
+          </tr>
+          <tr>
+            <td class="m">crm-ingest</td>
+            <td class="d">Consommation des événements Izichange, dérivation, campagnes</td>
+            <td class="n">3010</td>
+            <td class="k">GET /v1/health-check</td>
+            <td><span class="pill priv">privé</span></td>
+            <td class="d">Verrous en base</td>
+          </tr>
+          <tr>
+            <td class="m">dashboard</td>
+            <td class="d">Interface d'administration — fichiers statiques</td>
+            <td class="n">4000</td>
+            <td class="k">GET /</td>
+            <td><span class="pill pub">public</span></td>
+            <td class="d">Sans état</td>
+          </tr>
+          <tr>
+            <td class="m">izinews</td>
+            <td class="d">Compagnon de test d'inscription push</td>
+            <td class="n">8080</td>
+            <td class="k">GET /api/config</td>
+            <td><span class="pill pub">public</span></td>
+            <td class="d">Sans état</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Consommation mesurée</h2>
+      <p>
+        Relevé sur l'hôte en service, <b>dix cœurs</b>, base de 8 Mo. Ce sont des mesures, pas des
+        estimations — mais lisez la note sur PM2 avant d'en tirer un dimensionnement.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Conteneur</th><th>Mémoire</th><th>Processeur</th><th>Lecture</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="m">api</td><td class="n">3,72 Gio</td><td class="n">9,4 %</td><td class="d">Dix processus PM2, un par cœur</td></tr>
+          <tr><td class="m">worker</td><td class="n">2,42 Gio</td><td class="n">11,7 %</td><td class="d">Dix processus PM2 également</td></tr>
+          <tr><td class="m">crm-ingest</td><td class="n">279 Mio</td><td class="n">1,3 %</td><td class="d">Processus unique, volontairement</td></tr>
+          <tr><td class="m">ws</td><td class="n">227 Mio</td><td class="n">0,2 %</td><td class="d">Peu de connexions ouvertes</td></tr>
+          <tr><td class="m">dashboard</td><td class="n">62 Mio</td><td class="n">0,0 %</td><td class="d">nginx servant des fichiers</td></tr>
+          <tr><td class="m">izinews</td><td class="n">26 Mio</td><td class="n">0,0 %</td><td class="d">Node sans dépendance</td></tr>
+          <tr><td class="m">mongodb</td><td class="n">420 Mio</td><td class="n">1,9 %</td><td class="d">3 Mo de données, 5 Mo d'index</td></tr>
+          <tr><td class="m">rabbitmq</td><td class="n">140 Mio</td><td class="n">0,4 %</td><td class="d">Un seul consommateur</td></tr>
+          <tr><td class="m">redis</td><td class="n">18 Mio</td><td class="n">0,9 %</td><td class="d">Files BullMQ et cache</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Trois pièges qui ne se voient qu'à l'exécution</h2>
+      <p>Chacun m'a coûté du temps sur ce déploiement. Autant qu'ils ne recommencent pas.</p>
+    </div>
+
+    <div class="notes">
+
+      <article class="note warn">
+        <h3>PM2 démarre un processus par cœur</h3>
+        <p>
+          <code>api</code>, <code>worker</code> et <code>ws</code> démarrent sur
+          <code>pm2-runtime start dist/main.js -i max</code>. Sur un hôte à dix cœurs, cela fait dix
+          processus Node — d'où les 3,7 Gio de l'<code>api</code>, qui ne reflètent pas le besoin d'un
+          seul processus.
+        </p>
+        <p class="why">
+          <b>Conséquence</b> — la mémoire d'un conteneur suit le nombre de cœurs qu'on lui donne, pas la
+          charge. Sur deux cœurs, comptez plutôt 700 à 900 Mio pour l'<code>api</code>. Dimensionnez la
+          mémoire <b>après</b> avoir fixé le processeur, jamais l'inverse.
+          <code>crm-ingest</code> utilise <code>-i 1</code> à dessein : il pose des verrous en base,
+          plusieurs processus se marcheraient dessus.
+        </p>
+      </article>
+
+      <article class="note stop">
+        <h3>Le dashboard ne se construit pas comme les autres</h3>
+        <p>
+          <code>api</code>, <code>worker</code>, <code>ws</code> et <code>crm-ingest</code> se
+          construisent à partir du contexte élagué produit par <code>scripts/pnpm-context.mjs</code>,
+          qui range les fichiers racine sous <code>meta/</code>. Le <code>dockerfile</code> du dashboard,
+          lui, attend le dépôt brut.
+        </p>
+        <p class="why">
+          <b>Commande</b> — <code>docker build -f apps/dashboard/dockerfile .</code> depuis la racine.
+          Utiliser le contexte élagué échoue sur <code>pnpm-lock.yaml: not found</code>, sans rien
+          indiquer de la cause. À noter aussi : son fichier s'appelle <code>dockerfile</code> en
+          minuscules, contrairement aux autres.
+        </p>
+      </article>
+
+      <article class="note warn">
+        <h3>L'injection de dépendances ne se vérifie pas à la compilation</h3>
+        <p>
+          NestJS résout ses dépendances au démarrage. Un dépôt oublié dans les <code>providers</code>
+          d'un module compile parfaitement et fait tomber le service au lancement — l'API est restée
+          indisponible quarante minutes pour cette raison.
+        </p>
+        <p class="why">
+          <b>À faire</b> — après chaque déploiement, vérifier les journaux sur
+          <code>Nest can't resolve dependencies</code> avant de déclarer la mise en service réussie. La
+          sonde HTTP ne suffit pas : elle ne répond pas du tout dans ce cas.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Dépendances d'infrastructure</h2>
+      <p>Ce qu'il faut fournir au service, et ce qu'il en attend précisément.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Dépendance</th><th>Version</th><th>Utilisée par</th><th>Contrainte</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">MongoDB</td><td class="k">8.x</td>
+            <td class="d">api, worker, crm-ingest</td>
+            <td class="d">Index partiels et TTL, transactions multi-documents. Réplication requise pour les transactions.</td>
+          </tr>
+          <tr>
+            <td class="m">Redis</td><td class="k">7.x</td>
+            <td class="d">api, worker, ws, crm-ingest</td>
+            <td class="d">Files BullMQ et cache. <b>Mode non partitionné</b> — les clés d'une file doivent partager le même emplacement.</td>
+          </tr>
+          <tr>
+            <td class="m">RabbitMQ</td><td class="k">3.x</td>
+            <td class="d">crm-ingest</td>
+            <td class="d">Échange par sujet <code>mailwizz-topic</code>, liaisons <code>account.* kyc.* transaction.* product.*</code></td>
+          </tr>
+          <tr>
+            <td class="m">Stockage objet</td><td class="k">S3</td>
+            <td class="d">api</td>
+            <td class="d">Pièces jointes. Déjà pris en charge nativement par le code.</td>
+          </tr>
+          <tr>
+            <td class="m">FCM</td><td class="k">—</td>
+            <td class="d">worker</td>
+            <td class="d">Compte de service Firebase. Sortie HTTPS requise.</td>
+          </tr>
+          <tr>
+            <td class="m">Fournisseurs email</td><td class="k">—</td>
+            <td class="d">worker</td>
+            <td class="d">Resend, Elastic Email. Sortie HTTPS requise.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Files de travail</h2>
+      <p>Six files BullMQ sur Redis. La profondeur de ces files est le vrai signal de mise à l'échelle du worker.</p>
+    </div>
+
+    <div class="grid">
+      <article class="box">
+        <span class="sub">Traitement des envois</span>
+        <ul>
+          <li><code>trigger-handler</code> — entrée des déclenchements</li>
+          <li><code>process-subscriber</code> — résolution des destinataires</li>
+          <li><code>standard</code> — exécution des étapes</li>
+        </ul>
+      </article>
+      <article class="box">
+        <span class="sub">Annexes</span>
+        <ul>
+          <li><code>ws_socket_queue</code> — notifications temps réel</li>
+          <li><code>inbound-parse-mail</code> — courriers entrants</li>
+          <li><code>metric-active-jobs</code> — métriques</li>
+        </ul>
+      </article>
+      <article class="box">
+        <span class="sub">Pourquoi ça compte</span>
+        <p>
+          Un worker qui attend FCM ou un fournisseur d'email consomme peu de processeur tout en
+          accumulant du retard. Une règle de mise à l'échelle fondée sur le processeur ne se
+          déclencherait jamais.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Variables d'environnement</h2>
+      <p>
+        Regroupées par nature. Celles marquées <span class="pill sec">secret</span> ne doivent jamais
+        figurer dans une image ni dans un dépôt.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>Nature</th><th>Service</th><th>Rôle</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="m">MONGO_URL</td><td><span class="pill sec">secret</span></td><td class="d">api, worker, crm-ingest</td><td class="d">Chaîne de connexion complète</td></tr>
+          <tr><td class="m">REDIS_HOST / _PORT / _PASSWORD</td><td><span class="pill sec">secret</span></td><td class="d">tous</td><td class="d">Files et cache</td></tr>
+          <tr><td class="m">REDIS_CACHE_SERVICE_HOST / _PORT</td><td><span class="pill cfg">config</span></td><td class="d">api, worker</td><td class="d">Cache, séparable des files</td></tr>
+          <tr><td class="m">JWT_SECRET</td><td><span class="pill sec">secret</span></td><td class="d">api, ws</td><td class="d">Signature des jetons de session</td></tr>
+          <tr><td class="m">STORE_ENCRYPTION_KEY</td><td><span class="pill sec">secret</span></td><td class="d">api, worker, crm-ingest</td><td class="d">Chiffrement des identifiants de fournisseurs</td></tr>
+          <tr><td class="m">NOVU_SECRET_KEY</td><td><span class="pill sec">secret</span></td><td class="d">api</td><td class="d">Clé d'API interne</td></tr>
+          <tr><td class="m">CRM_UNSUBSCRIBE_SECRET</td><td><span class="pill sec">secret</span></td><td class="d">api, crm-ingest</td><td class="d">Signature des liens de désinscription et de suivi</td></tr>
+          <tr><td class="m">CRM_ADMIN_TOKEN</td><td><span class="pill sec">secret</span></td><td class="d">crm-ingest</td><td class="d">Commandes d'administration</td></tr>
+          <tr><td class="m">KEYCLOAK_WEBHOOK_SECRET</td><td><span class="pill sec">secret</span></td><td class="d">crm-ingest</td><td class="d">Authentification des événements Keycloak</td></tr>
+          <tr><td class="m">AWS_ACCESS_KEY_ID / SECRET</td><td><span class="pill sec">secret</span></td><td class="d">api</td><td class="d">À remplacer par un rôle d'exécution sur AWS</td></tr>
+          <tr><td class="m">AMQP_URL</td><td><span class="pill sec">secret</span></td><td class="d">crm-ingest</td><td class="d">Courtier RabbitMQ</td></tr>
+          <tr><td class="m">AMQP_EXCHANGE / _BINDINGS</td><td><span class="pill cfg">config</span></td><td class="d">crm-ingest</td><td class="d">Topologie de consommation</td></tr>
+          <tr><td class="m">CRM_ENVIRONMENT_ID / _ORGANIZATION_ID</td><td><span class="pill cfg">config</span></td><td class="d">crm-ingest</td><td class="d">Environnement Novu visé</td></tr>
+          <tr><td class="m">API_ROOT_URL / FRONT_BASE_URL</td><td><span class="pill cfg">config</span></td><td class="d">api, dashboard</td><td class="d">Construction des liens absolus</td></tr>
+          <tr><td class="m">VITE_API_HOSTNAME / VITE_WEBSOCKET_HOSTNAME</td><td><span class="pill cfg">config</span></td><td class="d">dashboard</td><td class="d">Figées à la construction, pas à l'exécution</td></tr>
+          <tr><td class="m">S3_BUCKET_NAME / S3_REGION</td><td><span class="pill cfg">config</span></td><td class="d">api</td><td class="d">Stockage des pièces jointes</td></tr>
+          <tr><td class="m">IS_SELF_HOSTED / IS_V2_ENABLED / IS_API_*</td><td><span class="pill cfg">config</span></td><td class="d">api, worker</td><td class="d">Drapeaux fonctionnels</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notes" style="margin-top:14px">
+      <article class="note stop">
+        <h3>Les variables du dashboard sont figées à la construction</h3>
+        <p>
+          <code>VITE_API_HOSTNAME</code> et <code>VITE_WEBSOCKET_HOSTNAME</code> sont inlinées dans le
+          bundle par Vite. Les changer sur le conteneur en service n'a aucun effet.
+        </p>
+        <p class="why">
+          <b>Conséquence</b> — un changement de domaine impose une reconstruction du dashboard, pas un
+          simple redémarrage. Même piège que pour les variables <code>EXPO_PUBLIC_*</code> des
+          applications mobiles.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Routage à reproduire</h2>
+      <p>
+        Le routeur nginx actuel sert aussi d'autres projets. Seules les quatre premières routes
+        appartiennent à izipush.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Chemin</th><th>Destination</th><th>Remarque</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="k">/api/</td><td class="m">api:3000</td><td class="d">Le préfixe est retiré avant transmission</td></tr>
+          <tr><td class="k">/socket.io/</td><td class="m">ws:3002</td><td class="d">Connexions longues — délai d'inactivité à augmenter</td></tr>
+          <tr><td class="k">/izinews/</td><td class="m">izinews:8080</td><td class="d">Préfixe retiré ; le service worker en dépend</td></tr>
+          <tr><td class="k">/</td><td class="m">dashboard:4000</td><td class="d">Route par défaut</td></tr>
+          <tr><td class="k">/ce-api/ /ce-ws/ /n8n/</td><td class="m">autres projets</td><td class="d"><b>Hors périmètre izipush</b> — ne pas reprendre</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>À décider avant la bascule</h2>
+      <p>Questions ouvertes qui appellent une réponse de votre côté, pas une proposition de plus.</p>
+    </div>
+
+    <div class="grid">
+      <article class="box">
+        <span class="sub">Volume cible</span>
+        <p>
+          Le dimensionnement dépend du nombre d'envois par jour et du nombre d'abonnés. Sans ce chiffre,
+          toute estimation de coût serait inventée.
+        </p>
+      </article>
+      <article class="box">
+        <span class="sub">Rétention</span>
+        <p>
+          Trois collections se purgent seules — événements à 180 jours, engagements à 400 jours,
+          messages illisibles à 30 jours. Ces durées vous conviennent-elles ?
+        </p>
+      </article>
+      <article class="box">
+        <span class="sub">izinews</span>
+        <p>
+          Compagnon de test. Il faut décider s'il part en production ou s'il reste sur un environnement
+          de recette — et le mettre sous gestion de versions, il n'y est pas.
+        </p>
+      </article>
+      <article class="box">
+        <span class="sub">Identifiants AWS</span>
+        <p>
+          <code>AWS_ACCESS_KEY_ID</code> et <code>AWS_SECRET_ACCESS_KEY</code> doivent céder la place à
+          un rôle d'exécution. Aucune clé statique dans une image.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <footer>
+    <span>izipush — dérivé de Novu 3.18</span>
+    <span>Mesures prises sur l'hôte en service, 10 cœurs</span>
+    <span>Voir aussi : architecture-aws.html, modele-donnees.html</span>
+  </footer>
+
+</div>
+
+<script type="module">
+  /* Mermaid est charge explicitement : un fichier ouvert depuis le disque ne le rend pas tout seul. */
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+</script>
+
+</body>
+</html>

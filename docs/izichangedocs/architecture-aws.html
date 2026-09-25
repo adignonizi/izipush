@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Architecture AWS izipush</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    color-scheme: light;
+
+    --ground: #F1F3F1;
+    --surface: #FFFFFF;
+    --surface-sunk: #E9ECEA;
+    --ink: #151F1E;
+    --muted: #5B6A67;
+    --faint: #7E8C89;
+    --line: #D6DCD9;
+    --line-strong: #BEC7C3;
+
+    --accent: #0E6A60;
+    --accent-ink: #0B4F47;
+    --accent-soft: #E0EDEA;
+
+    --core: #6A5A7B;
+    --core-soft: #EDE8F1;
+
+    --warn: #8A5A1A;
+    --warn-soft: #F5ECDF;
+
+    --stop: #96322B;
+    --stop-soft: #F6E7E5;
+
+    --sans: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+    --r: 6px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0F1514;
+      --surface: #17201F;
+      --surface-sunk: #121A19;
+      --ink: #E4EBE9;
+      --muted: #93A29F;
+      --faint: #7A8785;
+      --line: #283533;
+      --line-strong: #3A4A47;
+      --accent: #4ECCBA;
+      --accent-ink: #7FDECF;
+      --accent-soft: #123330;
+      --core: #BCA7D2;
+      --core-soft: #241D2C;
+      --warn: #D9A85F;
+      --warn-soft: #2C2415;
+      --stop: #E08A80;
+      --stop-soft: #2E1B19;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #0F1514;
+    --surface: #17201F;
+    --surface-sunk: #121A19;
+    --ink: #E4EBE9;
+    --muted: #93A29F;
+    --faint: #7A8785;
+    --line: #283533;
+    --line-strong: #3A4A47;
+    --accent: #4ECCBA;
+    --accent-ink: #7FDECF;
+    --accent-soft: #123330;
+    --core: #BCA7D2;
+    --core-soft: #241D2C;
+    --warn: #D9A85F;
+    --warn-soft: #2C2415;
+    --stop: #E08A80;
+    --stop-soft: #2E1B19;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img { max-width: 100%; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 44px 72px; }
+
+  h1, h2, h3 { text-wrap: balance; margin: 0; letter-spacing: -0.02em; }
+  h1 { font-size: clamp(30px, 5.2vw, 46px); font-weight: 700; line-height: 1.1; }
+  h2 { font-size: clamp(20px, 3vw, 25px); font-weight: 600; }
+  h3 { font-size: 16px; font-weight: 600; }
+  p { margin: 0; }
+
+  code, .mono { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--surface-sunk); padding: 1px 5px; border-radius: 3px; }
+
+  header.top {
+    display: flex; flex-direction: column; gap: 18px;
+    padding-bottom: 34px; border-bottom: 1px solid var(--line);
+  }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  }
+
+  .lede { font-size: 17px; color: var(--muted); max-width: 64ch; }
+
+  section { padding-top: 52px; }
+
+  .sec-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+  .sec-head p { color: var(--muted); max-width: 68ch; }
+
+  .sheet {
+    background: #FBFCFB;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r);
+    padding: 18px 12px;
+    overflow-x: auto;
+  }
+  .sheet pre.mermaid { margin: 0; background: transparent; min-width: 700px; text-align: center; }
+
+  /* ── Tableau de correspondance ─────────────────────────────── */
+
+  .tablewrap {
+    overflow-x: auto; border: 1px solid var(--line);
+    border-radius: var(--r); background: var(--surface);
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 700px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    font-size: 11.5px; font-family: var(--mono); font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint);
+    background: var(--surface-sunk); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.m { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.k { font-family: var(--mono); font-size: 12.5px; color: var(--accent-ink); }
+  td.d { color: var(--muted); }
+
+  /* ── Décisions ─────────────────────────────────────────────── */
+
+  .decisions { display: flex; flex-direction: column; gap: 14px; }
+
+  .dec {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: var(--r);
+    padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .dec.stop { border-left-color: var(--stop); }
+  .dec.warn { border-left-color: var(--warn); }
+
+  .dec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+
+  .tag {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 3px;
+    background: var(--accent-soft); color: var(--accent-ink); white-space: nowrap;
+  }
+  .tag.stop { background: var(--stop-soft); color: var(--stop); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+
+  .dec p { font-size: 14px; color: var(--muted); line-height: 1.55; }
+  .dec .proof {
+    font-size: 12.5px; color: var(--faint);
+    border-top: 1px dashed var(--line); padding-top: 9px;
+  }
+  .dec .proof b { color: var(--muted); font-weight: 600; }
+
+  /* ── Réseau ────────────────────────────────────────────────── */
+
+  .tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+  .tier {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 15px 16px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .tier h3 { font-size: 14px; }
+  .tier .sub { font-family: var(--mono); font-size: 11px; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
+  .tier ul { margin: 0; padding-left: 17px; font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+
+  footer {
+    margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--faint);
+    display: flex; flex-wrap: wrap; gap: 6px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">izipush · proposition de déploiement</span>
+    <h1>Architecture AWS izipush</h1>
+    <p class="lede">
+      Six services applicatifs, trois systèmes de données. La transposition est directe — aucun d'eux
+      n'a besoin d'être réécrit — mais deux contraintes de DocumentDB doivent être traitées avant la
+      migration, pas découvertes pendant.
+    </p>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>Le schéma</h2>
+      <p>
+        Trois zones de disponibilité, trois étages de sous-réseaux. Seul l'équilibreur est exposé ;
+        les tâches applicatives n'ont pas d'adresse publique et les données encore moins.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+flowchart TB
+  Internet([Internet])
+  IZI[Izichange<br/>services metier]
+
+  subgraph EDGE [" Peripherie "]
+    R53[Route 53<br/>DNS]
+    CF[CloudFront<br/>+ ACM + WAF]
+    ALB[Application<br/>Load Balancer]
+  end
+
+  subgraph VPC [" VPC - 3 zones de disponibilite "]
+    subgraph PUB [" Sous-reseaux publics "]
+      NAT[NAT Gateway]
+    end
+
+    subgraph PRIV [" Sous-reseaux prives - ECS Fargate "]
+      API[api<br/>REST + admin]
+      WS[ws<br/>WebSocket]
+      WORK[worker<br/>BullMQ]
+      INGEST[crm-ingest<br/>consommateur]
+      NEWS[izinews<br/>compagnon]
+    end
+
+    subgraph DATA [" Sous-reseaux isoles "]
+      DOC[(DocumentDB 8.0<br/>cluster a instances)]
+      REDIS[(ElastiCache<br/>Valkey - non cluster)]
+      MQ[(Amazon MQ<br/>RabbitMQ)]
+    end
+  end
+
+  S3[(S3<br/>pieces jointes)]
+  DASH[S3 + CloudFront<br/>dashboard statique]
+  SM[Secrets Manager]
+  CW[CloudWatch<br/>logs + metriques]
+  ECR[ECR<br/>images]
+
+  Internet --> R53 --> CF
+  CF --> DASH
+  CF --> ALB
+  ALB --> API
+  ALB --> WS
+  ALB --> NEWS
+
+  IZI -.evenements.-> MQ
+  MQ --> INGEST
+
+  API --> DOC
+  API --> REDIS
+  API --> S3
+  WS --> REDIS
+  WORK --> DOC
+  WORK --> REDIS
+  INGEST --> DOC
+  NEWS --> API
+
+  API -. file .-> REDIS
+  REDIS -. file .-> WORK
+
+  WORK -.push / email.-> NAT
+  NAT --> Internet
+
+  SM -.- API
+  SM -.- WORK
+  SM -.- INGEST
+  ECR -.- PRIV
+  PRIV -.- CW
+
+  classDef svc fill:#E0EDEA,stroke:#0E6A60,color:#0B4F47
+  classDef data fill:#EDE8F1,stroke:#6A5A7B,color:#3F3350
+  classDef edge fill:#F5ECDF,stroke:#8A5A1A,color:#5E3D11
+  classDef ext fill:#FFFFFF,stroke:#BEC7C3,color:#5B6A67
+
+  class API,WS,WORK,INGEST,NEWS svc
+  class DOC,REDIS,MQ,S3 data
+  class R53,CF,ALB,NAT edge
+  class Internet,IZI,SM,CW,ECR,DASH ext
+</pre>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Correspondance avec le déploiement actuel</h2>
+      <p>Ce qui tourne aujourd'hui dans Docker Compose sur une machine, et son équivalent managé.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Aujourd'hui</th>
+            <th>Sur AWS</th>
+            <th>Exposé</th>
+            <th>Mise à l'échelle</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">api</td>
+            <td class="k">ECS Fargate + ALB</td>
+            <td class="d">via CloudFront</td>
+            <td class="d">Requêtes par cible</td>
+          </tr>
+          <tr>
+            <td class="m">worker</td>
+            <td class="k">ECS Fargate</td>
+            <td class="d">non</td>
+            <td class="d">Profondeur de file, pas le processeur</td>
+          </tr>
+          <tr>
+            <td class="m">ws</td>
+            <td class="k">ECS Fargate + ALB</td>
+            <td class="d">via CloudFront</td>
+            <td class="d">Connexions actives</td>
+          </tr>
+          <tr>
+            <td class="m">crm-ingest</td>
+            <td class="k">ECS Fargate</td>
+            <td class="d">non</td>
+            <td class="d">Messages en attente sur Amazon MQ</td>
+          </tr>
+          <tr>
+            <td class="m">izinews</td>
+            <td class="k">ECS Fargate + ALB</td>
+            <td class="d">via CloudFront</td>
+            <td class="d">Fixe — compagnon de test</td>
+          </tr>
+          <tr>
+            <td class="m">dashboard</td>
+            <td class="k">S3 + CloudFront</td>
+            <td class="d">oui</td>
+            <td class="d">Sans objet — fichiers statiques</td>
+          </tr>
+          <tr>
+            <td class="m">router (nginx)</td>
+            <td class="k">supprimé</td>
+            <td class="d">—</td>
+            <td class="d">Le routage passe dans CloudFront et l'ALB</td>
+          </tr>
+          <tr>
+            <td class="m">mongodb</td>
+            <td class="k">DocumentDB 8.0</td>
+            <td class="d">non</td>
+            <td class="d">Instance primaire + réplicas de lecture</td>
+          </tr>
+          <tr>
+            <td class="m">redis</td>
+            <td class="k">ElastiCache (Valkey)</td>
+            <td class="d">non</td>
+            <td class="d">Nœud unique + réplica, mode non cluster</td>
+          </tr>
+          <tr>
+            <td class="m">rabbitmq</td>
+            <td class="k">Amazon MQ for RabbitMQ</td>
+            <td class="d">non</td>
+            <td class="d">Déploiement en grappe sur 3 zones</td>
+          </tr>
+          <tr>
+            <td class="m">stockage local</td>
+            <td class="k">S3</td>
+            <td class="d">non</td>
+            <td class="d">Déjà pris en charge par le code</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Décisions à trancher avant la migration</h2>
+      <p>
+        Vérifiées contre le code et la documentation AWS, pas supposées. Les deux premières sont
+        bloquantes.
+      </p>
+    </div>
+
+    <div class="decisions">
+
+      <article class="dec stop">
+        <div class="dec-head">
+          <span class="tag stop">bloquant</span>
+          <h3>Cluster à instances, jamais cluster élastique</h3>
+        </div>
+        <p>
+          DocumentBD propose deux formes : le cluster à instances et le cluster élastique (partitionné).
+          Le second ne gère pas les index partiels. Le DAL en compte <b>vingt</b> — sur les attributs
+          segmentables de l'abonné, sur les événements, sur l'activité. Un cluster élastique les
+          refuserait à la création.
+        </p>
+        <p class="proof">
+          <b>Vérifié</b> — table « Index properties » de la documentation DocumentDB : <i>Partial</i> vaut
+          <code>No</code> en 3.6 et 4.0, <code>Yes</code> en 5.0 et 8.0, <code>No</code> pour
+          <i>Elastic cluster</i>. Donc <b>DocumentDB 8.0 en cluster à instances convient</b> — je
+          l'avais d'abord cru incompatible, la documentation dit le contraire.
+        </p>
+      </article>
+
+      <article class="dec stop">
+        <div class="dec-head">
+          <span class="tag stop">bloquant</span>
+          <h3><code>retryWrites=false</code> dans la chaîne de connexion</h3>
+        </div>
+        <p>
+          DocumentDB ne gère pas les écritures réessayables, et le pilote Node les active
+          <b>par défaut</b> depuis MongoDB 4.2. Sans ce paramètre, chaque écriture échoue sur
+          <code>Unrecognized field: 'txnNumber'</code> — l'application démarre, se connecte, et ne peut
+          rien écrire.
+        </p>
+        <p class="proof">
+          <b>À faire</b> — le paramètre n'est positionné nulle part dans le dépôt aujourd'hui. Il doit
+          être ajouté à <code>MONGO_URL</code> au moment de la bascule, avec le certificat
+          <code>rds-combined-ca-bundle.pem</code> pour le TLS.
+        </p>
+      </article>
+
+      <article class="dec warn">
+        <div class="dec-head">
+          <span class="tag warn">attention</span>
+          <h3>ElastiCache en mode non cluster</h3>
+        </div>
+        <p>
+          BullMQ exige que les clés d'une même file résident sur le même emplacement de hachage. En mode
+          cluster, elles se répartissent et les opérations atomiques échouent. Novu expose bien un
+          drapeau <code>IS_IN_MEMORY_CLUSTER_MODE_ENABLED</code>, mais il suppose une configuration de
+          clés adaptée qui n'est pas la nôtre.
+        </p>
+        <p class="proof">
+          <b>Recommandation</b> — un nœud primaire et un réplica en bascule automatique, mode non cluster.
+          Six files à servir : <code>standard</code>, <code>trigger-handler</code>,
+          <code>process-subscriber</code>, <code>ws_socket_queue</code>,
+          <code>inbound-parse-mail</code>, <code>metric-active-jobs</code>.
+        </p>
+      </article>
+
+      <article class="dec">
+        <div class="dec-head">
+          <span class="tag">sans risque</span>
+          <h3>Aucune étape d'agrégation incompatible</h3>
+        </div>
+        <p>
+          DocumentDB ne gère ni <code>$facet</code>, ni <code>$graphLookup</code>, ni
+          <code>$setWindowFields</code>, ni <code>$unionWith</code>, ni <code>$bucketAuto</code>. C'est
+          la cause la plus fréquente d'échec d'une migration MongoDB vers DocumentDB.
+        </p>
+        <p class="proof">
+          <b>Vérifié</b> — aucune de ces étapes n'apparaît dans <code>libs/dal</code>,
+          <code>libs/application-generic</code> ni dans les trois applications. Les transactions
+          multi-documents et les index TTL, eux, sont pris en charge.
+        </p>
+      </article>
+
+      <article class="dec">
+        <div class="dec-head">
+          <span class="tag">choix</span>
+          <h3>Amazon MQ plutôt que SQS ou EventBridge</h3>
+        </div>
+        <p>
+          Izichange publie déjà sur un échange RabbitMQ par sujet, et <code>crm-ingest</code> consomme
+          avec des liaisons par motif. Amazon MQ conserve ce contrat tel quel. Passer à SQS imposerait
+          de réécrire l'émission côté Izichange et la consommation côté izipush, pour un gain nul à ce
+          volume.
+        </p>
+        <p class="proof">
+          <b>À revoir si</b> le débit dépasse ce qu'un courtier gère confortablement, ou si vous
+          voulez abandonner RabbitMQ chez Izichange. Ce n'est pas le cas aujourd'hui.
+        </p>
+      </article>
+
+      <article class="dec warn">
+        <div class="dec-head">
+          <span class="tag warn">attention</span>
+          <h3>Le worker se met à l'échelle sur la file, pas sur le processeur</h3>
+        </div>
+        <p>
+          Un worker qui attend des réponses de FCM, d'APNs et des fournisseurs d'email consomme peu de
+          processeur tout en accumulant du retard. Une règle basée sur le processeur ne déclencherait
+          jamais. Il faut publier la profondeur des files BullMQ comme métrique CloudWatch et s'en
+          servir comme signal de mise à l'échelle.
+        </p>
+        <p class="proof">
+          <b>Conséquence</b> — le worker n'est derrière aucun équilibreur et n'a pas de sonde de santé
+          HTTP ; sa santé se lit dans le retard de traitement.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Découpage réseau</h2>
+      <p>Trois étages, trois niveaux d'exposition. Rien de ce qui porte des données n'a de route sortante.</p>
+    </div>
+
+    <div class="tiers">
+      <article class="tier">
+        <span class="sub">Étage 1 — public</span>
+        <h3>Sous-réseaux publics</h3>
+        <ul>
+          <li>Application Load Balancer</li>
+          <li>Passerelle NAT, une par zone</li>
+        </ul>
+        <p style="font-size:13px;color:var(--faint)">
+          Seul point d'entrée. Le certificat TLS vient d'ACM, renouvelé sans intervention.
+        </p>
+      </article>
+
+      <article class="tier">
+        <span class="sub">Étage 2 — privé</span>
+        <h3>Tâches ECS Fargate</h3>
+        <ul>
+          <li>api, ws, izinews — joignables par l'équilibreur</li>
+          <li>worker, crm-ingest — joignables par personne</li>
+        </ul>
+        <p style="font-size:13px;color:var(--faint)">
+          Sortent par la passerelle NAT pour joindre FCM, APNs et les fournisseurs d'email.
+        </p>
+      </article>
+
+      <article class="tier">
+        <span class="sub">Étage 3 — isolé</span>
+        <h3>Données</h3>
+        <ul>
+          <li>DocumentDB</li>
+          <li>ElastiCache</li>
+          <li>Amazon MQ</li>
+        </ul>
+        <p style="font-size:13px;color:var(--faint)">
+          Aucune route vers Internet. Accessibles par groupe de sécurité depuis l'étage 2 seulement.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Distribution du SDK — CodeArtifact</h2>
+      <p>
+        Le SDK <code>@gittestmag/izipush-sdk</code> est aujourd'hui installé depuis un dépôt GitHub
+        privé, épinglé par étiquette. CodeArtifact en fait un paquet npm ordinaire, versionné et
+        auditable — avec une difficulté réelle sur les constructions mobiles, détaillée plus bas.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+flowchart LR
+  GIT([Depot SDK<br/>izipush-sdk])
+  CB[CodeBuild<br/>construit et publie]
+  CA[(CodeArtifact<br/>domaine izichange)]
+  NPM([npmjs.com])
+
+  SRV[CodeBuild<br/>images serveur]
+  NEWS[izinews<br/>image]
+  EAS([EAS Build<br/>izipay-pos])
+
+  GIT -->|tag v*| CB
+  CB -->|npm publish| CA
+  NPM -.connexion externe.-> CA
+
+  CA --> SRV
+  CA --> NEWS
+  CA -.jeton 12 h.-> EAS
+
+  classDef svc fill:#E0EDEA,stroke:#0E6A60,color:#0B4F47
+  classDef data fill:#EDE8F1,stroke:#6A5A7B,color:#3F3350
+  classDef ext fill:#FFFFFF,stroke:#BEC7C3,color:#5B6A67
+
+  class CB,SRV,NEWS svc
+  class CA data
+  class GIT,NPM,EAS ext
+</pre>
+    </div>
+
+    <div class="tablewrap" style="margin-top:20px">
+      <table>
+        <thead>
+          <tr><th>Consommateur</th><th>Aujourd'hui</th><th>Avec CodeArtifact</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">izipay-pos</td>
+            <td class="d"><code>github:GITTESTMAG/izipush-sdk#v0.6.0</code></td>
+            <td class="k">@izichange/izipush-sdk@0.6.0</td>
+          </tr>
+          <tr>
+            <td class="m">izinews</td>
+            <td class="d">Fichiers recopiés à la main dans <code>public/vendor/</code></td>
+            <td class="k">Installé à la construction de l'image</td>
+          </tr>
+          <tr>
+            <td class="m">Applications tierces</td>
+            <td class="d">Accès au dépôt privé requis</td>
+            <td class="k">Jeton CodeArtifact, sans accès au code</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="decisions" style="margin-top:20px">
+
+      <article class="dec stop">
+        <div class="dec-head">
+          <span class="tag stop">difficulté</span>
+          <h3>Les jetons expirent en 12 heures — EAS Build ne tourne pas chez vous</h3>
+        </div>
+        <p>
+          CodeArtifact n'accepte que des jetons d'autorisation d'une durée maximale de douze heures.
+          Une construction mobile s'exécute sur l'infrastructure d'Expo, qui ne peut pas demander ce
+          jeton toute seule : il lui faut des identifiants AWS.
+        </p>
+        <p class="proof">
+          <b>Deux voies</b> — soit déposer les clés d'un utilisateur IAM en lecture seule comme secrets
+          EAS, installer l'interface AWS dans le crochet <code>eas-build-pre-install</code> et y lancer
+          <code>aws codeartifact login --tool npm</code> ; soit laisser le mobile sur GitHub et ne
+          basculer que les constructions serveur. Le crochet existe déjà dans
+          <code>package.json</code> : il réécrit aujourd'hui les URL git avec
+          <code>$GITHUB_TOKEN</code>, c'est le même emplacement.
+        </p>
+      </article>
+
+      <article class="dec">
+        <div class="dec-head">
+          <span class="tag">gain</span>
+          <h3>Une connexion externe met aussi npmjs en cache</h3>
+        </div>
+        <p>
+          Un dépôt CodeArtifact peut se brancher en amont sur npmjs.com. Les paquets publics y sont
+          alors copiés à la première demande. Vos constructions cessent de dépendre de la
+          disponibilité de npmjs, et un paquet retiré du registre public reste installable.
+        </p>
+        <p class="proof">
+          <b>Utile ici</b> — le monorepo installe plusieurs centaines de dépendances à chaque image.
+          C'est le bénéfice le plus immédiat, indépendamment du SDK.
+        </p>
+      </article>
+
+      <article class="dec warn">
+        <div class="dec-head">
+          <span class="tag warn">à prévoir</span>
+          <h3>Permissions IAM</h3>
+        </div>
+        <p>
+          Lire : <code>codeartifact:GetAuthorizationToken</code>,
+          <code>GetRepositoryEndpoint</code>, <code>ReadFromRepository</code>.
+          Publier, en plus : <code>PublishPackageVersion</code>, <code>PutPackageMetadata</code>.
+        </p>
+        <p class="proof">
+          <b>Souvent oublié</b> — <code>sts:GetServiceBearerToken</code> est également requis, avec la
+          condition <code>sts:AWSServiceName = codeartifact.amazonaws.com</code>. Sans elle,
+          l'obtention du jeton échoue alors que les permissions CodeArtifact semblent complètes.
+        </p>
+      </article>
+
+      <article class="dec">
+        <div class="dec-head">
+          <span class="tag">à faire</span>
+          <h3>Renommer le paquet</h3>
+        </div>
+        <p>
+          <code>@gittestmag/izipush-sdk</code> porte le nom d'un compte GitHub de test. Le passage à
+          CodeArtifact est le bon moment pour adopter une portée qui vous appartient, par exemple
+          <code>@izichange/izipush-sdk</code>.
+        </p>
+        <p class="proof">
+          <b>Conséquence</b> — les imports changent dans izipay-pos et dans izinews, et la version
+          repart proprement. À faire en une fois, pas progressivement.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Ce que la proposition ne couvre pas</h2>
+      <p>Pour que vous sachiez ce qu'il reste à décider.</p>
+    </div>
+
+    <div class="tiers">
+      <article class="tier">
+        <span class="sub">à chiffrer</span>
+        <h3>Dimensionnement et coût</h3>
+        <p style="font-size:13.5px;color:var(--muted)">
+          Aucun prix ici : il dépend de la taille des instances DocumentDB, du volume d'envois et de la
+          rétention des journaux. À établir une fois le volume cible connu.
+        </p>
+      </article>
+
+      <article class="tier">
+        <span class="sub">à décider</span>
+        <h3>Reprise après incident</h3>
+        <p style="font-size:13.5px;color:var(--muted)">
+          Les instantanés DocumentDB et la restauration à un instant donné couvrent la base. Reste à
+          fixer la durée de rétention acceptable et si une seconde région est nécessaire.
+        </p>
+      </article>
+
+      <article class="tier">
+        <span class="sub">à préparer</span>
+        <h3>Migration des données</h3>
+        <p style="font-size:13.5px;color:var(--muted)">
+          Les index partiels et TTL doivent être recréés après import : <code>mongorestore</code> ne
+          restaure pas la base admin, et les rôles utilisateurs sont à refaire.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <footer>
+    <span>izipush — dérivé de Novu 3.18</span>
+    <span>Proposition, non déployée</span>
+    <span>Compatibilité vérifiée sur la documentation DocumentDB, septembre 2026</span>
+  </footer>
+
+</div>
+
+<script type="module">
+  /* Mermaid est charge explicitement : un fichier ouvert depuis le disque ne le rend pas tout seul. */
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+</script>
+
+</body>
+</html>

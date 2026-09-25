@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Modèle de données izipush</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    color-scheme: light;
+
+    --ground: #F1F3F1;
+    --surface: #FFFFFF;
+    --surface-sunk: #E9ECEA;
+    --ink: #151F1E;
+    --muted: #5B6A67;
+    --faint: #7E8C89;
+    --line: #D6DCD9;
+    --line-strong: #BEC7C3;
+
+    --accent: #0E6A60;
+    --accent-ink: #0B4F47;
+    --accent-soft: #E0EDEA;
+
+    --core: #6A5A7B;
+    --core-soft: #EDE8F1;
+
+    --warn: #8A5A1A;
+    --warn-soft: #F5ECDF;
+
+    --sans: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+    --r: 6px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+
+      --ground: #0F1514;
+      --surface: #17201F;
+      --surface-sunk: #121A19;
+      --ink: #E4EBE9;
+      --muted: #93A29F;
+      --faint: #7A8785;
+      --line: #283533;
+      --line-strong: #3A4A47;
+
+      --accent: #4ECCBA;
+      --accent-ink: #7FDECF;
+      --accent-soft: #123330;
+
+      --core: #BCA7D2;
+      --core-soft: #241D2C;
+
+      --warn: #D9A85F;
+      --warn-soft: #2C2415;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --ground: #0F1514;
+    --surface: #17201F;
+    --surface-sunk: #121A19;
+    --ink: #E4EBE9;
+    --muted: #93A29F;
+    --faint: #7A8785;
+    --line: #283533;
+    --line-strong: #3A4A47;
+
+    --accent: #4ECCBA;
+    --accent-ink: #7FDECF;
+    --accent-soft: #123330;
+
+    --core: #BCA7D2;
+    --core-soft: #241D2C;
+
+    --warn: #D9A85F;
+    --warn-soft: #2C2415;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 44px 72px;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  h1 { font-size: clamp(30px, 5.2vw, 46px); font-weight: 700; line-height: 1.1; }
+  h2 { font-size: clamp(20px, 3vw, 25px); font-weight: 600; }
+  h3 { font-size: 17px; font-weight: 600; }
+
+  p { margin: 0; }
+
+  code, .mono { font-family: var(--mono); font-size: 0.88em; }
+
+  /* ── En-tête ───────────────────────────────────────────────── */
+
+  header.top {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-bottom: 34px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .lede {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 62ch;
+  }
+
+  .counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    padding-top: 6px;
+  }
+
+  .count {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .count b {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .count span {
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+
+  /* ── Sections ──────────────────────────────────────────────── */
+
+  section { padding-top: 52px; }
+
+  .sec-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+
+  .sec-head p { color: var(--muted); max-width: 66ch; }
+
+  /* ── Le schéma ─────────────────────────────────────────────── */
+
+  .sheet {
+    background: #FBFCFB;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r);
+    padding: 18px 12px;
+    overflow-x: auto;
+  }
+
+  .sheet pre.mermaid {
+    margin: 0;
+    background: transparent;
+    min-width: 640px;
+    text-align: center;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+
+  .swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    border: 1px solid var(--line-strong);
+    flex: none;
+  }
+
+  /* ── Grille de collections ─────────────────────────────────── */
+
+  .group { margin-top: 34px; }
+
+  .group > h3 {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 14px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 15px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .card.core { border-left: 3px solid var(--core); }
+  .card.crm { border-left: 3px solid var(--accent); }
+
+  .card-name {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+  }
+
+  .card-role {
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .f {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--surface-sunk);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .f.key {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-weight: 500;
+  }
+
+  .note {
+    font-size: 12.5px;
+    color: var(--faint);
+    border-top: 1px dashed var(--line);
+    padding-top: 9px;
+    margin-top: 1px;
+    line-height: 1.5;
+  }
+
+  .note b { color: var(--muted); font-weight: 600; }
+
+  .ttl {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--warn-soft);
+    color: var(--warn);
+    align-self: flex-start;
+  }
+
+  /* ── Tableau des liens ─────────────────────────────────────── */
+
+  .tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: var(--surface);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 660px;
+    font-size: 13.5px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  th {
+    font-size: 11.5px;
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  td.m { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.k { font-family: var(--mono); font-size: 12.5px; color: var(--accent-ink); white-space: nowrap; }
+  td.d { color: var(--muted); }
+
+  /* ── Règles ────────────────────────────────────────────────── */
+
+  .rules {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+  }
+
+  .rule {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 16px 17px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .rule h3 { font-size: 15px; }
+  .rule p { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+  .rule code { background: var(--surface-sunk); padding: 1px 4px; border-radius: 3px; }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+  }
+
+  @media (max-width: 520px) {
+    .counts { gap: 10px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">izipush · MongoDB</span>
+    <h1>Modèle de données izipush</h1>
+    <p class="lede">
+      Le CRM ajoute quinze collections au schéma de Novu, sans en modifier aucune. Elles se rattachent au
+      cœur par des identifiants de chaîne — l'abonné, le message, l'intégration, le workflow — jamais par
+      une jointure : MongoDB n'en fait pas, et chaque service lit ce dont il a besoin.
+    </p>
+    <div class="counts">
+      <span class="count"><b>15</b><span>collections CRM</span></span>
+      <span class="count"><b>7</b><span>collections Novu rattachées</span></span>
+      <span class="count"><b>8</b><span>clés uniques</span></span>
+      <span class="count"><b>3</b><span>expirations automatiques</span></span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>Le schéma relationnel</h2>
+      <p>
+        Les liens porteurs de sens. Le cloisonnement par environnement n'est pas dessiné : il vaut pour
+        <em>toutes</em> les collections sans exception, et l'ajouter reviendrait à relier chaque boîte au
+        même nœud.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+erDiagram
+  subscribers      ||--o| crm_profile_state  : "horodatage par champ"
+  subscribers      ||--o{ crm_events         : "subscriberId"
+  subscribers      ||--o{ crm_activity_daily : "subscriberId"
+  subscribers      ||--o{ messages           : "_subscriberId"
+
+  crm_products     ||--o{ crm_events         : "productId"
+  crm_products     ||--o{ crm_activity_daily : "productId"
+  crm_products     ||--o{ crm_campaigns      : "productId"
+
+  crm_events       ||--o{ crm_activity_daily : "derivation"
+
+  crm_segments     ||--o{ crm_campaigns      : "segmentId"
+  crm_segments     ||--o| topics             : "segment_id"
+  crm_campaigns    ||--o{ crm_campaign_runs  : "campaignId"
+  crm_campaigns    }o--|| notificationtemplates : "workflowKey"
+  crm_campaign_runs ||--o| topics            : "campaign_id_runId"
+  crm_campaign_runs ||--o{ messages          : "transactionId"
+
+  messages         ||--o| crm_engagement     : "_messageId"
+  messages         }o--|| jobs               : "_jobId"
+  jobs             ||--o{ executiondetails   : "_jobId"
+
+  integrations     ||--o| crm_email_providers : "_integrationId"
+  integrations     ||--o{ crm_provider_usage  : "_integrationId"
+
+  crm_events {
+    string eventId UK
+    string subscriberId FK
+    string eventName
+    string productId FK
+    string day
+    date   derivedAt
+  }
+  crm_activity_daily {
+    string subscriberId UK
+    string day UK
+    string productId UK
+    int    tx
+    float  volUsd
+    int    txFailed
+  }
+  crm_campaign_runs {
+    string campaignId UK
+    date   scheduledFor UK
+    string status
+    string topicKey
+    int    audienceSize
+  }
+  crm_profile_state {
+    string subscriberId UK
+    object fieldsAt
+  }
+  crm_engagement {
+    string _messageId UK
+    date   openedAt
+    date   clickedAt
+  }
+</pre>
+    </div>
+
+    <div class="legend">
+      <span><i class="swatch" style="background:#0E6A60"></i> collection izipush-crm</span>
+      <span><i class="swatch" style="background:#6A5A7B"></i> collection du cœur Novu</span>
+      <span><b class="mono">UK</b> clé unique composite</span>
+      <span><b class="mono">FK</b> référence par identifiant de chaîne</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Ingestion</h2>
+      <p>Ce qu'Izichange envoie, tel qu'il arrive. Source de vérité de tous les recalculs.</p>
+    </div>
+
+    <div class="cards">
+      <article class="card crm">
+        <span class="card-name">crm_events</span>
+        <p class="card-role">
+          Un événement métier reçu d'Izichange, journalisé avant toute interprétation. Sept noms
+          d'événements sont acceptés : inscription, mise à jour de profil, changement d'email, connexion,
+          validation KYC, transaction, activation de produit.
+        </p>
+        <div class="fields">
+          <span class="f key">_environmentId + eventId</span><span class="f">subscriberId</span><span class="f">eventName</span><span class="f">occurredAt</span><span class="f">source</span><span class="f">data</span><span class="f">day</span><span class="f">productId</span><span class="f">derivedAt</span>
+        </div>
+        <span class="ttl">expire après 180 jours</span>
+        <p class="note">
+          <b>Dédoublonnage</b> par <code>eventId</code> : un même événement rejoué ne compte qu'une fois.
+          <code>derivedAt</code> reste nul tant que l'événement n'a pas été pris en compte — c'est la file
+          d'attente du calcul.
+        </p>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_dead_letters</span>
+        <p class="card-role">
+          Les messages qu'on n'a pas su lire : enveloppe invalide, nom d'événement inconnu, abonné
+          introuvable. Gardés pour être examinés, pas pour être rejoués automatiquement.
+        </p>
+        <div class="fields"><span class="f">at</span><span class="f">reason</span><span class="f">raw</span></div>
+        <span class="ttl">expire après 30 jours</span>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_ingest_daily</span>
+        <p class="card-role">
+          Compteur par jour et par nom d'événement. Répond à « combien Izichange nous a-t-il envoyé
+          hier ? » sans balayer la collection d'événements.
+        </p>
+        <div class="fields"><span class="f key">day + eventName</span><span class="f">count</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Profil et activité</h2>
+      <p>
+        Ce que les événements deviennent. Les attributs segmentables vivent sur l'abonné Novu lui-même,
+        pas dans une collection à part : c'est ce qui permet de filtrer sans jointure.
+      </p>
+    </div>
+
+    <div class="cards">
+      <article class="card crm">
+        <span class="card-name">crm_activity_daily</span>
+        <p class="card-role">
+          Une ligne par client, par jour et par produit. L'agrégat sur lequel reposent les segments
+          volumétriques et la fiche produit.
+        </p>
+        <div class="fields">
+          <span class="f key">_environmentId + subscriberId + day + productId</span><span class="f">tx</span><span class="f">volUsd</span><span class="f">txFailed</span><span class="f">base</span><span class="f">journal</span>
+        </div>
+        <p class="note">
+          <b>Produit obligatoire dans la clé.</b> Une transaction sans produit est rangée sous
+          <code>unknown</code>, traité comme un produit du catalogue — sinon la clé serait incomplète et
+          les lignes fusionneraient à tort.
+        </p>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_profile_state</span>
+        <p class="card-role">
+          Date de dernière écriture de chaque champ du profil. Sans elle, un événement arrivé en retard
+          écraserait une valeur plus récente.
+        </p>
+        <div class="fields"><span class="f key">_environmentId + subscriberId</span><span class="f">fieldsAt</span></div>
+        <p class="note">
+          Un document par abonné, en miroir. <code>fieldsAt</code> associe un nom de champ à sa date.
+        </p>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_products</span>
+        <p class="card-role">
+          Catalogue des produits. Un client est lié à un produit dès sa première transaction dessus — le
+          lien n'est jamais déclaré, il est constaté.
+        </p>
+        <div class="fields">
+          <span class="f key">_environmentId + productId</span><span class="f">name</span><span class="f">active</span><span class="f">unnamed</span>
+        </div>
+        <p class="note">
+          <code>unnamed</code> marque un produit créé automatiquement à la réception d'un
+          <code>productId</code> inconnu : il fonctionne, il attend juste un nom.
+        </p>
+      </article>
+
+      <article class="card core">
+        <span class="card-name">subscribers <span style="color:var(--core)">· Novu</span></span>
+        <p class="card-role">
+          Le client. Le CRM y dépose ses attributs segmentables sous <code>data</code>, aux côtés des
+          champs natifs de Novu.
+        </p>
+        <div class="fields">
+          <span class="f">country_code</span><span class="f">kyc_status</span><span class="f">lifetime_tx</span><span class="f">lifetime_vol_usd</span><span class="f">products</span><span class="f">product_count</span><span class="f">first_tx_at</span><span class="f">last_tx_at</span><span class="f">last_login_at</span><span class="f">marketing_optin</span>
+        </div>
+        <p class="note">
+          Porte aussi <code>channels[].credentials.deviceTokens</code> — les jetons de notification, un
+          par appareil.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Ciblage et campagnes</h2>
+      <p>
+        Un segment dit <em>qui</em>, une campagne dit <em>quand</em>, le workflow Novu dit <em>quoi</em>.
+        Les trois restent séparés.
+      </p>
+    </div>
+
+    <div class="cards">
+      <article class="card crm">
+        <span class="card-name">crm_segments</span>
+        <p class="card-role">
+          Une audience, décrite par un arbre de conditions sur les attributs du profil. Figée ou
+          recalculée à chaque exécution, au choix.
+        </p>
+        <div class="fields">
+          <span class="f key">_environmentId + name</span><span class="f">audience</span><span class="f">frozen</span><span class="f">status</span><span class="f">memberCount</span><span class="f">topicKey</span><span class="f">lockedUntil</span>
+        </div>
+        <p class="note">
+          <b>Figé</b> : la liste est photographiée dans un topic <code>segment:{id}</code>.
+          <code>lockedUntil</code> est le verrou qui empêche deux exécutions simultanées.
+        </p>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_campaigns</span>
+        <p class="card-role">
+          L'association d'un segment, d'un workflow et d'une planification. Quatre modes : immédiat,
+          daté, récurrent, déclenché par événement.
+        </p>
+        <div class="fields">
+          <span class="f key">_environmentId + name</span><span class="f">segmentId</span><span class="f">workflowKey</span><span class="f">productId</span><span class="f">excludeProductUsers</span><span class="f">schedule</span><span class="f">status</span><span class="f">nextRunAt</span>
+        </div>
+        <p class="note">
+          <b>Recrutement</b> : avec <code>excludeProductUsers</code>, les clients déjà liés au produit
+          promu sont écartés du ciblage.
+        </p>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_campaign_runs</span>
+        <p class="card-role">
+          Une exécution — « la campagne lancée le 14 à 9 h ». Porte l'audience réellement visée et les
+          résultats d'envoi.
+        </p>
+        <div class="fields">
+          <span class="f key">campaignId + scheduledFor</span><span class="f">status</span><span class="f">audienceSize</span><span class="f">excludedCount</span><span class="f">topicKey</span><span class="f">transactionId</span><span class="f">stats</span>
+        </div>
+        <p class="note">
+          La clé unique <b>interdit le double lancement</b> d'une même échéance. Le topic est purgé
+          30 jours après, les statistiques figées 48 h après.
+        </p>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_email_templates</span>
+        <p class="card-role">
+          Les modèles d'email du CRM, versionnés, avec leur structure d'édition et le HTML compilé.
+        </p>
+        <div class="fields">
+          <span class="f key">_environmentId + name</span><span class="f">subject</span><span class="f">design</span><span class="f">html</span><span class="f">version</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Délivrabilité</h2>
+      <p>Quel fournisseur d'email utiliser, dans quel ordre, et dans quelles limites.</p>
+    </div>
+
+    <div class="cards">
+      <article class="card crm">
+        <span class="card-name">crm_email_providers</span>
+        <p class="card-role">
+          Rattache une intégration Novu au routage du CRM : rang de priorité et quotas propres.
+        </p>
+        <div class="fields">
+          <span class="f key">_integrationId</span><span class="f">routingEnabled</span><span class="f">order</span><span class="f">perMinute</span><span class="f">perHour</span><span class="f">perDay</span>
+        </div>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_provider_usage</span>
+        <p class="card-role">
+          Consommation quotidienne par fournisseur. Ce qui fait basculer sur le suivant quand un quota
+          est atteint.
+        </p>
+        <div class="fields">
+          <span class="f key">_environmentId + day + _integrationId</span><span class="f">sent</span><span class="f">failed</span><span class="f">bounced</span><span class="f">complaints</span><span class="f">postponed</span>
+        </div>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_engagement</span>
+        <p class="card-role">
+          Ouvertures et clics d'un message de campagne : pixel et liens réécrits pour l'email, appui sur
+          la notification pour le push.
+        </p>
+        <div class="fields">
+          <span class="f key">_environmentId + _messageId</span><span class="f">openedAt</span><span class="f">clickedAt</span><span class="f">channel</span><span class="f">transactionId</span>
+        </div>
+        <span class="ttl">expire après 400 jours</span>
+        <p class="note">
+          Un document par message, jamais deux. Un clic vaut ouverture ; la première date gagne.
+        </p>
+      </article>
+
+      <article class="card core">
+        <span class="card-name">messages <span style="color:var(--core)">· Novu</span></span>
+        <p class="card-role">
+          Un message envoyé, un par destinataire et par jeton d'appareil. C'est lui qui porte le retour
+          d'information du push.
+        </p>
+        <div class="fields">
+          <span class="f">deliveredAt</span><span class="f">seen</span><span class="f">read</span><span class="f">status</span><span class="f">channel</span><span class="f">transactionId</span><span class="f">payload.__crm</span>
+        </div>
+        <p class="note">
+          <code>payload.__crm</code> distingue un message de campagne d'un message ordinaire : les
+          rapports du CRM ne comptent que les premiers.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Exploitation</h2>
+      <p>Ce qui sert à piloter le service, pas à le faire fonctionner.</p>
+    </div>
+
+    <div class="cards">
+      <article class="card crm">
+        <span class="card-name">crm_ops_commands</span>
+        <p class="card-role">
+          Commandes d'administration déposées depuis le tableau de bord et exécutées par le service
+          d'ingestion : recalcul, purge, reprise.
+        </p>
+        <div class="fields"><span class="f">command</span><span class="f">status</span><span class="f">requestedAt</span><span class="f">result</span></div>
+      </article>
+
+      <article class="card crm">
+        <span class="card-name">crm_service_status</span>
+        <p class="card-role">
+          Battement de cœur du service d'ingestion : ce qu'il a traité, quand, et s'il est en retard.
+        </p>
+        <div class="fields"><span class="f">service</span><span class="f">at</span><span class="f">lag</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Points de rattachement au cœur Novu</h2>
+      <p>
+        Aucune collection de Novu n'est modifiée. Le CRM y écrit par les chemins publics et s'y réfère
+        par identifiant.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Collection Novu</th>
+            <th>Référencée par</th>
+            <th>Clé</th>
+            <th>Ce que le CRM y fait</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">subscribers</td>
+            <td class="m">crm_events, crm_activity_daily, crm_profile_state</td>
+            <td class="k">subscriberId</td>
+            <td class="d">Écrit les attributs segmentables sous <code>data</code>, jamais ailleurs.</td>
+          </tr>
+          <tr>
+            <td class="m">messages</td>
+            <td class="m">crm_engagement</td>
+            <td class="k">_messageId</td>
+            <td class="d">Pose <code>deliveredAt</code>, <code>seen</code> et <code>read</code> à la remise et à l'ouverture d'un push.</td>
+          </tr>
+          <tr>
+            <td class="m">jobs</td>
+            <td class="m">messages</td>
+            <td class="k">_jobId</td>
+            <td class="d">Lu seulement : sert à rattacher une ligne au journal d'activité.</td>
+          </tr>
+          <tr>
+            <td class="m">executiondetails</td>
+            <td class="m">jobs</td>
+            <td class="k">_jobId</td>
+            <td class="d">Ajoute les lignes <code>Message delivered</code> et <code>Message seen</code>, en source <code>Webhook</code>.</td>
+          </tr>
+          <tr>
+            <td class="m">notificationtemplates</td>
+            <td class="m">crm_campaigns</td>
+            <td class="k">workflowKey</td>
+            <td class="d">Déclenche le workflow ; le contenu du message reste défini dans Novu.</td>
+          </tr>
+          <tr>
+            <td class="m">topics</td>
+            <td class="m">crm_segments, crm_campaign_runs</td>
+            <td class="k">topicKey</td>
+            <td class="d">Photographie une audience : <code>segment:{id}</code> ou <code>campaign:{id}:{runId}</code>.</td>
+          </tr>
+          <tr>
+            <td class="m">integrations</td>
+            <td class="m">crm_email_providers, crm_provider_usage</td>
+            <td class="k">_integrationId</td>
+            <td class="d">Ajoute priorité et quotas sans toucher aux identifiants du fournisseur.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Conventions</h2>
+      <p>Vraies pour toutes les collections, et donc absentes du schéma pour ne pas l'encombrer.</p>
+    </div>
+
+    <div class="rules">
+      <article class="rule">
+        <h3>Cloisonnement par environnement</h3>
+        <p>
+          Chaque document porte <code>_environmentId</code> et <code>_organizationId</code>, et ces
+          champs ouvrent chaque index. Deux environnements ne se voient jamais — c'est ce qui sépare le
+          bac à sable de la production sur la même base.
+        </p>
+      </article>
+
+      <article class="rule">
+        <h3>Références par chaîne, pas par jointure</h3>
+        <p>
+          <code>subscriberId</code>, <code>productId</code>, <code>workflowKey</code> sont les
+          identifiants métier, pas des <code>ObjectId</code>. Ils restent lisibles dans une requête et
+          survivent à une réimportation.
+        </p>
+      </article>
+
+      <article class="rule">
+        <h3>Expirations automatiques</h3>
+        <p>
+          Trois collections se purgent seules : les événements à 180 jours, les engagements à 400 jours,
+          les messages illisibles à 30 jours. Aucune tâche de ménage à écrire.
+        </p>
+      </article>
+
+      <article class="rule">
+        <h3>Verrous par échéance</h3>
+        <p>
+          <code>lockedUntil</code> sur les segments et les exécutions empêche deux instances du service
+          d'ingestion de traiter la même chose. La clé unique
+          <code>campaignId + scheduledFor</code> fait le reste.
+        </p>
+      </article>
+
+      <article class="rule">
+        <h3>Journal et base</h3>
+        <p>
+          Les lignes d'activité gardent <code>base</code> et <code>journal</code> séparés : ce qui vient
+          d'un recalcul complet, et ce qui s'accumule événement par événement. Les deux se comparent.
+        </p>
+      </article>
+
+      <article class="rule">
+        <h3>Le produit <code>unknown</code></h3>
+        <p>
+          Un événement sans <code>productId</code> n'est pas rejeté : il est rangé sous
+          <code>unknown</code>, un produit du catalogue comme un autre, renommable plus tard.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <footer>
+    <span>izipush — dérivé de Novu 3.18</span>
+    <span>MongoDB · 15 collections <span class="mono">crm_*</span></span>
+    <span>Relevé depuis <span class="mono">libs/dal/src/repositories/crm</span></span>
+  </footer>
+
+</div>
+
+<script type="module">
+  /* Les Artifacts rendent Mermaid nativement ; un fichier ouvert depuis le disque, non.
+     On le charge donc explicitement, en version epinglee. */
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+</script>
+</body>
+</html>
