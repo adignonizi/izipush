@@ -5,6 +5,7 @@
 #   · nombre de processus PM2 borné (voir PM2_INSTANCES plus bas) ;
 #   · limites de mémoire déclarées, pour qu'un service emballé n'emporte pas les autres ;
 #   · courtier RabbitMQ optionnel, sous profil — inutile si Izichange fournit le sien ;
+#   · pas d'izinews : c'est un compagnon de test, il n'a rien a faire en production ;
 #   · aucun port publié hors du routeur.
 #
 # Le registre d'images est écrit en clair dans les six lignes `image:` ci-dessous,
@@ -312,39 +313,6 @@ services:
         limits: { memory: 256M }
     logging: *logging
 
-  izinews:
-    image: REGISTRE_A_DEFINIR/izinews:${IMAGE_TAG:-latest}
-    container_name: izinews
-    restart: unless-stopped
-    depends_on:
-      api: { condition: service_healthy }
-    environment:
-      PORT: 8080
-      DATA_DIR: /data
-      NOVU_API_URL: http://api:${API_PORT:-3000}/${API_CONTEXT_PATH:-}
-      NOVU_API_KEY: ${IZINEWS_NOVU_API_KEY}
-      NOVU_WORKFLOW: ${IZINEWS_WORKFLOW:-izinews-alert}
-      IZIPUSH_PUBLIC_API: ${CRM_PUBLIC_API_URL}
-      VAPID_KEY: ${IZINEWS_VAPID_KEY}
-      FB_API_KEY: ${FB_API_KEY}
-      FB_AUTH_DOMAIN: ${FB_AUTH_DOMAIN}
-      FB_PROJECT_ID: ${FB_PROJECT_ID}
-      FB_STORAGE_BUCKET: ${FB_STORAGE_BUCKET}
-      FB_SENDER_ID: ${FB_SENDER_ID}
-      FB_APP_ID: ${FB_APP_ID}
-    volumes:
-      - izinews:/data
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/api/config || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-    deploy:
-      resources:
-        limits: { memory: 256M }
-    logging: *logging
-
   # ── Entrée ─────────────────────────────────────────────────────────────────
 
   # Seul service à publier un port. Derrière un ALB ou un proxy, il reçoit le
@@ -357,7 +325,6 @@ services:
       - api
       - ws
       - dashboard
-      - izinews
     volumes:
       - ./router.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
@@ -376,4 +343,3 @@ volumes:
   mongodb:
   redis:
   rabbitmq:
-  izinews:
