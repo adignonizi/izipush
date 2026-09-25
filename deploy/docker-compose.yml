@@ -118,8 +118,11 @@ services:
     container_name: rabbitmq
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      # Valeurs par défaut assumées : ce courtier ne publie aucun port et n'est
+      # joignable que depuis le réseau interne du compose. À changer si vous
+      # l'exposez, ce que rien ici ne fait.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-izipush}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-izipush-local}
     volumes:
       - rabbitmq:/var/lib/rabbitmq
     healthcheck:
@@ -135,7 +138,7 @@ services:
   # ── Services applicatifs ───────────────────────────────────────────────────
 
   api:
-    image: ${IMAGE_REGISTRY}/izipush-api:${IMAGE_TAG}
+    image: ${IMAGE_REGISTRY}/izipush-api:${IMAGE_TAG:-latest}
     container_name: api
     restart: unless-stopped
     depends_on:
@@ -179,7 +182,7 @@ services:
     logging: *logging
 
   worker:
-    image: ${IMAGE_REGISTRY}/izipush-worker:${IMAGE_TAG}
+    image: ${IMAGE_REGISTRY}/izipush-worker:${IMAGE_TAG:-latest}
     container_name: worker
     restart: unless-stopped
     depends_on:
@@ -216,7 +219,7 @@ services:
     logging: *logging
 
   ws:
-    image: ${IMAGE_REGISTRY}/izipush-ws:${IMAGE_TAG}
+    image: ${IMAGE_REGISTRY}/izipush-ws:${IMAGE_TAG:-latest}
     container_name: ws
     restart: unless-stopped
     depends_on:
@@ -243,7 +246,7 @@ services:
   # izipush-crm — consomme les événements d'Izichange, dérive les profils,
   # exécute segments et campagnes.
   crm-ingest:
-    image: ${IMAGE_REGISTRY}/izipush-crm-ingest:${IMAGE_TAG}
+    image: ${IMAGE_REGISTRY}/izipush-crm-ingest:${IMAGE_TAG:-latest}
     container_name: crm-ingest
     restart: unless-stopped
     depends_on:
@@ -285,7 +288,7 @@ services:
     logging: *logging
 
   dashboard:
-    image: ${IMAGE_REGISTRY}/izipush-dashboard:${IMAGE_TAG}
+    image: ${IMAGE_REGISTRY}/izipush-dashboard:${IMAGE_TAG:-latest}
     container_name: dashboard
     restart: unless-stopped
     depends_on:
@@ -304,7 +307,7 @@ services:
     logging: *logging
 
   izinews:
-    image: ${IMAGE_REGISTRY}/izinews:${IMAGE_TAG}
+    image: ${IMAGE_REGISTRY}/izinews:${IMAGE_TAG:-latest}
     container_name: izinews
     restart: unless-stopped
     depends_on:
