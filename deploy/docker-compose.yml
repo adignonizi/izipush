@@ -7,6 +7,12 @@
 #   · courtier RabbitMQ optionnel, sous profil — inutile si Izichange fournit le sien ;
 #   · aucun port publié hors du routeur.
 #
+# Le registre d'images est écrit en clair dans les six lignes `image:` ci-dessous,
+# et non tiré du .env : il ne change qu'au changement de compte AWS. Pour le
+# définir d'un coup :
+#
+#   sed -i 's|REGISTRE_A_DEFINIR|123456789012.dkr.ecr.eu-west-3.amazonaws.com|g' docker-compose.yml
+#
 #   docker compose --env-file .env up -d
 #
 # Le courtier local, si besoin :
@@ -138,7 +144,7 @@ services:
   # ── Services applicatifs ───────────────────────────────────────────────────
 
   api:
-    image: ${IMAGE_REGISTRY}/izipush-api:${IMAGE_TAG:-latest}
+    image: REGISTRE_A_DEFINIR/izipush-api:${IMAGE_TAG:-latest}
     container_name: api
     restart: unless-stopped
     depends_on:
@@ -182,7 +188,7 @@ services:
     logging: *logging
 
   worker:
-    image: ${IMAGE_REGISTRY}/izipush-worker:${IMAGE_TAG:-latest}
+    image: REGISTRE_A_DEFINIR/izipush-worker:${IMAGE_TAG:-latest}
     container_name: worker
     restart: unless-stopped
     depends_on:
@@ -219,7 +225,7 @@ services:
     logging: *logging
 
   ws:
-    image: ${IMAGE_REGISTRY}/izipush-ws:${IMAGE_TAG:-latest}
+    image: REGISTRE_A_DEFINIR/izipush-ws:${IMAGE_TAG:-latest}
     container_name: ws
     restart: unless-stopped
     depends_on:
@@ -246,7 +252,7 @@ services:
   # izipush-crm — consomme les événements d'Izichange, dérive les profils,
   # exécute segments et campagnes.
   crm-ingest:
-    image: ${IMAGE_REGISTRY}/izipush-crm-ingest:${IMAGE_TAG:-latest}
+    image: REGISTRE_A_DEFINIR/izipush-crm-ingest:${IMAGE_TAG:-latest}
     container_name: crm-ingest
     restart: unless-stopped
     depends_on:
@@ -288,7 +294,7 @@ services:
     logging: *logging
 
   dashboard:
-    image: ${IMAGE_REGISTRY}/izipush-dashboard:${IMAGE_TAG:-latest}
+    image: REGISTRE_A_DEFINIR/izipush-dashboard:${IMAGE_TAG:-latest}
     container_name: dashboard
     restart: unless-stopped
     depends_on:
@@ -307,7 +313,7 @@ services:
     logging: *logging
 
   izinews:
-    image: ${IMAGE_REGISTRY}/izinews:${IMAGE_TAG:-latest}
+    image: REGISTRE_A_DEFINIR/izinews:${IMAGE_TAG:-latest}
     container_name: izinews
     restart: unless-stopped
     depends_on:
