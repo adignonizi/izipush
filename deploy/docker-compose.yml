@@ -42,8 +42,10 @@ x-datastores: &datastores
   REDIS_HOST: ${REDIS_HOST:-redis}
   REDIS_PORT: ${REDIS_PORT:-6379}
   REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-  REDIS_CACHE_SERVICE_HOST: ${REDIS_CACHE_SERVICE_HOST:-redis}
-  REDIS_CACHE_SERVICE_PORT: ${REDIS_CACHE_SERVICE_PORT:-6379}
+  # Pas de REDIS_CACHE_SERVICE_* : en auto-hébergé non entreprise, le sélecteur
+  # de cache retombe sur le fournisseur REDIS, qui lit REDIS_HOST/REDIS_PORT.
+  # Cache et files partagent donc le même Redis, et ces variables ne sont lues
+  # par aucun chemin du code.
 
 x-storage: &storage
   S3_LOCAL_STACK: ${S3_LOCAL_STACK:-}
