@@ -16,6 +16,7 @@ import { HealthController } from './health/health.controller';
 import { IngestCounters } from './health/ingest-counters.service';
 import { StatusReporter } from './health/status-reporter.service';
 import { IngestService } from './pipeline/ingest.service';
+import { TenantResolver } from './pipeline/tenant.resolver';
 import { SharedModule } from './shared/shared.module';
 import { DeadLetterController } from './sources/dead-letter.controller';
 import { KeycloakWebhookController } from './sources/keycloak-webhook.controller';
@@ -26,6 +27,7 @@ import { RabbitMqConsumer } from './sources/rabbitmq.consumer';
   controllers: [KeycloakWebhookController, DeadLetterController, HealthController],
   providers: [
     IngestService,
+    TenantResolver,
     DeriveService,
     DeriveQueue,
     RabbitMqConsumer,

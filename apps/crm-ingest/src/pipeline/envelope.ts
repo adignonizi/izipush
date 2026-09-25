@@ -27,5 +27,10 @@ export type CrmEnvelope = {
   source: CrmEventSource;
   /** Code produit de l'enveloppe Izichange, pour les événements qui en portent un. */
   productCode?: string;
+  /**
+   * Identifiant public de l'environnement Novu visé (Settings > API Keys).
+   * Absent : l'événement est rangé dans l'environnement configuré.
+   */
+  applicationId?: string;
   data: Record<string, unknown>;
 };

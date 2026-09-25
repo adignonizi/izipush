@@ -11,6 +11,7 @@ import {
   SubscriberRepository,
 } from '@novu/dal';
 
+import { CrmTenant, currentTenant, runInTenant } from '../pipeline/tenant';
 import { OnEventCampaigns } from '../campaigns/on-event-campaigns.service';
 import { computeProfileUpdate, computeTransactionFacts, zeroActivityDefaults } from './profile-rules';
 
@@ -36,13 +37,24 @@ export class DeriveService {
     private onEvent: OnEventCampaigns
   ) {}
 
-  async process(subscriberId: string): Promise<void> {
-    for (let batch = 0; batch < MAX_BATCHES_PER_JOB; batch++) {
-      const pending = await this.events.findPending(this.environmentId, subscriberId, BATCH_SIZE);
-      if (!pending.length) return;
+  /**
+   * Recalcule le profil d'un client à partir de ses événements en attente.
+   *
+   * Le locataire est posé pour toute la durée du traitement : les dix-sept
+   * lectures d'environnement qui suivent, y compris dans les méthodes privées
+   * et les campagnes déclenchées, le liront depuis ce contexte. Sans lui,
+   * elles retomberaient sur la configuration et rangeraient le résultat dans
+   * le mauvais environnement.
+   */
+  async process(subscriberId: string, tenant: CrmTenant = currentTenant()): Promise<void> {
+    await runInTenant(tenant, async () => {
+      for (let batch = 0; batch < MAX_BATCHES_PER_JOB; batch++) {
+        const pending = await this.events.findPending(this.environmentId, subscriberId, BATCH_SIZE);
+        if (!pending.length) return;
 
-      await this.applyBatch(subscriberId, pending);
-    }
+        await this.applyBatch(subscriberId, pending);
+      }
+    });
   }
 
   private async applyBatch(subscriberId: string, pending: CrmEventEntity[]): Promise<void> {
@@ -149,11 +161,11 @@ export class DeriveService {
   }
 
   private get environmentId(): string {
-    return process.env.CRM_ENVIRONMENT_ID;
+    return currentTenant().environmentId;
   }
 
   private get organizationId(): string {
-    return process.env.CRM_ORGANIZATION_ID;
+    return currentTenant().organizationId;
   }
 }
 

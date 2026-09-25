@@ -4,6 +4,7 @@ import { CrmEventRepository } from '@novu/dal';
 import { Job, Queue, Worker } from 'bullmq';
 
 import { redisConnection } from '../shared/redis-connection';
+import { CrmTenant, currentTenant } from '../pipeline/tenant';
 import { DeriveService } from './derive.service';
 
 const QUEUE_NAME = 'crm-derive';
@@ -11,7 +12,17 @@ const SWEEP_JOB_ID = 'crm-derive-sweep';
 const SWEEP_EVERY_MS = 60_000;
 const SWEEP_BATCH = 1000;
 
-type DeriveJobData = { subscriberId: string };
+/**
+ * Le locataire voyage AVEC la tâche.
+ *
+ * Il ne peut pas être relu de la configuration au moment du traitement : depuis
+ * que l'enveloppe peut porter un `application_id`, deux tâches de la file
+ * peuvent appartenir à deux environnements différents.
+ *
+ * Facultatif, pour que les tâches déjà en file au moment du déploiement
+ * restent traitables : `currentTenant()` retombera alors sur la configuration.
+ */
+type DeriveJobData = { subscriberId: string; tenant?: CrmTenant };
 
 /**
  * File BullMQ du recalcul client. Un seul job par client à la fois (jobId dérivé du client) :
@@ -58,9 +69,9 @@ export class DeriveQueue implements OnModuleInit, OnModuleDestroy {
     await this.queue?.close();
   }
 
-  async enqueue(subscriberId: string): Promise<void> {
-    await this.queue.add('derive', { subscriberId } satisfies DeriveJobData, {
-      jobId: jobIdFor(subscriberId),
+  async enqueue(subscriberId: string, tenant: CrmTenant = currentTenant()): Promise<void> {
+    await this.queue.add('derive', { subscriberId, tenant } satisfies DeriveJobData, {
+      jobId: jobIdFor(subscriberId, tenant),
       attempts: 5,
       backoff: { type: 'exponential', delay: 2000 },
       removeOnComplete: true,
@@ -75,23 +86,31 @@ export class DeriveQueue implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    await this.derive.process((job.data as DeriveJobData).subscriberId);
+    const { subscriberId, tenant } = job.data as DeriveJobData;
+    await this.derive.process(subscriberId, tenant ?? currentTenant());
   }
 
   private async sweep(): Promise<void> {
     const olderThan = new Date(Date.now() - SWEEP_EVERY_MS);
     const pending = await this.events.findSubscribersWithPending(olderThan, SWEEP_BATCH);
-    const ours = pending.filter((row) => row.environmentId === process.env.CRM_ENVIRONMENT_ID);
 
-    for (const { subscriberId } of ours) await this.enqueue(subscriberId);
+    // Plus de filtre sur l'environnement configuré : le balayage remet en file
+    // TOUT ce qui traîne, chaque ligne avec le sien. Filtrer laisserait les
+    // événements des autres environnements en attente indéfiniment.
+    for (const row of pending) {
+      await this.enqueue(row.subscriberId, {
+        environmentId: String(row.environmentId),
+        organizationId: String(row.organizationId),
+      });
+    }
 
-    if (ours.length) this.logger.log(`Balayage : ${ours.length} client(s) remis en recalcul`);
+    if (pending.length) this.logger.log(`Balayage : ${pending.length} client(s) remis en recalcul`);
   }
 }
 
 /** BullMQ refuse certains caractères dans un jobId : on utilise une empreinte du client. */
-function jobIdFor(subscriberId: string): string {
-  const digest = createHash('sha1').update(`${process.env.CRM_ENVIRONMENT_ID}|${subscriberId}`).digest('hex');
+function jobIdFor(subscriberId: string, tenant: CrmTenant): string {
+  const digest = createHash('sha1').update(`${tenant.environmentId}|${subscriberId}`).digest('hex');
 
   return `sub-${digest}`;
 }

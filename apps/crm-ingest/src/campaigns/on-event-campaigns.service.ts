@@ -9,6 +9,7 @@ import {
   CrmSegmentRepository,
 } from '@novu/dal';
 
+import { currentTenant } from '../pipeline/tenant';
 import { CrmPermanentError, NovuTriggerClient } from './novu-trigger.client';
 import { segmentTopicKey } from './segment-freezer.service';
 import { TopicWriter } from './topic-writer.service';
@@ -42,7 +43,7 @@ export class OnEventCampaigns {
     );
     if (!recent.length) return;
 
-    const environmentId = process.env.CRM_ENVIRONMENT_ID;
+    const environmentId = currentTenant().environmentId;
     const eventNames = [...new Set(recent.map((event) => event.eventName))];
 
     for (const campaign of await this.campaigns.findOnEvent(environmentId, eventNames)) {

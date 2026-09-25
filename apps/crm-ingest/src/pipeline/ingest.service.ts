@@ -4,6 +4,7 @@ import { CrmEventRepository } from '@novu/dal';
 import { DeriveQueue } from '../derive/derive.queue';
 import { IngestCounters } from '../health/ingest-counters.service';
 import { CrmEnvelope, carriesProduct, isSupportedEvent, isTransactionEvent } from './envelope';
+import { TenantResolver } from './tenant.resolver';
 import { activityDay, activityProductId, validateEventData } from './validation';
 
 export type IngestOutcome = 'accepted' | 'duplicate' | 'ignored';
@@ -13,7 +14,8 @@ export class IngestService {
   constructor(
     private events: CrmEventRepository,
     private deriveQueue: DeriveQueue,
-    private counters: IngestCounters
+    private counters: IngestCounters,
+    private tenants: TenantResolver
   ) {}
 
   /**
@@ -27,6 +29,10 @@ export class IngestService {
       return 'ignored';
     }
 
+    // Résolu AVANT toute écriture : un application_id inconnu lève, et l'événement
+    // part en file d'erreurs plutôt que d'être rangé au mauvais endroit.
+    const tenant = await this.tenants.resolve(envelope.applicationId);
+
     // Données invalides : CrmValidationError, compté comme rejet par la source (file d'erreurs RabbitMQ).
     const data = validateEventData(envelope.eventName, envelope.data);
     // Le produit vient de l'enveloppe, pas du payload : une seule place où le chercher, quelle que soit la source.
@@ -38,8 +44,8 @@ export class IngestService {
         : {};
 
     const inserted = await this.events.insertIfNew({
-      _environmentId: process.env.CRM_ENVIRONMENT_ID,
-      _organizationId: process.env.CRM_ORGANIZATION_ID,
+      _environmentId: tenant.environmentId,
+      _organizationId: tenant.organizationId,
       eventId: envelope.eventId,
       eventName: envelope.eventName,
       subscriberId: envelope.userId,
@@ -51,7 +57,7 @@ export class IngestService {
     });
 
     // Même pour un doublon : si le premier passage a échoué avant la mise en file, l'événement attend encore.
-    await this.deriveQueue.enqueue(envelope.userId);
+    await this.deriveQueue.enqueue(envelope.userId, tenant);
 
     const outcome = inserted ? 'accepted' : 'duplicate';
     this.counters.add(outcome, envelope.eventName);

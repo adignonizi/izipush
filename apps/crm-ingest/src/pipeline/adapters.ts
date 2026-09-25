@@ -74,6 +74,12 @@ export function adaptRabbit(body: unknown): AdapterResult {
   const productCode = nonEmptyString(body.product_code);
   if (carriesProduct(eventName) && !productCode) return invalid(`product_code manquant pour ${eventName}`);
 
+  // Facultatif : sans lui, l'événement va dans l'environnement configuré. Ce
+  // n'est PAS un jeton d'authentification — l'identifiant est public par
+  // construction — mais un simple aiguillage. La frontière de confiance reste
+  // le courtier : quiconque peut y publier pouvait déjà tout écrire.
+  const applicationId = nonEmptyString(body.application_id);
+
   return {
     kind: 'event',
     event: {
@@ -83,6 +89,7 @@ export function adaptRabbit(body: unknown): AdapterResult {
       userId,
       source: 'rabbitmq',
       productCode,
+      applicationId,
       data: isRecord(body.payload) ? body.payload : {},
     },
   };
