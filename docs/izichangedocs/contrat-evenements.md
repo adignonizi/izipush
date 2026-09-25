@@ -25,11 +25,33 @@ Celle de `02_Contrat_Evenement`, sans changement. Les champs non listés ci-dess
                                                           //          passé au SDK push
   "product_code": "crypto",                               // requis pour transaction.completed et
                                                           //          product.activated
+  "application_id": "xfPKZgo5XNEV",                       // facultatif · environnement izipush visé
+                                                          //          (voir ci-dessous)
   "payload":     { }                                      // voir §3
 }
 ```
 
 > **Un seul `user_id` partout** — Keycloak, bus, SDK push. Deux identifiants différents produisent deux profils, donc deux fois chaque campagne. C'est le point à confirmer avant tout le reste.
+
+### `application_id` — à quel izipush l'événement s'adresse
+
+Facultatif. Sans lui, l'événement est rangé dans l'environnement configuré côté izipush : c'est le comportement actuel, et il reste valable.
+
+Sa valeur est l'**identifiant d'application** d'un environnement izipush, lisible dans Settings → API Keys. Il est public par nature — il est déjà embarqué dans les applications mobiles et les pages web — et ne donne accès à rien par lui-même.
+
+Il sert à une seule chose : permettre à un même flux d'alimenter plusieurs environnements, typiquement recette et production, sans doubler le service d'ingestion.
+
+Trois comportements, à connaître avant de l'émettre :
+
+| Valeur envoyée | Ce qu'izipush en fait |
+|---|---|
+| absente | l'événement va dans l'environnement configuré |
+| identifiant connu | l'événement va dans cet environnement |
+| identifiant inconnu | **l'événement est rejeté** vers la file d'erreurs |
+
+Le rejet est délibéré : retomber sur l'environnement par défaut rangerait des événements chez le mauvais destinataire sans que rien ne le signale. Une faute de frappe doit se voir.
+
+> À n'émettre qu'une fois la valeur confirmée de part et d'autre. Un identifiant erroné n'abîme rien, mais tous les événements concernés partent en erreur.
 
 ---
 
@@ -206,6 +228,7 @@ Alimente la date de dernière connexion, utilisée par les relances d'inactifs.
 - La liste des `product_code` : `crypto`, `wallet`, `card`, `pay`, `izimoon`, `ishop`… telle qu'elle sera émise.
 - La liste des `type` de transaction, par produit.
 - La confirmation que le `user_id` est le même dans Keycloak, sur le bus et dans le SDK push.
+- Si `application_id` est émis : la valeur retenue par environnement, confirmée des deux côtés.
 - La structure, le format et la date de coupure de l'export initial `users` + `transactions`.
 
 ---
