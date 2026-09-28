@@ -26,9 +26,21 @@ export const envValidators = {
   MONGO_MAX_POOL_SIZE: num({ default: 50 }),
   MONGO_MIN_POOL_SIZE: num({ default: 10 }),
 
-  /** Environnement et organisation Novu dans lesquels les profils sont tenus à jour. */
-  CRM_ENVIRONMENT_ID: str(),
-  CRM_ORGANIZATION_ID: str(),
+  /**
+   * Environnement et organisation de REPLI, pour les enveloppes sans
+   * `application_id`.
+   *
+   * Facultatives depuis que l'enveloppe peut désigner son environnement : tout
+   * le reste du pipeline lit le locataire porté par la tâche, et l'ordonnanceur
+   * de campagnes l'a toujours lu sur le document. Elles ne servent donc plus
+   * qu'à ce repli.
+   *
+   * Les laisser vides n'est sûr QUE si Izichange émet `application_id` : sinon
+   * chaque événement est rejeté faute de destination. Le rejet est franc et
+   * visible, jamais un rangement au hasard.
+   */
+  CRM_ENVIRONMENT_ID: str({ default: undefined }),
+  CRM_ORGANIZATION_ID: str({ default: undefined }),
 
   /** RabbitMQ d'Izichange : on lie notre propre file à leur exchange existant. */
   AMQP_URL: url(),

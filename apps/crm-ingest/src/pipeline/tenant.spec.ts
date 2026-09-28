@@ -83,6 +83,26 @@ describe('TenantResolver', () => {
     expect(environments.calls, 'aucune lecture inutile').to.equal(0);
   });
 
+  it('sans application_id NI repli configuré, rejette au lieu d’écrire un environnement indéfini', async () => {
+    delete process.env.CRM_ENVIRONMENT_ID;
+    delete process.env.CRM_ORGANIZATION_ID;
+
+    const environments = environmentsReturning(null);
+    const resolver = new TenantResolver(environments.repo as never);
+
+    let leve: unknown;
+    try {
+      await resolver.resolve(undefined);
+    } catch (error) {
+      leve = error;
+    }
+
+    // Un environnement indéfini produirait des documents qu'aucune requête ne
+    // retrouve ensuite : l'échec doit être franc.
+    expect(leve, 'doit lever').to.be.instanceOf(CrmValidationError);
+    expect(environments.calls, 'inutile d’interroger la base').to.equal(0);
+  });
+
   it('avec un application_id connu, rend son environnement ET son organisation', async () => {
     const environments = environmentsReturning({ _id: 'env-izi', _organizationId: 'org-izi' });
     const resolver = new TenantResolver(environments.repo as never);

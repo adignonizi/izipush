@@ -37,10 +37,19 @@ export class TenantResolver {
    */
   async resolve(applicationId?: string): Promise<CrmTenant> {
     if (!applicationId) {
-      return {
-        environmentId: process.env.CRM_ENVIRONMENT_ID,
-        organizationId: process.env.CRM_ORGANIZATION_ID,
-      };
+      const environmentId = process.env.CRM_ENVIRONMENT_ID;
+      const organizationId = process.env.CRM_ORGANIZATION_ID;
+
+      // Ni destination dans l'enveloppe, ni repli configuré : l'événement n'a
+      // nulle part où aller. On rejette plutôt que d'écrire un environnement
+      // indéfini, qui produirait des documents introuvables par toute requête.
+      if (!environmentId || !organizationId) {
+        throw new CrmValidationError(
+          "aucune destination : l'enveloppe ne porte pas d'application_id et CRM_ENVIRONMENT_ID n'est pas configuré"
+        );
+      }
+
+      return { environmentId, organizationId };
     }
 
     const cached = this.cache.get(applicationId);
