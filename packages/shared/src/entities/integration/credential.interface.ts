@@ -26,6 +26,8 @@ export interface ICredentials {
   redirectUrl?: string;
   hmac?: boolean;
   ipPoolName?: string;
+  /** Postmark : flux de messages. « outbound » est transactionnel ; un flux Broadcast est requis pour les campagnes. */
+  messageStream?: string;
   apiKeyRequestHeader?: string;
   secretKeyRequestHeader?: string;
   idPath?: string;

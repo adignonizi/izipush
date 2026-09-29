@@ -52,6 +52,7 @@ const integrationSchema = new Schema<IntegrationDBModel>(
       redirectUrl: Schema.Types.String,
       hmac: Schema.Types.Boolean,
       ipPoolName: Schema.Types.String,
+      messageStream: Schema.Types.String,
       apiKeyRequestHeader: Schema.Types.String,
       secretKeyRequestHeader: Schema.Types.String,
       idPath: Schema.Types.String,
