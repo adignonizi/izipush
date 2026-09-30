@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Import initial izipush</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #F1F3F1; --surface: #FFFFFF; --surface-sunk: #E9ECEA;
+    --ink: #151F1E; --muted: #5B6A67; --faint: #7E8C89;
+    --line: #D6DCD9; --line-strong: #BEC7C3;
+    --accent: #0E6A60; --accent-ink: #0B4F47; --accent-soft: #E0EDEA;
+    --core: #6A5A7B; --core-soft: #EDE8F1;
+    --warn: #8A5A1A; --warn-soft: #F5ECDF;
+    --stop: #96322B; --stop-soft: #F6E7E5;
+    --sans: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --r: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0F1514; --surface: #17201F; --surface-sunk: #121A19;
+      --ink: #E4EBE9; --muted: #93A29F; --faint: #7A8785;
+      --line: #283533; --line-strong: #3A4A47;
+      --accent: #4ECCBA; --accent-ink: #7FDECF; --accent-soft: #123330;
+      --core: #BCA7D2; --core-soft: #241D2C;
+      --warn: #D9A85F; --warn-soft: #2C2415;
+      --stop: #E08A80; --stop-soft: #2E1B19;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #0F1514; --surface: #17201F; --surface-sunk: #121A19;
+    --ink: #E4EBE9; --muted: #93A29F; --faint: #7A8785;
+    --line: #283533; --line-strong: #3A4A47;
+    --accent: #4ECCBA; --accent-ink: #7FDECF; --accent-soft: #123330;
+    --core: #BCA7D2; --core-soft: #241D2C;
+    --warn: #D9A85F; --warn-soft: #2C2415;
+    --stop: #E08A80; --stop-soft: #2E1B19;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding-inline: 20px; padding-block: 44px 72px; }
+
+  h1, h2, h3 { text-wrap: balance; margin: 0; letter-spacing: -0.02em; }
+  h1 { font-size: clamp(29px, 5vw, 44px); font-weight: 700; line-height: 1.12; }
+  h2 { font-size: clamp(20px, 3vw, 25px); font-weight: 600; }
+  h3 { font-size: 15.5px; font-weight: 600; }
+  p { margin: 0; }
+
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-sunk); padding: 1px 5px; border-radius: 3px; }
+  pre {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 14px 16px; overflow-x: auto; margin: 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  header.top { display: flex; flex-direction: column; gap: 17px; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+  .eyebrow { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  .lede { font-size: 17px; color: var(--muted); max-width: 66ch; }
+
+  section { padding-top: 50px; }
+  .sec-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+  .sec-head p { color: var(--muted); max-width: 68ch; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 680px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    font-size: 11px; font-family: var(--mono); font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--faint); background: var(--surface-sunk); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.m { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.d { color: var(--muted); }
+
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+  }
+  .pill.req { background: var(--stop-soft); color: var(--stop); }
+  .pill.opt { background: var(--accent-soft); color: var(--accent-ink); }
+
+  .notes { display: flex; flex-direction: column; gap: 13px; }
+  .note {
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: var(--r); padding: 15px 17px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .note.stop { border-left-color: var(--stop); }
+  .note.warn { border-left-color: var(--warn); }
+  .note p { font-size: 13.8px; color: var(--muted); line-height: 1.55; }
+  .note .why { font-size: 12.5px; color: var(--faint); border-top: 1px dashed var(--line); padding-top: 8px; }
+  .note .why b { color: var(--muted); font-weight: 600; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 13px; }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 15px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .box .sub { font-family: var(--mono); font-size: 10.5px; color: var(--faint); letter-spacing: 0.1em; text-transform: uppercase; }
+  .box p { font-size: 13.3px; color: var(--muted); }
+  .box ul { margin: 0; padding-left: 17px; font-size: 13.3px; color: var(--muted); line-height: 1.6; }
+
+  footer {
+    margin-top: 54px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--faint); display: flex; flex-wrap: wrap; gap: 6px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">izipush · reprise de l'historique</span>
+    <h1>Import initial izipush</h1>
+    <p class="lede">
+      Deux fichiers CSV — les clients et leurs transactions — suffisent à reconstituer les profils, les
+      cumuls et les liens aux produits. Ce document dit exactement quelles colonnes fournir, dans quel
+      format, et la contrainte de date qui décide si les chiffres seront justes.
+    </p>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>Comment l'import fonctionne</h2>
+      <p>
+        Il n'écrit pas dans la base. Il transforme chaque ligne en événement du contrat et les publie sur
+        RabbitMQ, exactement comme le ferait Izichange en fonctionnement normal.
+      </p>
+    </div>
+
+    <div class="grid">
+      <article class="box">
+        <span class="sub">Conséquence 1</span>
+        <h3>Rien à écrire de spécial</h3>
+        <p>
+          Les profils, l'activité quotidienne et les cumuls sont calculés par le même code que les
+          événements du quotidien. Aucun chemin particulier à maintenir, aucun écart possible entre
+          historique et temps réel.
+        </p>
+      </article>
+      <article class="box">
+        <span class="sub">Conséquence 2</span>
+        <h3>Rejouable sans risque</h3>
+        <p>
+          Chaque ligne produit toujours le même identifiant d'événement — <code>import:tx:42</code> pour
+          la transaction 42. Un second passage est écarté comme doublon. Un import interrompu se relance
+          sans précaution.
+        </p>
+      </article>
+      <article class="box">
+        <span class="sub">Conséquence 3</span>
+        <h3>Aucune campagne déclenchée</h3>
+        <p>
+          Les événements importés portent <code>imported: true</code> et sont écartés du déclenchement.
+          Personne ne reçoit un message de bienvenue pour une inscription vieille de deux ans.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2><code>users.csv</code></h2>
+      <p>Une ligne par client. Les noms de colonnes ci-dessous sont ceux attendus par défaut ; ils se remappent sans toucher au code.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Colonne</th><th></th><th>Format</th><th>Ce qu'elle produit</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">id</td><td><span class="pill req">requis</span></td>
+            <td class="d">chaîne</td>
+            <td class="d"><b>L'identifiant d'abonné izipush.</b> Doit être celui de Keycloak, du bus et du SDK push</td>
+          </tr>
+          <tr>
+            <td class="m">created_at</td><td><span class="pill req">requis</span></td>
+            <td class="d">ISO 8601 ou <code>AAAA-MM-JJ HH:MM:SS</code>, UTC</td>
+            <td class="d">Date de l'événement <code>account.registered</code>. Ligne ignorée si absente ou illisible</td>
+          </tr>
+          <tr>
+            <td class="m">email</td><td><span class="pill opt">optionnel</span></td>
+            <td class="d">adresse</td>
+            <td class="d">Champ natif de l'abonné. Sans lui, aucun email de campagne ne peut partir</td>
+          </tr>
+          <tr><td class="m">first_name</td><td><span class="pill opt">optionnel</span></td><td class="d">chaîne</td><td class="d">Personnalisation des messages</td></tr>
+          <tr><td class="m">last_name</td><td><span class="pill opt">optionnel</span></td><td class="d">chaîne</td><td class="d">Idem</td></tr>
+          <tr><td class="m">phone</td><td><span class="pill opt">optionnel</span></td><td class="d">chaîne</td><td class="d">Champ natif, pour un futur canal SMS</td></tr>
+          <tr>
+            <td class="m">country</td><td><span class="pill opt">optionnel</span></td>
+            <td class="d">ISO 3166-1 alpha-2</td>
+            <td class="d"><code>data.country_code</code> — <b>segmentable</b></td>
+          </tr>
+          <tr><td class="m">locale</td><td><span class="pill opt">optionnel</span></td><td class="d"><code>fr</code>, <code>en</code>…</td><td class="d">Langue des messages</td></tr>
+          <tr><td class="m">timezone</td><td><span class="pill opt">optionnel</span></td><td class="d">IANA, ex. <code>Africa/Abidjan</code></td><td class="d">Heure d'envoi des campagnes planifiées</td></tr>
+          <tr>
+            <td class="m">kyc_status</td><td><span class="pill opt">optionnel</span></td>
+            <td class="d">voir ci-dessous</td>
+            <td class="d">Produit <code>kyc.validated</code> <b>uniquement</b> si la valeur est reconnue</td>
+          </tr>
+          <tr><td class="m">kyc_updated_at</td><td><span class="pill opt">optionnel</span></td><td class="d">date</td><td class="d">Date du KYC. À défaut, <code>created_at</code> est repris</td></tr>
+          <tr><td class="m">last_login_at</td><td><span class="pill opt">optionnel</span></td><td class="d">date</td><td class="d">Produit <code>account.logged_in</code>. Alimente les segments d'inactivité</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notes" style="margin-top:14px">
+      <article class="note">
+        <h3>Le KYC ne se transmet que validé</h3>
+        <p>
+          Sont reconnues : <code>approved</code>, <code>validated</code>, <code>verified</code>,
+          <code>valide</code>, <code>validé</code>. Toute autre valeur — y compris
+          <code>pending</code> ou <code>rejected</code> — ne produit rien.
+        </p>
+        <p class="why">
+          <b>Pourquoi</b> — l'absence d'événement vaut déjà « non validé ». Importer les refus créerait
+          des états à distinguer du silence, sans qu'aucun segment n'en ait l'usage.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2><code>transactions.csv</code></h2>
+      <p>Une ligne par transaction. Seules les réussies comptent.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Colonne</th><th></th><th>Format</th><th>Ce qu'elle produit</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">id</td><td><span class="pill req">requis</span></td>
+            <td class="d">chaîne</td>
+            <td class="d">Clé de dédoublonnage. <b>Doit être stable</b> entre deux exports</td>
+          </tr>
+          <tr>
+            <td class="m">user_id</td><td><span class="pill req">requis</span></td>
+            <td class="d">chaîne</td>
+            <td class="d">Doit correspondre à <code>users.id</code>, sinon la ligne est ignorée</td>
+          </tr>
+          <tr>
+            <td class="m">amount_usd</td><td><span class="pill req">requis</span></td>
+            <td class="d">décimal, point ou virgule</td>
+            <td class="d">Alimente <code>lifetime_vol_usd</code>. <b>Converti en USD à la source</b></td>
+          </tr>
+          <tr>
+            <td class="m">created_at</td><td><span class="pill req">requis</span></td>
+            <td class="d">date UTC</td>
+            <td class="d">Détermine le jour d'activité et <code>first_tx_at</code></td>
+          </tr>
+          <tr>
+            <td class="m">status</td><td><span class="pill req">requis</span></td>
+            <td class="d">voir ci-dessous</td>
+            <td class="d">Seules les valeurs reconnues sont reprises</td>
+          </tr>
+          <tr>
+            <td class="m">productId</td><td><span class="pill opt">optionnel</span></td>
+            <td class="d">code du registre produits</td>
+            <td class="d">Lie le client au produit. <b>Vide ⇒ rangé sous <code>unknown</code></b></td>
+          </tr>
+          <tr>
+            <td class="m">type</td><td><span class="pill opt">optionnel</span></td>
+            <td class="d">chaîne</td>
+            <td class="d">Conservé dans l'événement, non agrégé aujourd'hui</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notes" style="margin-top:14px">
+      <article class="note">
+        <h3>Statuts repris</h3>
+        <p>
+          <code>completed</code>, <code>success</code>, <code>successful</code>, <code>done</code>,
+          <code>validated</code>, <code>paid</code>. Tout le reste est ignoré, et compté dans le
+          rapport de fin.
+        </p>
+        <p class="why">
+          <b>Conséquence</b> — les échecs n'entrent pas dans l'historique. <code>lifetime_tx_failed</code>
+          partira donc de zéro pour tous, et ne se remplira qu'avec le flux temps réel.
+        </p>
+      </article>
+
+      <article class="note warn">
+        <h3>Pas de <code>txNo</code> dans l'import, et c'est voulu</h3>
+        <p>
+          Le contrat prévoit <code>txNo</code> pour reconnaître la première transaction d'un produit.
+          L'import ne le produit pas : les transactions historiques n'auront donc pas de rang.
+        </p>
+        <p class="why">
+          <b>Sans conséquence</b> — le lien client/produit se constate de toute façon à partir de
+          l'activité, et les événements importés ne déclenchent aucune campagne. Un <code>txNo</code>
+          historique ne servirait qu'à déclencher des messages qu'on ne veut surtout pas envoyer.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>La contrainte qui décide de la justesse des chiffres</h2>
+      <p>C'est le point à trancher avec Izichange avant de produire l'export.</p>
+    </div>
+
+    <div class="notes">
+      <article class="note stop">
+        <h3>L'import et le flux direct ne se dédoublonnent pas entre eux</h3>
+        <p>
+          Une même transaction présente dans l'export <b>et</b> dans le flux temps réel serait comptée
+          <b>deux fois</b> : les identifiants d'événement diffèrent —
+          <code>rabbitmq:import:tx:42</code> d'un côté, <code>rabbitmq:&lt;event_id Izichange&gt;</code>
+          de l'autre. Le dédoublonnage ne peut pas les rapprocher.
+        </p>
+        <p class="why">
+          <b>Effet</b> — <code>lifetime_tx</code> et <code>lifetime_vol_usd</code> gonflés, sans rien
+          qui le signale. Les segments volumétriques deviennent faux, et l'erreur ne se voit qu'en
+          recomptant à la main.
+        </p>
+        <p class="why">
+          <b>Règle</b> — fixer un instant de coupure T. L'export s'arrête <b>strictement avant</b> T ;
+          la publication sur RabbitMQ démarre <b>à</b> T. Aucun recouvrement. Si le flux tourne déjà,
+          couper l'export à l'instant où il a démarré.
+        </p>
+      </article>
+
+      <article class="note">
+        <h3>L'ordre des deux fichiers est indifférent</h3>
+        <p>
+          Les transactions peuvent être publiées avant les clients : la dérivation crée l'abonné à la
+          demande, et les cumuls se recalculent à partir des événements en attente.
+        </p>
+        <p class="why">
+          <b>En pratique</b> — passer les utilisateurs d'abord donne des profils complets plus tôt, et
+          un rapport de progression plus lisible.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Exécution</h2>
+      <p>Depuis <code>apps/crm-ingest</code>, avec l'accès au courtier de production.</p>
+    </div>
+
+    <pre><code># 1. Éprouver sans rien publier : affiche les premiers événements et les totaux
+AMQP_URL=amqp://… node scripts/import-izichange.mjs \
+  --users users.csv --transactions transactions.csv --dry-run
+
+# 2. Import réel, débit borné pour ne pas saturer le courtier
+AMQP_URL=amqp://… node scripts/import-izichange.mjs \
+  --users users.csv --transactions transactions.csv --rate 1000</code></pre>
+
+    <div class="grid" style="margin-top:14px">
+      <article class="box">
+        <span class="sub">Noms de colonnes différents</span>
+        <p>
+          <code>--map mapping.json</code> remappe sans toucher au code. Le fichier reprend la structure
+          des valeurs par défaut : <code>users</code>, <code>transactions</code>,
+          <code>kycValidatedValues</code>, <code>transactionStatus</code>.
+        </p>
+      </article>
+      <article class="box">
+        <span class="sub">Format des fichiers</span>
+        <ul>
+          <li>Séparateur <code>,</code> ou <code>;</code>, détecté sur l'en-tête</li>
+          <li>Guillemets et retours à la ligne dans les champs gérés</li>
+          <li>Dates en UTC, sans exception</li>
+        </ul>
+      </article>
+      <article class="box">
+        <span class="sub">Après l'import</span>
+        <p>
+          Vérifier le rapport : lignes ignorées et motifs. Puis contrôler quelques profils dans le
+          tableau de bord — <code>lifetime_tx</code>, <code>products</code>, <code>first_tx_at</code> —
+          avant d'ouvrir le flux temps réel.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>À obtenir d'Izichange</h2>
+      <p>Les quatre éléments sans lesquels l'export ne peut pas être produit correctement.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Élément</th><th>Pourquoi</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="m">Instant de coupure T</td>
+            <td class="d">Sépare l'export du flux direct. <b>Le point le plus important</b> : sans lui, double comptage</td>
+          </tr>
+          <tr>
+            <td class="m">Liste des <code>product_code</code></td>
+            <td class="d">Pour créer le registre produits avant l'import et éviter que tout atterrisse en <code>unknown</code></td>
+          </tr>
+          <tr>
+            <td class="m">Confirmation de l'identifiant</td>
+            <td class="d"><code>users.id</code> doit être celui de Keycloak, du bus et du SDK push. Deux identifiants différents font deux profils, donc deux fois chaque campagne</td>
+          </tr>
+          <tr>
+            <td class="m">Devise des montants</td>
+            <td class="d"><code>amount_usd</code> doit déjà être en USD. Aucune conversion n'est faite à l'import</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <span>izipush — dérivé de Novu 3.18</span>
+    <span>Relevé sur <span style="font-family:var(--mono)">apps/crm-ingest/scripts/import-izichange.mjs</span></span>
+    <span>Voir aussi : contrat-evenements.md, modele-donnees.html</span>
+  </footer>
+
+</div>
+
+</body>
+</html>
