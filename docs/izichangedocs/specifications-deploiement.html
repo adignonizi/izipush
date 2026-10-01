@@ -573,6 +573,65 @@ flowchart LR
 
   <section>
     <div class="sec-head">
+      <h2>Fournisseurs email</h2>
+      <p>
+        Le CRM répartit les envois de campagne sur les fournisseurs activés, par ordre de priorité, en
+        basculant sur le suivant quand un quota est atteint. Les emails transactionnels ne passent pas
+        par ce routage.
+      </p>
+    </div>
+
+    <div class="notes">
+      <article class="note stop">
+        <h3>Postmark exige un flux Broadcast pour les campagnes</h3>
+        <p>
+          Postmark sépare <b>transactionnel</b> et <b>diffusion</b>, avec des plages d'adresses IP et des
+          réputations distinctes. C'est son mécanisme central. Sans flux précisé, tout part sur
+          <code>outbound</code>, le flux transactionnel — campagnes comprises.
+        </p>
+        <p class="why">
+          <b>Conséquence</b> — une campagne mal reçue dégrade la remise de vos emails de compte :
+          connexion, validation KYC, réinitialisation de mot de passe. C'est exactement ce que cette
+          séparation existe pour éviter.
+        </p>
+        <p class="why">
+          <b>À faire</b> — créer un flux Broadcast dans Postmark, coller son identifiant dans le champ
+          <b>Message stream</b> de l'intégration, <i>puis</i> activer « Use for campaigns ». Dans cet
+          ordre. Laissé vide, le champ est omis de la charge et le comportement reste celui d'aujourd'hui.
+        </p>
+      </article>
+
+      <article class="note warn">
+        <h3>Deux exigences du flux Broadcast</h3>
+        <p>
+          Postmark impose un <b>lien de désinscription</b> dans tout message de diffusion, et un
+          <b>consentement explicite</b> du destinataire — pas une acceptation de conditions générales.
+        </p>
+        <p class="why">
+          <b>Déjà couvert</b> — le CRM pose le lien de désinscription via
+          <code>CRM_UNSUBSCRIBE_SECRET</code>, et le consentement vit dans
+          <code>data.marketing_optin</code>, que la désinscription en un clic met à jour.
+        </p>
+      </article>
+
+      <article class="note">
+        <h3>Limites d'envoi</h3>
+        <p>
+          Postmark ne publie aucune limite chiffrée : seulement un <b>429</b> au-delà d'un débit jugé
+          excessif, et 500 messages au plus par appel groupé. Les limites saisies dans l'intégration sont
+          donc des garde-fous que vous posez, pas une reproduction des siennes.
+        </p>
+        <p class="why">
+          <b>Point de départ</b> — 300 par minute, 10 000 par heure, et <b>quota mensuel ÷ 30</b> par
+          jour. Ce dernier compte : sans lui, une seule campagne peut consommer la moitié du mois et
+          laisser les emails transactionnels sans quota.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
       <h2>Variables d'environnement</h2>
       <p>
         Regroupées par nature. Celles marquées <span class="pill sec">secret</span> ne doivent jamais

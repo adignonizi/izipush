@@ -740,6 +740,87 @@ erDiagram
 
   <section>
     <div class="sec-head">
+      <h2>Lire le journal d'activité d'un push</h2>
+      <p>
+        Les lignes du journal ne disent pas toutes la même chose, et deux d'entre elles sont
+        régulièrement confondues.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Ligne</th><th>Source</th><th>Ce qu'elle prouve</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">Message sent</td><td class="d">Internal</td>
+            <td class="d">FCM a <b>accepté</b> le message et rendu un identifiant. Il ne dit rien de la remise</td>
+          </tr>
+          <tr>
+            <td class="m">Message delivered</td><td class="d">Webhook</td>
+            <td class="d">L'appareil a <b>confirmé</b> l'avoir reçu. Signalé par le SDK, jamais par FCM</td>
+          </tr>
+          <tr>
+            <td class="m">Message seen</td><td class="d">Webhook</td>
+            <td class="d">L'utilisateur a appuyé sur la notification</td>
+          </tr>
+          <tr>
+            <td class="m">Unexpected provider error</td><td class="d">Internal</td>
+            <td class="d">Un jeton a été refusé. Le job reste « réussi » si un autre jeton a abouti</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notes" style="margin-top:14px">
+      <article class="note stop">
+        <h3>« Message sent » seul ne prouve pas que le message est arrivé</h3>
+        <p>
+          Ni FCM ni APNs ne rendent d'accusé de remise : ils disent « accepté ». Sans la ligne
+          <b>Message delivered</b>, un push jamais arrivé et un push arrivé mais jamais affiché se
+          présentent à l'identique.
+        </p>
+        <p class="why">
+          <b>Vu en production</b> — un abonné dont tous les envois affichaient « Message sent » ne
+          recevait rien : son navigateur était fermé. Un autre, même affichage, recevait normalement.
+          Rien ne les distinguait avant que la remise ne soit remontée.
+        </p>
+      </article>
+
+      <article class="note warn">
+        <h3>La provenance, dans le <code>raw</code> de « Message delivered »</h3>
+        <p>
+          La ligne porte <code>{"source": "foreground"}</code> ou <code>{"source": "background"}</code>,
+          selon que l'application était au premier plan ou que son gestionnaire d'arrière-plan a pris le
+          message — application fermée comprise.
+        </p>
+        <p class="why">
+          <b>Ce que ça sépare</b> — un abonné dont les remises sont <b>toutes</b> <code>foreground</code>
+          ne reçoit que lorsqu'il regarde : navigateur éteint, ou abonnement push dégradé. Un abonné qui
+          produit des <code>background</code> fonctionne normalement. Sans cette distinction, les deux
+          cas sont indiscernables, et l'un se diagnostique à tort comme une panne d'envoi.
+        </p>
+      </article>
+
+      <article class="note">
+        <h3>Une erreur de jeton n'empêche pas le succès</h3>
+        <p>
+          Le worker envoie <b>un message par jeton</b>. Un abonné qui en porte deux — l'ancien et le
+          renouvelé — produit une ligne en erreur et une en succès, et le job passe à
+          <code>completed</code> dès qu'un jeton aboutit.
+        </p>
+        <p class="why">
+          <b>Depuis les correctifs</b> — un jeton que FCM déclare mort (<code>NotRegistered</code>) est
+          retiré au premier échec, et un renouvellement remplace le jeton du même appareil au lieu de
+          s'y ajouter. Ces paires erreur/succès doivent donc se raréfier.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
       <h2>Exploitation</h2>
       <p>Ce qui sert à piloter le service, pas à le faire fonctionner.</p>
     </div>
