@@ -1,13 +1,3 @@
 id,email,first_name,last_name,phone,country,locale,created_at,kyc_status,kyc_updated_at,last_login_at,timezone
 usr_001,awa.diop@example.com,Awa,Diop,+221770000001,SN,fr,2024-03-11T08:14:22Z,approved,2024-03-14T10:02:00Z,2026-09-12T19:41:08Z,Africa/Dakar
 usr_002,kwame.mensah@example.com,Kwame,Mensah,+233240000002,GH,en,2024-05-02 11:30:05,verified,2024-05-03 09:12:44,2026-08-30 07:55:12,Africa/Accra
-usr_003,fatou.ndiaye@example.com,Fatou,Ndiaye,+221770000003,SN,fr,2024-06-18T16:05:00Z,pending,,2026-09-20T12:00:00Z,Africa/Dakar
-usr_004,jean.kouassi@example.com,Jean,Kouassi,+225070000004,CI,fr,2024-07-01T09:00:00Z,validé,2024-07-05T14:20:00Z,2026-09-28T08:10:00Z,Africa/Abidjan
-usr_005,,Marie,Bamba,+225070000005,CI,fr,2024-08-23T13:45:30Z,approved,2024-08-25T08:00:00Z,2026-07-14T21:33:00Z,Africa/Abidjan
-usr_006,ibrahim.toure@example.com,Ibrahim,Touré,+223760000006,ML,fr,2024-09-09T10:10:10Z,rejected,2024-09-10T10:10:10Z,2026-06-02T15:00:00Z,Africa/Bamako
-usr_007,grace.okonkwo@example.com,Grace,Okonkwo,+234800000007,NG,en,2024-10-15T07:22:00Z,approved,,2026-09-29T06:44:00Z,Africa/Lagos
-usr_008,mamadou.sylla@example.com,Mamadou,"Sylla, dit Mady",+224620000008,GN,fr,2024-11-30T18:00:00Z,validated,2024-12-02T09:30:00Z,,Africa/Conakry
-usr_009,aminata.barry@example.com,Aminata,Barry,+221770000009,SN,fr,2025-01-07T12:12:12Z,approved,2025-01-09T11:00:00Z,2026-09-25T17:20:00Z,Africa/Dakar
-usr_010,paul.nguema@example.com,Paul,Nguema,+241060000010,GA,fr,2025-02-14T09:05:00Z,valide,2025-02-16T10:00:00Z,2026-05-11T09:00:00Z,Africa/Libreville
-usr_011,esther.mwangi@example.com,Esther,Mwangi,+254720000011,KE,en,2025-03-22 06:40:00,approved,2025-03-24 08:15:00,2026-09-27 05:30:00,Africa/Nairobi
-usr_012,ousmane.cisse@example.com,Ousmane,Cissé,+221770000012,SN,fr,2025-04-03T15:50:00Z,,,2026-09-01T10:00:00Z,Africa/Dakar

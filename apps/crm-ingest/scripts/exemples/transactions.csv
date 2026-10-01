@@ -1,36 +1,3 @@
 id,user_id,amount_usd,status,productId,type,created_at
 tx_0001,usr_001,120.50,completed,crypto,buy,2024-03-15T09:20:00Z
-tx_0002,usr_001,80.00,completed,crypto,sell,2024-04-02T14:05:00Z
-tx_0003,usr_001,45.25,completed,wallet,topup,2024-05-11T10:30:00Z
-tx_0004,usr_001,210.00,completed,virtual_card,payment,2024-06-20T17:45:00Z
-tx_0005,usr_002,300.00,success,crypto,buy,2024-05-06 12:00:00
-tx_0006,usr_002,150.75,successful,wallet,transfer,2024-06-01 08:30:00
-tx_0007,usr_002,99.99,failed,crypto,buy,2024-06-03 09:00:00
-tx_0008,usr_003,60.00,completed,wallet,topup,2024-06-25T11:15:00Z
-tx_0009,usr_003,25.00,pending,virtual_card,payment,2024-07-02T13:00:00Z
-tx_0010,usr_004,1250.00,completed,crypto,buy,2024-07-10T09:00:00Z
-tx_0011,usr_004,430.80,done,virtual_card,payment,2024-08-14T16:20:00Z
-tx_0012,usr_004,75.00,completed,wallet,transfer,2024-09-01T07:10:00Z
-tx_0013,usr_005,"1200,00",completed,crypto,sell,2024-09-05T10:00:00Z
-tx_0014,usr_005,50.00,completed,,topup,2024-09-18T14:30:00Z
-tx_0015,usr_006,310.40,completed,wallet,topup,2024-09-20T09:45:00Z
-tx_0016,usr_006,120.00,cancelled,crypto,buy,2024-09-21T10:00:00Z
-tx_0017,usr_007,890.00,paid,virtual_card,payment,2024-10-20T18:00:00Z
-tx_0018,usr_007,45.50,completed,virtual_card,payment,2024-11-03T12:25:00Z
-tx_0019,usr_007,1500.00,completed,crypto,buy,2025-01-15T08:00:00Z
-tx_0020,usr_008,220.00,validated,wallet,transfer,2024-12-05T15:30:00Z
-tx_0021,usr_009,65.00,completed,wallet,topup,2025-01-12T09:00:00Z
-tx_0022,usr_009,340.00,completed,crypto,buy,2025-02-20T11:40:00Z
-tx_0023,usr_009,180.25,completed,virtual_card,payment,2025-03-08T19:15:00Z
-tx_0024,usr_010,95.00,completed,wallet,topup,2025-02-18T10:20:00Z
-tx_0025,usr_010,600.00,completed,crypto,sell,2025-04-11T13:50:00Z
-tx_0026,usr_011,74.30,completed,virtual_card,payment,2025-03-28 07:05:00
-tx_0027,usr_011,410.00,completed,crypto,buy,2025-05-02 16:40:00
-tx_0028,usr_011,20.00,refunded,wallet,topup,2025-05-10 09:00:00
-tx_0029,usr_012,55.00,completed,wallet,topup,2025-04-09T12:00:00Z
-tx_0030,usr_012,780.00,completed,crypto,buy,2025-06-14T15:25:00Z
-tx_0031,usr_013,130.00,completed,virtual_card,payment,2025-07-01T10:00:00Z
-tx_0032,usr_001,1000.00,completed,crypto,buy,2025-08-22T09:30:00Z
-tx_0033,usr_004,240.60,completed,wallet,transfer,2025-09-30T14:00:00Z
-tx_0034,usr_007,320.00,completed,wallet,topup,2026-01-18T11:11:00Z
-tx_0035,usr_009,88.88,completed,crypto,sell,2026-03-05T17:30:00Z
+
