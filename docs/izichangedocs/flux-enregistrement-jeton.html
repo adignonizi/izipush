@@ -541,7 +541,12 @@ sequenceDiagram
   F-->>C: jeton FCM
   C->>G: POST /push/token<br/>jeton + providerId — sur la session authentifiée
   Note over G: le subscriberId est lu dans la session<br/>jamais dans le corps de la requête
-  G->>N: PATCH /v1/subscribers/ID/credentials<br/>Authorization ApiKey — clé API d'environnement
+  G->>N: PATCH /v1/subscribers/ID/credentials<br/>Authorization ApiKey<br/>Idempotency-Key — valeur déterministe
+  rect rgb(240, 236, 224)
+    Note over N: 1. adresse de la passerelle dans la liste<br/>d'autorisation de l'environnement ?
+    Note over N: 2. plafond de débit atteint ? sinon 429
+    Note over N: 3. cette Idempotency-Key a-t-elle<br/>déjà répondu ? cache 24 h
+  end
   N-->>G: 200
   G-->>C: 204
 </pre>
@@ -557,6 +562,62 @@ sequenceDiagram
       préexister, sinon la route répond <code>BadRequest</code> : l'ingestion CRM le crée sur
       <code>account.*</code>, mais un inscrit de la minute précédente peut arriver avant son événement —
       prévoir un réessai, ou un <code>POST /v1/subscribers</code> en amont.
+    </div>
+
+    <h3 style="margin-top:28px">Les trois contrôles de l'étape 7</h3>
+
+    <p>
+      Tous trois ne concernent que ce trajet-là : ils ne s'appliquent qu'aux appels authentifiés
+      <b>par clé API</b>. Les flux A et B, qui s'authentifient par JWT d'abonné, n'y sont pas soumis —
+      c'est aussi ce qui rend ce flux plus défendable.
+    </p>
+
+    <div class="tablewrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Contrôle</th><th>Ce qu'il empêche</th><th>Ce qu'il faut savoir</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="d"><b>Liste d'autorisation d'adresses</b><br>paramètres de développeur</td>
+            <td class="d">Qu'une clé dérobée serve depuis ailleurs que vos serveurs.</td>
+            <td class="d">Liste vide — aucune restriction, c'est le défaut. Effet sous une minute.
+                Dépend de <code>API_TRUSTED_PROXY_HOPS</code> : sans lui, l'API voit l'adresse du proxy
+                et refuse tout le monde.</td>
+          </tr>
+          <tr>
+            <td class="d"><b>Limitation de débit</b><br><code>IS_API_RATE_LIMITING_ENABLED</code></td>
+            <td class="d">Qu'une boucle dans l'appelant, ou un rejeu de file, devienne un incident total
+                plutôt que borné.</td>
+            <td class="d">Plafonds <b>par seconde</b>, fenêtre de 5 s, 10 % de dépassement toléré. Au
+                niveau <i>free</i> — celui d'une organisation auto-hébergée par défaut : <b>60/s</b> sur
+                les déclenchements, <b>20/s</b> en configuration, <b>30/s</b> sur le reste, dont
+                l'enregistrement d'un jeton. Dépassement : <code>429</code>. Relevable par environnement
+                via <code>apiRateLimits</code>.</td>
+          </tr>
+          <tr>
+            <td class="d"><b><code>Idempotency-Key</code></b><br>en-tête de la requête</td>
+            <td class="d">Qu'un renvoi — timeout, rejeu de file — enregistre ou envoie deux fois.</td>
+            <td class="d">Réponse en cache 24 h, par organisation et environnement. <b>Sans en-tête,
+                l'intercepteur laisse passer</b> : c'est à l'appelant de l'envoyer, avec une valeur
+                dérivée de l'événement et jamais d'un aléa.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" style="margin-top:16px">
+      <b>Le plafond qui mord est celui de l'enregistrement, pas celui des envois.</b> Un jeton se
+      réenregistre à chaque connexion et à chaque rotation FCM : un pic de connexions — une reprise après
+      incident, une mise à jour poussée à tous — concentre ces appels dans la catégorie
+      <i>global</i>, la plus basse des trois. Avant de resserrer quoi que ce soit,
+      <code>IS_API_RATE_LIMITING_DRY_RUN_ENABLED</code> permet de compter sans refuser.
+    </div>
+
+    <div class="note" style="margin-top:14px">
+      <b>Le <code>transactionId</code> n'est pas un garde-fou.</b> La documentation de
+      <code>POST /v1/events/trigger</code> laisse croire qu'un même <code>transactionId</code> fait ignorer
+      le déclenchement. C'est vrai de l'offre hébergée, pas de ce dépôt : le champ y est indexé et
+      <em>non unique</em>, et aucun chemin du déclenchement ne vérifie s'il a déjà été vu. Il sert à
+      corréler et à annuler. La protection, c'est l'en-tête — et lui seul.
     </div>
   </section>
 

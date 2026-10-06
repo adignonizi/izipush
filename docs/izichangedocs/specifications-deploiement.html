@@ -744,6 +744,50 @@ flowchart LR
       l'événement métier et jamais d'un aléa : sans en-tête, l'intercepteur laisse simplement passer.
     </p>
 
+    <h3 style="margin-top:28px">Limitation de débit</h3>
+
+    <p>
+      <code>IS_API_RATE_LIMITING_ENABLED</code>, déjà à <code>true</code> par défaut dans le compose. Les
+      plafonds sont exprimés <b>par seconde</b>, sur une fenêtre de 5 secondes avec 10 % de dépassement
+      toléré. Trois catégories, et c'est la plus basse qui s'applique à l'enregistrement d'un jeton :
+    </p>
+
+    <div class="tablewrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Catégorie</th><th>Plafond <i>free</i></th><th>Ce qui en relève</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="m">trigger</td>
+            <td class="k">60 / s</td>
+            <td class="d"><code>POST /v1/events/trigger</code> — les envois</td>
+          </tr>
+          <tr>
+            <td class="m">configuration</td>
+            <td class="k">20 / s</td>
+            <td class="d">workflows, intégrations, paramètres</td>
+          </tr>
+          <tr>
+            <td class="m">global</td>
+            <td class="k">30 / s</td>
+            <td class="d">tout le reste, dont <code>PATCH /v1/subscribers/ID/credentials</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" style="margin-top:16px">
+      <b>Le niveau <i>free</i> est celui qui s'applique</b> à une organisation auto-hébergée dont le
+      document ne porte pas de <code>apiServiceLevel</code> — c'est le repli du code. Les plafonds sont
+      relevables par environnement, champ <code>apiRateLimits</code>.
+      <br><br>
+      <b>Et c'est l'enregistrement de jetons qui mordra le premier</b>, pas les envois. Un jeton se
+      réenregistre à chaque connexion et à chaque rotation FCM : un pic de connexions concentre ces appels
+      dans la catégorie <i>global</i>, plafonnée à 30/s, la plus basse des trois. Un dépassement répond
+      <code>429</code> — réessayable, mais perdu si l'appelant ne réessaie pas.
+      <code>IS_API_RATE_LIMITING_DRY_RUN_ENABLED</code> permet de compter sans refuser, le temps de
+      calibrer.
+    </div>
+
     <h3 style="margin-top:28px">Liste d'autorisation d'adresses</h3>
 
     <p>
