@@ -172,6 +172,10 @@ services:
       MONGO_AUTO_CREATE_INDEXES: ${MONGO_AUTO_CREATE_INDEXES:-true}
       IS_SELF_HOSTED: "true"
       IS_V2_ENABLED: ${IS_V2_ENABLED:-true}
+      # Proxys que nous controlons devant l'API. 1 = le nginx de ce compose. Indispensable
+      # a la liste d'autorisation d'adresses : sans lui, chaque requete semble venir du
+      # proxy et la liste refuse tout le monde.
+      API_TRUSTED_PROXY_HOPS: ${API_TRUSTED_PROXY_HOPS:-1}
       IS_API_IDEMPOTENCY_ENABLED: ${IS_API_IDEMPOTENCY_ENABLED:-true}
       IS_API_RATE_LIMITING_ENABLED: ${IS_API_RATE_LIMITING_ENABLED:-true}
       IS_NEW_MESSAGES_API_RESPONSE_ENABLED: ${IS_NEW_MESSAGES_API_RESPONSE_ENABLED:-true}

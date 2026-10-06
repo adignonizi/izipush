@@ -18,7 +18,7 @@ import {
   RequirePermissions,
   SkipPermissionsCheck,
 } from '@novu/application-generic';
-import { CommunityOrganizationRepository } from '@novu/dal';
+import { CommunityOrganizationRepository, EnvironmentRepository } from '@novu/dal';
 import {
   ApiAuthSchemeEnum,
   ApiServiceLevelEnum,
@@ -39,6 +39,7 @@ import { UserSession } from '../shared/framework/user.decorator';
 import { isEnvironmentScopedAuthScheme } from '../shared/utils/auth.utils';
 import { CreateEnvironmentRequestDto } from './dtos/create-environment-request.dto';
 import { EnvironmentResponseDto } from './dtos/environment-response.dto';
+import { ApiIpAllowListResponseDto, UpdateApiIpAllowListRequestDto } from './dtos/api-ip-allow-list.dto';
 import { UpdateEnvironmentRequestDto } from './dtos/update-environment-request.dto';
 import { CreateApiKey } from './usecases/create-api-key/create-api-key.usecase';
 import { CreateEnvironmentCommand } from './usecases/create-environment/create-environment.command';
@@ -76,7 +77,8 @@ export class EnvironmentsControllerV1 {
     private getMyEnvironmentsUsecase: GetMyEnvironments,
     private deleteEnvironmentUsecase: DeleteEnvironment,
     private organizationRepository: CommunityOrganizationRepository,
-    private featureFlagService: FeatureFlagsService
+    private featureFlagService: FeatureFlagsService,
+    private environmentRepository: EnvironmentRepository
   ) {}
 
   @Get('/me')
@@ -275,6 +277,58 @@ export class EnvironmentsControllerV1 {
     });
 
     return await this.regenerateApiKeysUsecase.execute(command);
+  }
+
+  /*
+   * Liste d'autorisation d'adresses pour les clés API de l'environnement courant.
+   *
+   * **Volontairement PAS `@ExternalApiAccessible()`** : ces deux routes ne sont
+   * joignables qu'avec une session de tableau de bord. Une clé API capable de lire ou
+   * d'élargir sa propre liste d'autorisation ne protégerait de rien — il suffirait de
+   * la dérober pour s'y ajouter.
+   *
+   * Déclarées AVANT `DELETE /:environmentId` : un chemin littéral placé après un
+   * paramètre de route se fait capter par lui.
+   */
+  @Get('/api-ip-allow-list')
+  @ApiOperation({ summary: 'Get the API key IP allow list of the current environment' })
+  @ApiResponse(ApiIpAllowListResponseDto)
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.API_KEY_READ)
+  async getApiIpAllowList(@UserSession() user: UserSessionData): Promise<ApiIpAllowListResponseDto> {
+    const environment = await this.environmentRepository.findOne({ _id: user.environmentId }, 'apiIpAllowList');
+
+    return { ipAllowList: environment?.apiIpAllowList ?? [] };
+  }
+
+  @Put('/api-ip-allow-list')
+  @ApiOperation({
+    summary: 'Replace the API key IP allow list of the current environment',
+    description:
+      'Addresses allowed to use this environment API keys, in plain or CIDR notation. An empty list removes the restriction entirely.',
+  })
+  @ApiResponse(ApiIpAllowListResponseDto)
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.API_KEY_WRITE)
+  async updateApiIpAllowList(
+    @UserSession() user: UserSessionData,
+    @Body() payload: UpdateApiIpAllowListRequestDto
+  ): Promise<ApiIpAllowListResponseDto> {
+    /*
+     * Nettoyage avant écriture : espaces retirés, entrées vides écartées, doublons
+     * fondus. Une liste contenant « 203.0.113.7 » et « 203.0.113.7 » se comporte comme
+     * si elle n'en contenait qu'un — autant que ce soit visible dans ce qu'on relit.
+     */
+    const ipAllowList = [...new Set(payload.ipAllowList.map((entree) => entree.trim()).filter(Boolean))];
+
+    await this.environmentRepository.update({ _id: user.environmentId }, { $set: { apiIpAllowList: ipAllowList } });
+
+    /*
+     * La décision est mise en cache une minute par l'intercepteur : le changement n'est
+     * donc pas instantané. C'est dit dans l'interface, pour qu'un essai qui « ne marche
+     * pas encore » ne conduise pas à élargir la liste au hasard.
+     */
+    return { ipAllowList };
   }
 
   @Delete('/:environmentId')

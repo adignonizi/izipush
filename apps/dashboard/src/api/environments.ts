@@ -142,6 +142,33 @@ export async function deleteApiKey({ environment, hash }: { environment: IEnviro
   return del<void>(`/environments/api-keys/${hash}`, { environment });
 }
 
+/**
+ * Adresses autorisées à utiliser les clés API de l'environnement.
+ *
+ * Ces deux routes ne sont pas accessibles par clé API, seulement avec une session de
+ * tableau de bord : une clé capable d'élargir sa propre liste ne protégerait de rien.
+ */
+export async function getApiIpAllowList({
+  environment,
+}: {
+  environment: IEnvironment;
+}): Promise<{ data: { ipAllowList: string[] } }> {
+  return get<{ data: { ipAllowList: string[] } }>(`/environments/api-ip-allow-list`, { environment });
+}
+
+export async function updateApiIpAllowList({
+  environment,
+  ipAllowList,
+}: {
+  environment: IEnvironment;
+  ipAllowList: string[];
+}): Promise<{ data: { ipAllowList: string[] } }> {
+  return put<{ data: { ipAllowList: string[] } }>(`/environments/api-ip-allow-list`, {
+    environment,
+    body: { ipAllowList },
+  });
+}
+
 export async function diffEnvironments({
   sourceEnvironmentId,
   targetEnvironmentId,

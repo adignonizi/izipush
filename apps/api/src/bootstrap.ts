@@ -77,6 +77,27 @@ export async function bootstrap(
   // NestJS 11 defaults to Express v5's simple query parser; keep extended parsing for nested/array query params.
   app.set('query parser', 'extended');
 
+  /*
+   * Nombre de proxys que NOUS contrôlons devant l'API. Express s'en sert pour remonter
+   * la chaîne `X-Forwarded-For` et rendre, dans `request.ip`, l'adresse du client réel
+   * au lieu de celle du proxy.
+   *
+   * Le réglage est indispensable à la liste d'autorisation d'adresses : sans lui,
+   * derrière le nginx du compose, chaque requête semblerait venir du proxy et la liste
+   * refuserait tout le monde.
+   *
+   * Il doit être EXACT, pas généreux. `X-Forwarded-For` est fourni par l'appelant :
+   * seules les entrées ajoutées par nos propres proxys sont dignes de foi, et elles
+   * sont les plus à droite. Un nombre trop grand ferait remonter dans la partie
+   * fournie par le client, qui pourrait alors se déclarer à l'adresse de son choix et
+   * contourner la liste. Un nombre trop petit refuse tout le monde — panne visible,
+   * donc préférable.
+   *
+   * 1 pour le compose (nginx seul). 2 derrière un ALB qui parle à ce nginx. 0 pour une
+   * API exposée en direct, sans aucun proxy.
+   */
+  app.set('trust proxy', Number(process.env.API_TRUSTED_PROXY_HOPS ?? 1));
+
   app.enableVersioning({
     type: VersioningType.URI,
     prefix: `${CONTEXT_PATH}v`,

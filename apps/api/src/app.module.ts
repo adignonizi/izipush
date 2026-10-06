@@ -50,6 +50,7 @@ import { ApiRateLimitInterceptor } from './app/rate-limiting/guards';
 import { RateLimitingModule } from './app/rate-limiting/rate-limiting.module';
 import { AnalyticsLogsGuard } from './app/shared/framework/analytics-logs.guard';
 import { AnalyticsLogsInterceptor } from './app/shared/framework/analytics-logs.interceptor';
+import { ApiIpAllowListInterceptor } from './app/shared/framework/api-ip-allow-list.interceptor';
 import { IdempotencyInterceptor } from './app/shared/framework/idempotency.interceptor';
 import { ProductFeatureInterceptor } from './app/shared/interceptors/product-feature.interceptor';
 import { SharedModule } from './app/shared/shared.module';
@@ -197,6 +198,15 @@ const providers: Provider[] = [
     useClass: ProductFeatureInterceptor,
   },
   ...enterpriseQuotaThrottlerInterceptor,
+  // AVANT l'idempotence, et l'ordre n'est pas cosmétique : les intercepteurs globaux
+  // s'enchaînent dans l'ordre d'enregistrement. Enregistré après, le contrôle d'adresse
+  // laisserait l'intercepteur d'idempotence consulter son cache le premier — et donc
+  // potentiellement servir une réponse déjà calculée à un appelant dont l'adresse
+  // n'est pas autorisée.
+  {
+    provide: APP_INTERCEPTOR,
+    useClass: ApiIpAllowListInterceptor,
+  },
   {
     provide: APP_INTERCEPTOR,
     useClass: IdempotencyInterceptor,

@@ -37,6 +37,20 @@ export class EnvironmentEntity {
 
   apiRateLimits?: IApiRateLimitMaximum;
 
+  /**
+   * Adresses autorisees a utiliser les cles API de cet environnement, en notation
+   * simple ou CIDR.
+   *
+   * **Vide ou absent : aucune restriction.** La fonctionnalite est une option, et un
+   * environnement cree avant son introduction ne doit pas se retrouver coupe.
+   *
+   * Ne porte QUE sur les appels authentifies par cle API — serveur a serveur. Les
+   * routes des appareils (`/v1/widgets/*`, `/v1/crm/public/*`) et l'acces au tableau
+   * de bord n'en dependent pas : une liste mal saisie ne peut donc ni couper les
+   * clients, ni enfermer dehors celui qui l'a saisie.
+   */
+  apiIpAllowList?: string[];
+
   widget: IWidgetSettings;
 
   dns?: IDnsSettings;

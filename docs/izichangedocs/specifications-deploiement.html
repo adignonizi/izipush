@@ -709,6 +709,107 @@ flowchart LR
 
   <section>
     <div class="sec-head">
+      <h2>Garde-fous entre la passerelle et izipush</h2>
+      <p>
+        Deux protections en place dans le code, et ce qu'elles ne couvrent pas. Le reste — segmentation
+        réseau, mTLS — relève de l'infrastructure et n'a pas sa place dans l'application.
+      </p>
+    </div>
+
+    <h3>Idempotence : éviter le double envoi</h3>
+
+    <div class="note">
+      <b>Le <code>transactionId</code> du corps ne déduplique rien.</b> La documentation de
+      <code>POST /v1/events/trigger</code> laisse croire l'inverse — « if the same transactionId is used
+      again, the trigger will be ignored » — mais c'est une fonction de l'offre hébergée, facturée par
+      palier. Dans ce dépôt le champ est indexé et <em>non unique</em>, et aucun chemin du déclenchement
+      ne vérifie s'il a déjà été vu. Il sert à corréler et à annuler
+      (<code>DELETE /v1/events/trigger/:transactionId</code>), pas à protéger.
+    </div>
+
+    <p style="margin-top:14px">
+      Ce qui protège est l'en-tête <code>Idempotency-Key</code>. L'intercepteur d'API met la réponse en
+      cache <b>24 h</b>, par organisation et environnement, et rend la première au lieu de refaire le
+      travail. Il ne s'applique qu'aux appels authentifiés par clé API — exactement le trajet
+      passerelle → izipush — sur les méthodes <code>POST</code> et <code>PATCH</code>, et demande
+      <code>IS_API_IDEMPOTENCY_ENABLED=true</code>, qui vaut déjà <code>true</code> par défaut dans le
+      compose.
+    </p>
+
+    <p style="margin-top:12px">
+      <code>crm-ingest</code> l'envoie désormais sur chaque déclenchement, avec la même valeur que son
+      <code>transactionId</code> — déjà déterministe : dérivée de l'identifiant d'événement pour les
+      campagnes événementielles, de l'identifiant de run pour les campagnes planifiées. Un renvoi rejoue
+      donc la même clé. <b>La passerelle Izichange doit faire de même</b>, avec une valeur dérivée de
+      l'événement métier et jamais d'un aléa : sans en-tête, l'intercepteur laisse simplement passer.
+    </p>
+
+    <h3 style="margin-top:28px">Liste d'autorisation d'adresses</h3>
+
+    <p>
+      Les clés API d'un environnement peuvent être restreintes à certaines adresses, configurables dans
+      <b>API Keys</b> du tableau de bord. Une entrée par ligne, notation simple ou CIDR, IPv4 comme IPv6.
+    </p>
+
+    <div class="tablewrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Comportement</th><th>Pourquoi</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="d">Liste vide — aucune restriction</td>
+            <td class="d">C'est le défaut. La fonctionnalité est une option, et un environnement créé
+                avant son introduction ne doit pas se retrouver coupé.</td>
+          </tr>
+          <tr>
+            <td class="d">Ne porte que sur les appels par clé API</td>
+            <td class="d">Le tableau de bord s'authentifie en <code>Bearer</code>, les appareils passent
+                par <code>/v1/widgets/*</code> et <code>/v1/crm/public/*</code>. Une liste mal saisie ne
+                peut donc ni couper les clients, ni vous enfermer dehors.</td>
+          </tr>
+          <tr>
+            <td class="d">Non modifiable par clé API</td>
+            <td class="d">Les deux routes exigent une session de tableau de bord. Une clé capable
+                d'élargir sa propre liste ne protégerait de rien.</td>
+          </tr>
+          <tr>
+            <td class="d">Adresse illisible — refusée</td>
+            <td class="d">Si on ne sait pas d'où vient l'appel, on ne peut pas affirmer qu'il est
+                autorisé. Une entrée fautive <em>dans la liste</em> est en revanche ignorée, pour qu'une
+                faute de frappe ne devienne pas une panne d'accès.</td>
+          </tr>
+          <tr>
+            <td class="d">Effet sous une minute</td>
+            <td class="d">La liste est tenue en mémoire une minute, pour ne pas lire la base à chaque
+                requête. À savoir avant de conclure qu'elle « ne marche pas ».</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" style="margin-top:16px">
+      <b><code>API_TRUSTED_PROXY_HOPS</code> conditionne tout le reste.</b> L'adresse du client est lue
+      dans <code>X-Forwarded-For</code>, qui est fourni par l'appelant : seules les entrées ajoutées par
+      nos propres proxys sont dignes de foi, et elles sont les plus à droite. Le nombre doit donc être
+      <em>exact</em>, pas généreux :
+      <br><br>
+      · <b>trop grand</b> — on remonte dans la partie fournie par le client, qui peut alors se déclarer à
+      l'adresse de son choix et contourner la liste ;<br>
+      · <b>trop petit</b> — tout le monde est refusé. Panne franche, donc préférable.
+      <br><br>
+      <code>1</code> pour le compose tel quel (nginx seul), <code>2</code> derrière un ALB qui parle à ce
+      nginx, <code>0</code> pour une API exposée en direct.
+    </div>
+
+    <div class="note" style="margin-top:14px">
+      <b>Ce que ça ne remplace pas.</b> Une liste d'autorisation ne vaut que si l'API d'administration
+      n'est pas joignable par tout Internet. La mesure qui domine toutes les autres reste de sortir
+      <code>/v1/subscribers/*</code> et <code>/v1/events/trigger</code> de l'ingress public, et de ne
+      laisser passer que <code>/v1/widgets/*</code> et <code>/v1/crm/public/*</code>.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
       <h2>À décider avant la bascule</h2>
       <p>Questions ouvertes qui appellent une réponse de votre côté, pas une proposition de plus.</p>
     </div>

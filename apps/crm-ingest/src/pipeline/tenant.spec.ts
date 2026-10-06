@@ -5,6 +5,11 @@ import { CrmTenant, currentTenant, runInTenant } from './tenant';
 import { TenantResolver } from './tenant.resolver';
 import { CrmValidationError } from './validation';
 
+/* `cleanEnv` fige le type de `process.env` en lecture seule. Les tests doivent
+   pourtant poser puis retirer ces variables : on passe par un alias mutable
+   plutot que par un cast repete a chaque ligne. */
+const env = process.env as Record<string, string | undefined>;
+
 /** Dépôt d'environnements réduit à ce que le résolveur lui demande. */
 function environmentsReturning(found: { _id: string; _organizationId: string } | null) {
   let calls = 0;
@@ -27,8 +32,8 @@ describe('contexte de locataire', () => {
   const CONFIGURED = { environmentId: 'env-configure', organizationId: 'org-configure' };
 
   beforeEach(() => {
-    process.env.CRM_ENVIRONMENT_ID = CONFIGURED.environmentId;
-    process.env.CRM_ORGANIZATION_ID = CONFIGURED.organizationId;
+    env.CRM_ENVIRONMENT_ID = CONFIGURED.environmentId;
+    env.CRM_ORGANIZATION_ID = CONFIGURED.organizationId;
   });
 
   it('hors contexte, retombe sur l’environnement configuré', () => {
@@ -71,8 +76,8 @@ describe('TenantResolver', () => {
   const CONFIGURED = { environmentId: 'env-configure', organizationId: 'org-configure' };
 
   beforeEach(() => {
-    process.env.CRM_ENVIRONMENT_ID = CONFIGURED.environmentId;
-    process.env.CRM_ORGANIZATION_ID = CONFIGURED.organizationId;
+    env.CRM_ENVIRONMENT_ID = CONFIGURED.environmentId;
+    env.CRM_ORGANIZATION_ID = CONFIGURED.organizationId;
   });
 
   it('sans application_id, rend l’environnement configuré sans interroger la base', async () => {
@@ -84,8 +89,8 @@ describe('TenantResolver', () => {
   });
 
   it('sans application_id NI repli configuré, rejette au lieu d’écrire un environnement indéfini', async () => {
-    delete process.env.CRM_ENVIRONMENT_ID;
-    delete process.env.CRM_ORGANIZATION_ID;
+    delete env.CRM_ENVIRONMENT_ID;
+    delete env.CRM_ORGANIZATION_ID;
 
     const environments = environmentsReturning(null);
     const resolver = new TenantResolver(environments.repo as never);

@@ -2,6 +2,7 @@ import { FeatureFlagsKeysEnum, IApiKey, PermissionsEnum } from '@novu/shared';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { RiAddLine, RiDeleteBin2Line, RiEyeLine, RiEyeOffLine, RiLoopRightFill } from 'react-icons/ri';
+import { ApiIpAllowListCard } from '@/components/api-ip-allow-list-card';
 import { ConfirmationModal } from '@/components/confirmation-modal';
 import { PageMeta } from '@/components/page-meta';
 import { Card, CardContent, CardHeader } from '@/components/primitives/card';
@@ -241,6 +242,7 @@ export function ApiKeysPage() {
                 </div>
               </CardContent>
             </Card>
+            <ApiIpAllowListCard />
           </Form>
         </Container>
       </DashboardLayout>

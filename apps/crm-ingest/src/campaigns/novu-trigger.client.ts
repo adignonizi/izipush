@@ -14,7 +14,21 @@ export type TriggerRecipient = { type: 'Topic'; topicKey: string } | string;
  * Déclenche un workflow par l'API publique de Novu, comme le ferait Izichange.
  * Chaque campagne est déclenchée avec la clé API de SON environnement : une clé unique ferait chercher
  * le workflow dans un autre environnement (« workflow_not_found »).
- * Le transactionId rend le déclenchement rejouable : Novu écarte un second passage identique.
+ * **Le transactionId ne déduplique rien ici.** La documentation de la route le laisse
+ * croire — « if the same transactionId is used again, the trigger will be ignored » —
+ * mais c'est une fonction de l'offre hébergée : dans ce dépôt le champ est indexé et
+ * non unique, et aucun chemin du déclenchement ne vérifie s'il a déjà été vu. Il sert
+ * à corréler et à annuler (`DELETE /v1/events/trigger/:transactionId`), pas à protéger.
+ *
+ * Ce qui protège, c'est l'en-tête `Idempotency-Key` ci-dessous : l'intercepteur d'API
+ * met la réponse en cache 24 h par organisation et environnement, et rend la première
+ * au lieu de refaire le travail. Il ne s'applique qu'aux appels authentifiés par clé
+ * API — exactement notre cas — et demande `IS_API_IDEMPOTENCY_ENABLED=true`.
+ *
+ * On y met le transactionId, qui est déjà déterministe de chaque côté : dérivé de
+ * l'identifiant d'événement pour les campagnes événementielles, de l'identifiant de run
+ * pour les campagnes planifiées. Un renvoi rejoue donc la même clé, et n'envoie pas deux
+ * fois.
  */
 @Injectable()
 export class NovuTriggerClient {
@@ -33,7 +47,11 @@ export class NovuTriggerClient {
 
     const response = await fetch(`${process.env.NOVU_API_URL.replace(/\/+$/, '')}/v1/events/trigger`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `ApiKey ${secretKey}` },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `ApiKey ${secretKey}`,
+        'idempotency-key': input.transactionId,
+      },
       body: JSON.stringify({
         name: input.workflowKey,
         to: input.to,

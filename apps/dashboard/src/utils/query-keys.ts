@@ -7,6 +7,7 @@ export const QueryKeys = Object.freeze({
   fetchWorkflows: 'fetchWorkflows',
   fetchTags: 'fetchTags',
   getApiKeys: 'getApiKeys',
+  getApiIpAllowList: 'getApiIpAllowList',
   fetchIntegrations: 'fetchIntegrations',
   fetchActivity: 'fetchActivity',
   fetchActivities: 'fetchActivities',

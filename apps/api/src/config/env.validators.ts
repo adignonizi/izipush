@@ -77,6 +77,10 @@ export const envValidators = {
   OTEL_PROMETHEUS_PORT: num({ default: 9464 }),
   NOTIFICATION_RETENTION_DAYS: num({ default: DEFAULT_NOTIFICATION_RETENTION_DAYS }),
   API_ROOT_URL: url(),
+  // Proxys que nous contrôlons devant l'API. Sert à retrouver l'adresse du client
+  // réel dans X-Forwarded-For — voir bootstrap.ts, le commentaire y explique
+  // pourquoi ce nombre doit être exact et non généreux.
+  API_TRUSTED_PROXY_HOPS: num({ default: 1 }),
   NOVU_INVITE_TEAM_MEMBER_NUDGE_TRIGGER_IDENTIFIER: str({ default: undefined }),
   SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME: str({ default: '15 days' }),
   NOVU_REGION: str({ default: 'local' }),
