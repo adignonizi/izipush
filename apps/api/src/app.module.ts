@@ -22,6 +22,8 @@ import { CliAuthModule } from './app/cli-auth/cli-auth.module';
 import { ConnectModule } from './app/connect/connect.module';
 import { ContentTemplatesModule } from './app/content-templates/content-templates.module';
 import { ContextsModule } from './app/contexts/contexts.module';
+// izipush-crm — segments et campagnes (dashboard)
+import { CrmModule } from './app/crm/crm.module';
 import { DomainsModule } from './app/domains/domains.module';
 import { EnvironmentVariablesModule } from './app/environment-variables/environment-variables.module';
 import { EnvironmentsModuleV1 } from './app/environments-v1/environments-v1.module';
@@ -48,6 +50,8 @@ import { ApiRateLimitInterceptor } from './app/rate-limiting/guards';
 import { RateLimitingModule } from './app/rate-limiting/rate-limiting.module';
 import { AnalyticsLogsGuard } from './app/shared/framework/analytics-logs.guard';
 import { AnalyticsLogsInterceptor } from './app/shared/framework/analytics-logs.interceptor';
+import { ApiIpAllowListInterceptor } from './app/shared/framework/api-ip-allow-list.interceptor';
+import { SectionAccessInterceptor } from './app/shared/framework/section-access.interceptor';
 import { IdempotencyInterceptor } from './app/shared/framework/idempotency.interceptor';
 import { ProductFeatureInterceptor } from './app/shared/interceptors/product-feature.interceptor';
 import { SharedModule } from './app/shared/shared.module';
@@ -167,6 +171,7 @@ const baseModules: Array<Type | DynamicModule | Promise<DynamicModule> | Forward
   CliAuthModule,
   StepResolversModule,
   WellKnownModule,
+  CrmModule,
 ];
 
 const enterpriseModules = enterpriseImports();
@@ -194,6 +199,21 @@ const providers: Provider[] = [
     useClass: ProductFeatureInterceptor,
   },
   ...enterpriseQuotaThrottlerInterceptor,
+  // AVANT l'idempotence, et l'ordre n'est pas cosmétique : les intercepteurs globaux
+  // s'enchaînent dans l'ordre d'enregistrement. Enregistré après, le contrôle d'adresse
+  // laisserait l'intercepteur d'idempotence consulter son cache le premier — et donc
+  // potentiellement servir une réponse déjà calculée à un appelant dont l'adresse
+  // n'est pas autorisée.
+  {
+    provide: APP_INTERCEPTOR,
+    useClass: ApiIpAllowListInterceptor,
+  },
+  // Avant l'idempotence lui aussi : une requête refusée faute de section n'a aucune raison
+  // d'occuper une entrée du cache d'idempotence.
+  {
+    provide: APP_INTERCEPTOR,
+    useClass: SectionAccessInterceptor,
+  },
   {
     provide: APP_INTERCEPTOR,
     useClass: IdempotencyInterceptor,

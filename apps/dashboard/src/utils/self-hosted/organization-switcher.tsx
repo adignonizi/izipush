@@ -1,12 +1,33 @@
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { RiCheckLine, RiExpandUpDownLine } from 'react-icons/ri';
+import { listMyOrganizations, openDashboardWith, switchOrganization } from '@/api/team';
+import { t } from '@/components/crm/crm-i18n';
 import { Avatar } from '@/components/primitives/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/primitives/dropdown-menu';
+import { showErrorToast } from '@/components/primitives/sonner-helpers';
 import { NovuLogoBlackBg } from './icons';
 import { useOrganization } from './index';
 
+// izipush — sélecteur d'organisation en auto-hébergé : un compte membre de plusieurs organisations peut en changer.
+
 function OrganizationSwitcherComponent() {
   const { organization, isLoaded } = useOrganization() as {
-    organization: { name: string } | undefined;
+    organization: { name: string; _id?: string } | undefined;
     isLoaded: boolean;
   };
+  const { data: organizations = [] } = useQuery({
+    queryKey: ['selfHostedOrganizations'],
+    queryFn: listMyOrganizations,
+    enabled: isLoaded && !!organization,
+    staleTime: 60_000,
+  });
+  const [switching, setSwitching] = useState<string>();
 
   if (!isLoaded) {
     return (
@@ -19,13 +40,58 @@ function OrganizationSwitcherComponent() {
 
   if (!organization) return null;
 
-  return (
-    <div className="relative flex w-full items-center justify-start gap-2 rounded-lg px-1.5 py-1.5">
+  const current = (
+    <>
       <OrganizationAvatar shining={false} />
       <span className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground-950">
         {organization.name}
       </span>
-    </div>
+    </>
+  );
+
+  if (organizations.length <= 1) {
+    return <div className="relative flex w-full items-center justify-start gap-2 rounded-lg px-1.5 py-1.5">{current}</div>;
+  }
+
+  const change = async (organizationId: string) => {
+    if (organizationId === organization._id) return;
+    setSwitching(organizationId);
+
+    try {
+      openDashboardWith(await switchOrganization(organizationId));
+    } catch (error) {
+      setSwitching(undefined);
+      showErrorToast((error as Error).message, t('org.switchFailed'));
+    }
+  };
+
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('org.switch')}
+          className="hover:bg-neutral-alpha-50 focus-visible:ring-stroke-strong relative flex w-full items-center justify-start gap-2 rounded-lg px-1.5 py-1.5 outline-none transition-colors focus-visible:ring-2"
+        >
+          {current}
+          <RiExpandUpDownLine className="text-text-soft size-4 shrink-0" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-60">
+        <div className="text-text-soft text-label-xs px-2 py-1.5">{t('org.switch')}</div>
+        {organizations.map((candidate) => (
+          <DropdownMenuItem
+            key={candidate._id}
+            className="cursor-pointer"
+            disabled={!!switching}
+            onClick={() => change(candidate._id)}
+          >
+            <span className="min-w-0 flex-1 truncate">{candidate.name}</span>
+            {candidate._id === organization._id && <RiCheckLine className="text-primary-base size-4" aria-hidden />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

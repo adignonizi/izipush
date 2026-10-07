@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Enregistrement d'un jeton push — flux et interactions</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    color-scheme: light;
+
+    --ground: #F1F3F1;
+    --surface: #FFFFFF;
+    --surface-sunk: #E9ECEA;
+    --ink: #151F1E;
+    --muted: #5B6A67;
+    --faint: #7E8C89;
+    --line: #D6DCD9;
+    --line-strong: #BEC7C3;
+
+    --accent: #0E6A60;
+    --accent-ink: #0B4F47;
+    --accent-soft: #E0EDEA;
+
+    --core: #6A5A7B;
+    --core-soft: #EDE8F1;
+
+    --warn: #8A5A1A;
+    --warn-soft: #F5ECDF;
+
+    --sans: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+    --r: 6px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+
+      --ground: #0F1514;
+      --surface: #17201F;
+      --surface-sunk: #121A19;
+      --ink: #E4EBE9;
+      --muted: #93A29F;
+      --faint: #7A8785;
+      --line: #283533;
+      --line-strong: #3A4A47;
+
+      --accent: #4ECCBA;
+      --accent-ink: #7FDECF;
+      --accent-soft: #123330;
+
+      --core: #BCA7D2;
+      --core-soft: #241D2C;
+
+      --warn: #D9A85F;
+      --warn-soft: #2C2415;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --ground: #0F1514;
+    --surface: #17201F;
+    --surface-sunk: #121A19;
+    --ink: #E4EBE9;
+    --muted: #93A29F;
+    --faint: #7A8785;
+    --line: #283533;
+    --line-strong: #3A4A47;
+
+    --accent: #4ECCBA;
+    --accent-ink: #7FDECF;
+    --accent-soft: #123330;
+
+    --core: #BCA7D2;
+    --core-soft: #241D2C;
+
+    --warn: #D9A85F;
+    --warn-soft: #2C2415;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 44px 72px;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  h1 { font-size: clamp(30px, 5.2vw, 46px); font-weight: 700; line-height: 1.1; }
+  h2 { font-size: clamp(20px, 3vw, 25px); font-weight: 600; }
+  h3 { font-size: 17px; font-weight: 600; }
+
+  p { margin: 0; }
+
+  code, .mono { font-family: var(--mono); font-size: 0.88em; }
+
+  /* ── En-tête ───────────────────────────────────────────────── */
+
+  header.top {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-bottom: 34px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .lede {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 62ch;
+  }
+
+  .counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    padding-top: 6px;
+  }
+
+  .count {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .count b {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .count span {
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+
+  /* ── Sections ──────────────────────────────────────────────── */
+
+  section { padding-top: 52px; }
+
+  .sec-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+
+  .sec-head p { color: var(--muted); max-width: 66ch; }
+
+  /* ── Le schéma ─────────────────────────────────────────────── */
+
+  .sheet {
+    background: #FBFCFB;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r);
+    padding: 18px 12px;
+    overflow-x: auto;
+  }
+
+  .sheet pre.mermaid {
+    margin: 0;
+    background: transparent;
+    min-width: 640px;
+    text-align: center;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+
+  .swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    border: 1px solid var(--line-strong);
+    flex: none;
+  }
+
+  /* ── Grille de collections ─────────────────────────────────── */
+
+  .group { margin-top: 34px; }
+
+  .group > h3 {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 14px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 15px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .card.core { border-left: 3px solid var(--core); }
+  .card.crm { border-left: 3px solid var(--accent); }
+
+  .card-name {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+  }
+
+  .card-role {
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .f {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--surface-sunk);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .f.key {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-weight: 500;
+  }
+
+  .note {
+    font-size: 12.5px;
+    color: var(--faint);
+    border-top: 1px dashed var(--line);
+    padding-top: 9px;
+    margin-top: 1px;
+    line-height: 1.5;
+  }
+
+  .note b { color: var(--muted); font-weight: 600; }
+
+  .ttl {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--warn-soft);
+    color: var(--warn);
+    align-self: flex-start;
+  }
+
+  /* ── Tableau des liens ─────────────────────────────────────── */
+
+  .tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: var(--surface);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 660px;
+    font-size: 13.5px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  th {
+    font-size: 11.5px;
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  td.m { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.k { font-family: var(--mono); font-size: 12.5px; color: var(--accent-ink); white-space: nowrap; }
+  td.d { color: var(--muted); }
+
+  /* ── Règles ────────────────────────────────────────────────── */
+
+  .rules {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+  }
+
+  .rule {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 16px 17px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .rule h3 { font-size: 15px; }
+  .rule p { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+  .rule code { background: var(--surface-sunk); padding: 1px 4px; border-radius: 3px; }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+  }
+
+  @media (max-width: 520px) {
+    .counts { gap: 10px 20px; }
+  }
+</style>
+</head><body>
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">izipush · SDK ↔ API</span>
+    <h1>Enregistrement d'un jeton push</h1>
+    <p class="lede">
+      Quatre façons de faire parvenir un jeton FCM à izipush. Elles ne diffèrent que sur un point —
+      <em>qui prouve que l'abonné est bien celui qu'il prétend être</em> — et c'est ce point qui décide
+      de tout le reste : le nombre d'appels, le travail côté passerelle, et si un tiers peut détourner
+      les notifications d'un client.
+    </p>
+    <div class="counts">
+      <span class="count"><b>24</b><span>routes widgets</span></span>
+      <span class="count"><b>1</b><span>sans authentification</span></span>
+      <span class="count"><b>4</b><span>stratégies d'auth</span></span>
+      <span class="count"><b>0</b><span>fondée sur l'applicationIdentifier</span></span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>Les acteurs</h2>
+      <p>
+        Quatre, et c'est la frontière entre les deux du milieu qui porte toute la question. La passerelle
+        connaît la session de l'utilisateur ; l'app cliente, elle, ne peut rien prouver par elle-même —
+        tout ce qu'elle embarque est lisible par qui démonte le paquet.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+flowchart LR
+  C["App cliente<br/>SDK izipush"] -->|"session utilisateur"| G["Passerelle Izichange<br/>détient la clé API"]
+  C -->|"getToken"| F["Firebase FCM<br/>émet le jeton"]
+  G -->|"ApiKey"| N["izipush<br/>API Novu"]
+  C -.->|"JWT abonné"| N
+</pre>
+    </div>
+
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--accent)"></i>Ce qui détient un secret</span>
+      <span><i class="swatch" style="background:var(--core)"></i>Ce qui n'en détient aucun</span>
+      <span><i class="swatch" style="background:var(--warn)"></i>Trait pointillé — le chemin qu'on cherche à supprimer</span>
+    </div>
+
+    <div class="note">
+      <b>Le point de départ.</b> <code>applicationIdentifier</code> est embarqué dans le bundle de l'app :
+      on l'extrait d'un APK en quelques minutes, et il est en clair dans le JavaScript d'une page web.
+      C'est une <em>clé de routage</em> — elle dit à izipush de quel environnement il s'agit — et non une
+      preuve d'identité. Toute la suite découle de là.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Flux A — le JWT d'abonné, ce qui tourne aujourd'hui</h2>
+      <p>
+        Le SDK échange l'identifiant public contre un jeton signé, puis s'en sert pour enregistrer.
+        C'est le chemin par défaut du SDK quand aucun <code>sessionToken</code> ne lui est fourni.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as App cliente — SDK
+  participant G as Passerelle Izichange
+  participant F as Firebase FCM
+  participant N as izipush
+
+  C->>G: POST /login
+  G-->>C: 200 + session
+  C->>F: getToken
+  F-->>C: jeton FCM
+  C->>N: POST /v1/widgets/session/initialize<br/>applicationIdentifier + subscriberId
+  N-->>C: 201 + JWT abonné — valable 15 jours
+  C->>N: PUT /v1/widgets/credentials<br/>Authorization Bearer JWT
+  N-->>C: 200 — jeton enregistré
+</pre>
+    </div>
+
+    <div class="note">
+      <b>Le coût réel.</b> Les étapes 5 et 6 ne se rejouent pas à chaque enregistrement : le JWT vit
+      quinze jours et le SDK le réutilise tel quel dès qu'on lui passe un <code>sessionToken</code>.
+      C'est donc <em>un appel par connexion</em>, pas un par notification ni un par démarrage. Sans
+      <code>sessionToken</code>, en revanche, le SDK refait la paire à chaque enregistrement — c'est ce
+      cas-là, et lui seul, qui est coûteux.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Flux B — le JWT voyage avec le login</h2>
+      <p>
+        Même mécanique, mais l'aller-retour disparaît du client : la passerelle ouvre la session izipush
+        pendant qu'elle traite une connexion qu'elle traite déjà, et joint le jeton à sa réponse.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as App cliente — SDK
+  participant G as Passerelle Izichange
+  participant F as Firebase FCM
+  participant N as izipush
+
+  C->>G: POST /login
+  G->>N: POST /v1/widgets/session/initialize
+  N-->>G: 201 + JWT abonné
+  G-->>C: 200 + session + izipushToken
+  Note over C,G: aucun aller-retour supplémentaire<br/>le coût client est exactement nul
+  C->>F: getToken
+  F-->>C: jeton FCM
+  C->>N: PUT /v1/widgets/credentials<br/>Authorization Bearer izipushToken
+  N-->>C: 200
+</pre>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Flux C — serveur à serveur, sans aucun JWT</h2>
+      <p>
+        Le SDK s'arrête au jeton FCM et le remet à l'app hôte. C'est la passerelle qui enregistre, avec
+        sa clé secrète. Le JWT et le HMAC disparaissent tous les deux.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as App cliente — SDK
+  participant G as Passerelle Izichange
+  participant F as Firebase FCM
+  participant N as izipush
+
+  C->>G: POST /login
+  G-->>C: 200 + session
+  C->>F: getToken
+  F-->>C: jeton FCM
+  C->>G: POST /push/token<br/>jeton + providerId — sur la session authentifiée
+  Note over G: le subscriberId est lu dans la session<br/>jamais dans le corps de la requête
+  G->>N: PATCH /v1/subscribers/ID/credentials<br/>Authorization ApiKey<br/>Idempotency-Key — valeur déterministe
+  rect rgb(240, 236, 224)
+    Note over N: 1. adresse de la passerelle dans la liste<br/>d'autorisation de l'environnement ?
+    Note over N: 2. plafond de débit atteint ? sinon 429
+    Note over N: 3. cette Idempotency-Key a-t-elle<br/>déjà répondu ? cache 24 h
+  end
+  N-->>G: 200
+  G-->>C: 204
+</pre>
+    </div>
+
+    <div class="note">
+      <b>Même usecase que la route widget.</b> <code>PATCH /v1/subscribers/ID/credentials</code> appelle
+      <code>UpdateSubscriberChannel</code> avec <code>isIdempotentOperation: false</code>, exactement comme
+      <code>PUT /v1/widgets/credentials</code> : même union dédoublonnée des jetons, même remplacement par
+      appareil, même plafond. Rien ne se dégrade — seule la source de l'identité change.
+      <br><br>
+      <b>Deux réserves.</b> Il faut une route <code>/push/token</code> sur la passerelle. Et l'abonné doit
+      préexister, sinon la route répond <code>BadRequest</code> : l'ingestion CRM le crée sur
+      <code>account.*</code>, mais un inscrit de la minute précédente peut arriver avant son événement —
+      prévoir un réessai, ou un <code>POST /v1/subscribers</code> en amont.
+    </div>
+
+    <h3 style="margin-top:28px">Les trois contrôles de l'étape 7</h3>
+
+    <p>
+      Tous trois ne concernent que ce trajet-là : ils ne s'appliquent qu'aux appels authentifiés
+      <b>par clé API</b>. Les flux A et B, qui s'authentifient par JWT d'abonné, n'y sont pas soumis —
+      c'est aussi ce qui rend ce flux plus défendable.
+    </p>
+
+    <div class="tablewrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Contrôle</th><th>Ce qu'il empêche</th><th>Ce qu'il faut savoir</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="d"><b>Liste d'autorisation d'adresses</b><br>paramètres de développeur</td>
+            <td class="d">Qu'une clé dérobée serve depuis ailleurs que vos serveurs.</td>
+            <td class="d">Liste vide — aucune restriction, c'est le défaut. Effet sous une minute.
+                Dépend de <code>API_TRUSTED_PROXY_HOPS</code> : sans lui, l'API voit l'adresse du proxy
+                et refuse tout le monde.</td>
+          </tr>
+          <tr>
+            <td class="d"><b>Limitation de débit</b><br><code>IS_API_RATE_LIMITING_ENABLED</code></td>
+            <td class="d">Qu'une boucle dans l'appelant, ou un rejeu de file, devienne un incident total
+                plutôt que borné.</td>
+            <td class="d">Plafonds <b>par seconde</b>, fenêtre de 5 s, 10 % de dépassement toléré. Au
+                niveau <i>free</i> — celui d'une organisation auto-hébergée par défaut : <b>60/s</b> sur
+                les déclenchements, <b>20/s</b> en configuration, <b>30/s</b> sur le reste, dont
+                l'enregistrement d'un jeton. Dépassement : <code>429</code>. Relevable par environnement
+                via <code>apiRateLimits</code>.</td>
+          </tr>
+          <tr>
+            <td class="d"><b><code>Idempotency-Key</code></b><br>en-tête de la requête</td>
+            <td class="d">Qu'un renvoi — timeout, rejeu de file — enregistre ou envoie deux fois.</td>
+            <td class="d">Réponse en cache 24 h, par organisation et environnement. <b>Sans en-tête,
+                l'intercepteur laisse passer</b> : c'est à l'appelant de l'envoyer, avec une valeur
+                dérivée de l'événement et jamais d'un aléa.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" style="margin-top:16px">
+      <b>Le plafond qui mord est celui de l'enregistrement, pas celui des envois.</b> Un jeton se
+      réenregistre à chaque connexion et à chaque rotation FCM : un pic de connexions — une reprise après
+      incident, une mise à jour poussée à tous — concentre ces appels dans la catégorie
+      <i>global</i>, la plus basse des trois. Avant de resserrer quoi que ce soit,
+      <code>IS_API_RATE_LIMITING_DRY_RUN_ENABLED</code> permet de compter sans refuser.
+    </div>
+
+    <div class="note" style="margin-top:14px">
+      <b>Le <code>transactionId</code> n'est pas un garde-fou.</b> La documentation de
+      <code>POST /v1/events/trigger</code> laisse croire qu'un même <code>transactionId</code> fait ignorer
+      le déclenchement. C'est vrai de l'offre hébergée, pas de ce dépôt : le champ y est indexé et
+      <em>non unique</em>, et aucun chemin du déclenchement ne vérifie s'il a déjà été vu. Il sert à
+      corréler et à annuler. La protection, c'est l'en-tête — et lui seul.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Flux E — jeton Keycloak, celui qui est retenu</h2>
+      <p>
+        L'application s'authentifie déjà par Keycloak, sur mobile comme sur web. izipush vérifie
+        ce jeton — il prouve que l'appelant est un client authentifié — et enregistre l'abonné que
+        l'appelant désigne : <b>l'identifiant Izichange</b>, celui du <code>user_id</code> des
+        événements métier. Plus de session à ouvrir, plus de HMAC, et <b>rien à écrire côté
+        passerelle</b> — c'est ce dernier point qui le rend meilleur que les flux B et C.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as App cliente — SDK
+  participant K as Keycloak
+  participant F as Firebase FCM
+  participant N as izipush
+
+  C->>K: connexion
+  K-->>C: jeton d'accès — 5 minutes
+  C->>F: getToken
+  F-->>C: jeton FCM
+  C->>N: PUT /v1/widgets/credentials<br/>Authorization Bearer jeton Keycloak<br/>Novu-Application-Identifier
+  N->>K: GET /protocol/openid-connect/certs<br/>clés du realm — en cache 10 min
+  K-->>N: JWKS
+  Note over N: signature · iss · azp · exp<br/>subscriberId = claim sub, vérifié
+  N-->>C: 200
+</pre>
+    </div>
+
+    <div class="note">
+      <b>L'identité ne vient plus de la requête.</b> <code>applicationIdentifier</code> reste
+      nécessaire — un jeton Keycloak ne sait rien d'izipush, il faut bien dire contre quel realm le
+      vérifier — mais il ne sert qu'à l'aiguillage. Le <code>subscriberId</code> est lu dans un
+      jeton dont la signature a été vérifiée. Le <b>profil</b> — <code>email</code>,
+      <code>given_name</code>, <code>family_name</code> — en vient aussi : il alimente les campagnes
+      du CRM, il n'a donc rien à faire dans un corps de requête.
+      <br><br>
+      <b>L'identifiant vient du corps de la requête</b> — c'est le <code>userId</code> que l'app
+      passe au SDK, l'identifiant Izichange, celui du <code>user_id</code> des événements métier et
+      des liens de souscription.
+      <br><br>
+      <b>Mais il doit correspondre au claim du jeton</b>, et c'est ce qui ferme le détournement du
+      flux D. L'identifiant d'un client Izichange <em>est</em> son identifiant Keycloak : le corps
+      reste la source, lisible et explicite, mais il ne peut pas désigner quelqu'un d'autre. Sans ce
+      contrôle, « authentifié » suffirait — n'importe quel client muni de SON jeton enregistrerait
+      son appareil sous l'identifiant d'un autre, recevrait ses notifications, et la victime
+      continuerait de tout recevoir puisque la route fait l'union des jetons. Rien ne le signalerait.
+      <br><br>
+      <b>La liaison reste, en seconde barrière.</b> Le <code>sub</code> du premier jeton qui
+      enregistre un appareil est retenu sur l'abonné — champ <code>keycloakSubject</code> — et tout
+      autre porteur est refusé ensuite. Elle couvre le cas où <code>subjectClaim</code> serait un
+      jour pointé sur un autre claim, et rend explicite en base quel sujet Keycloak possède cet
+      abonné.
+      <br><br>
+      <b>Et si un déploiement avait besoin que les deux diffèrent</b>, <code>subjectClaim</code> le
+      règle : on pointe le claim qui porte réellement l'identifiant attendu, et le contrôle
+      d'égalité s'applique à cette valeur. Ce n'est donc pas une impasse.
+    </div>
+
+    <h3 style="margin-top:28px">Les cinq contrôles sur le jeton</h3>
+
+    <div class="tablewrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Contrôle</th><th>Ce qu'il empêche</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="d">Signature contre le <b>JWKS du realm</b></td>
+            <td class="d">Tout. C'est le seul qui prouve quelque chose — le reste n'a de sens
+                qu'après lui.</td>
+          </tr>
+          <tr>
+            <td class="d"><code>alg</code> épinglé à <b>RS256</b></td>
+            <td class="d">La faille classique des JWT : <code>alg: none</code> passerait sans
+                signature, et HS256 ferait vérifier une signature symétrique avec la clé
+                <em>publique</em> du realm — publique, donc forgeable par quiconque.</td>
+          </tr>
+          <tr>
+            <td class="d"><code>iss</code> exactement l'émetteur réglé</td>
+            <td class="d">Qu'un attaquant monte son propre Keycloak, y émette un jeton portant le
+                <code>sub</code> de sa victime, et le fasse valider.</td>
+          </tr>
+          <tr>
+            <td class="d"><code>azp</code> ou <code>aud</code> contre le client attendu</td>
+            <td class="d">Le contrôle qu'on oublie. Tous les clients d'un realm sont signés par la
+                <b>même clé</b> : sans lui, un jeton émis pour un outil interne enregistre un
+                appareil. <b>La valeur à régler est le <code>azp</code></b> — <code>izi-client</code>
+                chez Izichange — et jamais celle d'<code>aud</code>, qui vaut <code>account</code>
+                sur tous les jetons du realm et ne protégerait donc rien.</td>
+          </tr>
+          <tr>
+            <td class="d"><code>exp</code> et <code>nbf</code>, 30 s de tolérance</td>
+            <td class="d">Le rejeu d'un vieux jeton. La tolérance existe parce que deux machines ne
+                sont jamais exactement à la même heure.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" style="margin-top:16px">
+      <b>Vérification locale, pas introspection.</b> Les clés du realm sont gardées dix minutes, et
+      rechargées quand un <code>kid</code> inconnu apparaît — c'est ainsi qu'une rotation se
+      manifeste. Appeler <code>/token/introspect</code> à chaque requête serait plus court à écrire
+      mais ajouterait un aller-retour réseau par enregistrement, et rendrait izipush indisponible
+      dès que Keycloak tousse. Avec les clés en cache, une panne Keycloak n'empêche pas les
+      enregistrements.
+      <br><br>
+      <b>L'émetteur commande un appel sortant.</b> Il détermine l'URL que l'API va chercher, et il
+      se règle depuis le tableau de bord : <code>https</code> est donc exigé sauf vers un hôte
+      local, et les adresses IP littérales sont refusées. Sans ça, le champ servirait à faire
+      émettre à izipush des requêtes vers l'intérieur du réseau.
+      <br><br>
+      <b>Deux réserves.</b> L'abonné doit préexister — ce chemin ne le crée pas, contrairement à
+      <code>session/initialize</code>. Et un jeton d'accès a une durée de vie bornée — <b>quatre
+      heures</b> sur le realm d'Izichange, cinq minutes sur un Keycloak laissé par défaut — alors
+      qu'une application installée vit bien plus longtemps : le SDK doit en redemander un frais à
+      chaque enregistrement, d'où un <code>keycloakToken</code> qui est une fonction et non une
+      chaîne.
+    </div>
+
+    <div class="note" style="margin-top:14px">
+      <b>La bascule se pilote par environnement.</b> Un émetteur réglé → le jeton Keycloak est
+      exigé. Champ vide → retour au JWT d'abonné, inchangé. Il n'existe donc aucune journée où les
+      deux mondes doivent être prêts ensemble, et le retour arrière tient en un champ qu'on vide.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Flux D — l'<code>applicationIdentifier</code> seul</h2>
+      <p>
+        Techniquement faisable en modifiant le fork — une quinzaine de lignes. Voici ce que ça autorise,
+        et pourquoi le problème n'est pas la faille elle-même mais son silence.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor A as Attaquant
+  actor V as Victime
+  participant N as izipush
+
+  A->>A: extrait applicationIdentifier du bundle — public
+  A->>N: PUT /credentials<br/>subscriberId de la victime + son propre jeton FCM
+  N-->>A: 200 — rien ne distingue cet appel d'un légitime
+  Note over N: la route fait l'UNION des jetons<br/>celui de la victime n'est pas remplacé
+  N->>V: notification — reçue normalement
+  N->>A: la même notification
+  Note over A,V: la victime ne constate aucune anomalie<br/>l'interception ne laisse aucune trace
+</pre>
+    </div>
+
+    <div class="note">
+      <b>Ce qui fuite.</b> Montants de transaction, décisions KYC, alertes de sécurité. Pour un service de
+      transfert d'argent, ce n'est pas une gêne théorique.
+      <br><br>
+      <b>Et <code>subscriberId</code> n'est pas un secret.</b> C'est l'identifiant Keycloak de
+      l'utilisateur — il circule dans les réponses d'API, les journaux, les tickets de support. Une
+      authentification ne peut pas reposer sur le fait de connaître un identifiant : c'est précisément
+      la différence entre identifier et authentifier.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Le comparatif</h2>
+      <p>Les deux colonnes du milieu sont celles qui motivaient la question. La dernière est celle qui tranche.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Flux</th>
+            <th>Qui prouve l'identité</th>
+            <th>Appels client en plus</th>
+            <th>Travail passerelle</th>
+            <th>Détournement possible</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">A — JWT</td>
+            <td class="d">JWT signé par izipush</td>
+            <td class="d">1 par connexion<br>(1 par enregistrement sans <code>sessionToken</code>)</td>
+            <td class="d">aucun</td>
+            <td class="k">non</td>
+          </tr>
+          <tr>
+            <td class="m">B — JWT au login</td>
+            <td class="d">JWT signé par izipush</td>
+            <td class="k">aucun</td>
+            <td class="d">enrichir la réponse de login</td>
+            <td class="k">non</td>
+          </tr>
+          <tr>
+            <td class="m">C — serveur à serveur</td>
+            <td class="d">session de la passerelle<br>+ clé API d'environnement</td>
+            <td class="k">aucun</td>
+            <td class="d">une route <code>/push/token</code></td>
+            <td class="k">non</td>
+          </tr>
+          <tr>
+            <td class="m">D — identifiant seul</td>
+            <td class="d">personne</td>
+            <td class="k">aucun</td>
+            <td class="k">aucun</td>
+            <td class="m" style="color:var(--warn)">oui, sans trace</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>L'arbitrage est tranché : E.</b> C'est la seule ligne qui ne demande rien à la passerelle
+      <em>et</em> ne laisse rien détourner. D y arrivait au prix d'une interception silencieuse ;
+      B et C demandaient tous deux du travail côté passerelle. E n'a aucun des deux défauts, parce
+      qu'il repose sur une identité qu'Izichange possède déjà des deux côtés.
+      <br><br>
+      A reste en service, et c'est volontaire : la bascule se règle environnement par environnement,
+      donc A et E coexistent le temps de la migration.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Ce que l'API accepte réellement</h2>
+      <p>Relevé dans le code, pas déduit. C'est ce qui rend D impossible sans modifier le fork.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Route</th><th>Garde</th><th>Accepte des credentials</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">POST /v1/widgets/session/initialize</td>
+            <td class="k">aucune</td>
+            <td class="d">non — <code>subscriberId</code>, <code>applicationIdentifier</code>,
+                <code>email</code>, <code>firstName</code>, <code>lastName</code>, <code>phone</code>,
+                <code>hmacHash</code></td>
+          </tr>
+          <tr>
+            <td class="m">PUT /v1/widgets/credentials</td>
+            <td class="m">subscriberJwt</td>
+            <td class="d">oui</td>
+          </tr>
+          <tr>
+            <td class="m">PATCH /v1/subscribers/ID/credentials</td>
+            <td class="m">ApiKey — clé d'environnement</td>
+            <td class="d">oui, en ajout</td>
+          </tr>
+          <tr>
+            <td class="m">PUT /v1/subscribers/ID/credentials</td>
+            <td class="m">ApiKey — clé d'environnement</td>
+            <td class="d">oui, en remplacement</td>
+          </tr>
+          <tr>
+            <td class="m">les 22 autres routes widgets</td>
+            <td class="m">subscriberJwt</td>
+            <td class="d">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Une seule route sans garde</b> sur les vingt-quatre du contrôleur widgets, et elle n'accepte pas
+      de <code>deviceTokens</code> — on ne peut donc pas s'en servir pour enregistrer un jeton au passage.
+      Les stratégies d'authentification disponibles sont <code>apikey</code>, <code>jwt</code>,
+      <code>subscriber-jwt</code> et <code>github</code> : <b>aucune n'est fondée sur
+      l'<code>applicationIdentifier</code></b>, qui n'est d'ailleurs reconnu dans aucun autre contrôleur
+      de l'API.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Après l'enregistrement — l'envoi et les retours</h2>
+      <p>
+        Pour situer le reste de la chaîne. C'est la partie qui explique la différence entre
+        <em>« envoyé »</em> au tableau de bord et <em>« reçu »</em> sur l'appareil.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant W as Worker izipush
+  participant F as Firebase FCM
+  participant D as Appareil — SDK
+  participant A as API izipush
+
+  W->>F: sendEachForMulticast — un message par jeton
+  F-->>W: accusé jeton par jeton
+  Note over W: « Message sent » — FCM a accepté<br/>ne prouve PAS que l'appareil a reçu
+  F->>D: notification
+  D->>A: POST /push-delivered
+  Note over A: « Message delivered » — l'appareil confirme<br/>raw.source = foreground ou background
+  D->>A: POST /push-opened — au tap
+  Note over A: seen + read + engagement CRM si campagne
+</pre>
+    </div>
+
+    <div class="note">
+      <b>À lire dans le journal d'activité.</b> Un abonné dont toutes les livraisons portent
+      <code>foreground</code> ne reçoit que lorsqu'il regarde l'application — son service worker ou sa
+      tâche de fond ne fonctionne pas. Et une ligne d'erreur n'empêche pas le succès : le worker envoie
+      un message par jeton, donc un jeton périmé échoue pendant que les autres aboutissent.
+    </div>
+  </section>
+
+  <footer style="margin:56px 0 28px; padding-top:20px; border-top:1px solid var(--line); color:var(--faint); font-size:12.5px;">
+    izipush · relevé dans le code au 5 octobre 2026 — <code>widgets.controller.ts</code>,
+    <code>subscribersV1.controller.ts</code>, <code>update-subscriber-channel.usecase.ts</code>
+  </footer>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+</script>
+</body>
+</html>

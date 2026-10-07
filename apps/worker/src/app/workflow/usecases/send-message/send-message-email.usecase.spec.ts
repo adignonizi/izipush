@@ -34,7 +34,10 @@ describe('SendMessageEmail - email-webhook payloadDetails', () => {
       {} as never,
       featureFlagService as never,
       {} as never,
-      sendWebhookMessage as never
+      sendWebhookMessage as never,
+      // izipush-crm : aiguilleur email et compteurs par fournisseur.
+      {} as never,
+      {} as never
     );
 
     sinon.stub(usecase as never, 'getIntegration').resolves({

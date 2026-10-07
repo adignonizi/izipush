@@ -17,13 +17,14 @@ import { Card } from '@/components/primitives/card';
 import { InlineToast } from '@/components/primitives/inline-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/primitives/tabs';
 import { OrganizationSettings } from '@/components/settings/organization-settings';
-import { EE_AUTH_PROVIDER, IS_CLOUD } from '@/config';
+import { EE_AUTH_PROVIDER, IS_CLOUD, IS_SELF_HOSTED_CE } from '@/config';
 import { useFeatureFlag } from '@/hooks/use-feature-flag';
 import { useFetchSubscription } from '@/hooks/use-fetch-subscription';
 import { useHasPermission } from '@/hooks/use-has-permission';
 import { TeamMembers } from '@/utils/better-auth/components/team-members';
 import { UserProfile as BetterAuthUserProfile } from '@/utils/better-auth/index';
 import { ROUTES } from '@/utils/routes';
+import { SelfHostedTeamMembers } from '@/utils/self-hosted/team-members';
 import { getRequiredTierLabelForFeature } from '@/utils/upgrade-tier';
 
 // Pin Clerk's post-leave/delete redirect to the local `/auth/organization-list` so `AuthProvider`
@@ -135,7 +136,7 @@ export function SettingsTabs({ routes, rootRoute }: SettingsTabsProps) {
   const canManageBilling = IS_CLOUD && hasBillingPermission;
   const brandingTierLabel = getRequiredTierLabelForFeature(FeatureNameEnum.PLATFORM_REMOVE_NOVU_BRANDING_BOOLEAN);
 
-  const currentTab = resolveCurrentTab(location.pathname, routes, rootRoute);
+  const currentTab = IS_SELF_HOSTED_CE ? 'team' : resolveCurrentTab(location.pathname, routes, rootRoute);
 
   const handleTabChange = (value: string) => {
     switch (value as SettingsTab) {
@@ -160,12 +161,17 @@ export function SettingsTabs({ routes, rootRoute }: SettingsTabsProps) {
   return (
     <Tabs value={currentTab} onValueChange={handleTabChange} className="-mx-2 w-full">
       <TabsList align="center" variant="regular" className="border-t-transparent py-0!">
-        <TabsTrigger variant="regular" value="account" size="xl">
-          Account
-        </TabsTrigger>
-        <TabsTrigger variant="regular" value="organization" size="xl">
-          Organization
-        </TabsTrigger>
+        {/* izipush : compte et organisation dépendent de Clerk, absent en auto-hébergé communautaire. */}
+        {!IS_SELF_HOSTED_CE && (
+          <>
+            <TabsTrigger variant="regular" value="account" size="xl">
+              Account
+            </TabsTrigger>
+            <TabsTrigger variant="regular" value="organization" size="xl">
+              Organization
+            </TabsTrigger>
+          </>
+        )}
         <TabsTrigger variant="regular" value="team" size="xl">
           Team
         </TabsTrigger>
@@ -237,7 +243,10 @@ export function SettingsTabs({ routes, rootRoute }: SettingsTabsProps) {
                     variant="tip"
                   />
                 )}
-                {EE_AUTH_PROVIDER === 'clerk' ? (
+                {/* izipush : en auto-hébergé communautaire, gestion de l'équipe par liens d'invitation. */}
+                {IS_SELF_HOSTED_CE ? (
+                  <SelfHostedTeamMembers />
+                ) : EE_AUTH_PROVIDER === 'clerk' ? (
                   <OrganizationProfile appearance={clerkAppearance} afterLeaveOrganizationUrl={AFTER_LEAVE_ORG_URL}>
                     <OrganizationProfile.Page label="general" />
                   </OrganizationProfile>

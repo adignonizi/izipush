@@ -18,7 +18,7 @@ import {
   RequirePermissions,
   SkipPermissionsCheck,
 } from '@novu/application-generic';
-import { CommunityOrganizationRepository } from '@novu/dal';
+import { CommunityOrganizationRepository, EnvironmentRepository } from '@novu/dal';
 import {
   ApiAuthSchemeEnum,
   ApiServiceLevelEnum,
@@ -39,6 +39,8 @@ import { UserSession } from '../shared/framework/user.decorator';
 import { isEnvironmentScopedAuthScheme } from '../shared/utils/auth.utils';
 import { CreateEnvironmentRequestDto } from './dtos/create-environment-request.dto';
 import { EnvironmentResponseDto } from './dtos/environment-response.dto';
+import { ApiIpAllowListResponseDto, UpdateApiIpAllowListRequestDto } from './dtos/api-ip-allow-list.dto';
+import { KeycloakAuthResponseDto, UpdateKeycloakAuthRequestDto } from './dtos/keycloak-auth.dto';
 import { UpdateEnvironmentRequestDto } from './dtos/update-environment-request.dto';
 import { CreateApiKey } from './usecases/create-api-key/create-api-key.usecase';
 import { CreateEnvironmentCommand } from './usecases/create-environment/create-environment.command';
@@ -76,7 +78,8 @@ export class EnvironmentsControllerV1 {
     private getMyEnvironmentsUsecase: GetMyEnvironments,
     private deleteEnvironmentUsecase: DeleteEnvironment,
     private organizationRepository: CommunityOrganizationRepository,
-    private featureFlagService: FeatureFlagsService
+    private featureFlagService: FeatureFlagsService,
+    private environmentRepository: EnvironmentRepository
   ) {}
 
   @Get('/me')
@@ -173,37 +176,6 @@ export class EnvironmentsControllerV1 {
     );
   }
 
-  @Put('/:environmentId')
-  @ApiOperation({
-    summary: 'Update an environment',
-    description: `Update an environment by its unique identifier **environmentId**. 
-    You can modify the environment name, identifier, color, and other configuration settings.`,
-  })
-  @ApiParam({ name: 'environmentId', description: 'The unique identifier of the environment', type: String })
-  @ApiResponse(EnvironmentResponseDto)
-  @SdkGroupName('Environments')
-  @SdkMethodName('update')
-  @ExternalApiAccessible()
-  @RequirePermissions(PermissionsEnum.ENVIRONMENT_WRITE)
-  async updateMyEnvironment(
-    @UserSession() user: UserSessionData,
-    @Param('environmentId') environmentId: string,
-    @Body() payload: UpdateEnvironmentRequestDto
-  ) {
-    return await this.updateEnvironmentUsecase.execute(
-      UpdateEnvironmentCommand.create({
-        environmentId,
-        organizationId: user.organizationId,
-        userId: user._id,
-        name: payload.name,
-        identifier: payload.identifier,
-        _parentId: payload.parentId,
-        color: payload.color,
-        dns: payload.dns,
-        bridge: payload.bridge,
-      })
-    );
-  }
 
   @Get('/api-keys')
   @ApiOperation({
@@ -275,6 +247,155 @@ export class EnvironmentsControllerV1 {
     });
 
     return await this.regenerateApiKeysUsecase.execute(command);
+  }
+
+  /*
+   * Liste d'autorisation d'adresses pour les clés API de l'environnement courant.
+   *
+   * **Volontairement PAS `@ExternalApiAccessible()`** : ces deux routes ne sont
+   * joignables qu'avec une session de tableau de bord. Une clé API capable de lire ou
+   * d'élargir sa propre liste d'autorisation ne protégerait de rien — il suffirait de
+   * la dérober pour s'y ajouter.
+   *
+   * Déclarées AVANT `DELETE /:environmentId` : un chemin littéral placé après un
+   * paramètre de route se fait capter par lui.
+   */
+  @Get('/api-ip-allow-list')
+  @ApiOperation({ summary: 'Get the API key IP allow list of the current environment' })
+  @ApiResponse(ApiIpAllowListResponseDto)
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.API_KEY_READ)
+  async getApiIpAllowList(@UserSession() user: UserSessionData): Promise<ApiIpAllowListResponseDto> {
+    const environment = await this.environmentRepository.findOne({ _id: user.environmentId }, 'apiIpAllowList');
+
+    return { ipAllowList: environment?.apiIpAllowList ?? [] };
+  }
+
+  @Put('/api-ip-allow-list')
+  @ApiOperation({
+    summary: 'Replace the API key IP allow list of the current environment',
+    description:
+      'Addresses allowed to use this environment API keys, in plain or CIDR notation. An empty list removes the restriction entirely.',
+  })
+  @ApiResponse(ApiIpAllowListResponseDto)
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.API_KEY_WRITE)
+  async updateApiIpAllowList(
+    @UserSession() user: UserSessionData,
+    @Body() payload: UpdateApiIpAllowListRequestDto
+  ): Promise<ApiIpAllowListResponseDto> {
+    /*
+     * Nettoyage avant écriture : espaces retirés, entrées vides écartées, doublons
+     * fondus. Une liste contenant « 203.0.113.7 » et « 203.0.113.7 » se comporte comme
+     * si elle n'en contenait qu'un — autant que ce soit visible dans ce qu'on relit.
+     */
+    const ipAllowList = [...new Set(payload.ipAllowList.map((entree) => entree.trim()).filter(Boolean))];
+
+    await this.environmentRepository.update({ _id: user.environmentId }, { $set: { apiIpAllowList: ipAllowList } });
+
+    /*
+     * La décision est mise en cache une minute par l'intercepteur : le changement n'est
+     * donc pas instantané. C'est dit dans l'interface, pour qu'un essai qui « ne marche
+     * pas encore » ne conduise pas à élargir la liste au hasard.
+     */
+    return { ipAllowList };
+  }
+
+  /*
+   * Authentification des abonnes par jeton Keycloak, pour cet environnement.
+   *
+   * **Pas `@ExternalApiAccessible()`**, comme la liste d'adresses : une cle API ne doit pas
+   * pouvoir redefinir son propre emetteur de confiance. Et declarees avant
+   * `DELETE /:environmentId`, sinon le parametre de route capte le chemin litteral.
+   */
+  @Get('/keycloak-auth')
+  @ApiOperation({ summary: 'Get the Keycloak subscriber authentication settings' })
+  @ApiResponse(KeycloakAuthResponseDto)
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.API_KEY_READ)
+  async getKeycloakAuth(@UserSession() user: UserSessionData): Promise<KeycloakAuthResponseDto> {
+    const environment = await this.environmentRepository.findOne({ _id: user.environmentId }, 'keycloakAuth');
+
+    return {
+      issuer: environment?.keycloakAuth?.issuer ?? '',
+      audience: environment?.keycloakAuth?.audience ?? '',
+      subjectClaim: environment?.keycloakAuth?.subjectClaim ?? '',
+    };
+  }
+
+  @Put('/keycloak-auth')
+  @ApiOperation({
+    summary: 'Set the Keycloak subscriber authentication settings',
+    description:
+      'An empty issuer removes Keycloak authentication for this environment, which falls back to the subscriber JWT.',
+  })
+  @ApiResponse(KeycloakAuthResponseDto)
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.API_KEY_WRITE)
+  async updateKeycloakAuth(
+    @UserSession() user: UserSessionData,
+    @Body() body: UpdateKeycloakAuthRequestDto
+  ): Promise<KeycloakAuthResponseDto> {
+    const issuer = body.issuer?.trim().replace(/\/+$/, '') ?? '';
+
+    /*
+     * Emetteur vide : on retire le sous-document entier plutot que d'enregistrer des champs
+     * vides. C'est son ABSENCE qui fait retomber la garde sur le JWT d'abonne, et un objet
+     * present avec un `issuer` vide serait une troisieme situation a raisonner pour rien.
+     */
+    if (!issuer) {
+      await this.environmentRepository.update({ _id: user.environmentId }, { $unset: { keycloakAuth: '' } });
+
+      return { issuer: '', audience: '', subjectClaim: '' };
+    }
+
+    const keycloakAuth = {
+      issuer,
+      ...(body.audience?.trim() ? { audience: body.audience.trim() } : {}),
+      ...(body.subjectClaim?.trim() ? { subjectClaim: body.subjectClaim.trim() } : {}),
+    };
+
+    await this.environmentRepository.update({ _id: user.environmentId }, { $set: { keycloakAuth } });
+
+    return { issuer, audience: keycloakAuth.audience ?? '', subjectClaim: keycloakAuth.subjectClaim ?? '' };
+  }
+
+  /*
+   * ROUTES PARAMÉTRÉES EN DERNIER, et ce n'est pas cosmétique : Express apparie dans l'ordre de
+   * déclaration. Placée plus haut, `@Put('/:environmentId')` captait `PUT /api-ip-allow-list` et
+   * `PUT /keycloak-auth` — qui devenaient INJOIGNABLES, avec un 422 « environmentId must be a
+   * mongodb id » pour seul indice. Toute nouvelle route littérale doit donc rester au-dessus.
+   */
+  @Put('/:environmentId')
+  @ApiOperation({
+    summary: 'Update an environment',
+    description: `Update an environment by its unique identifier **environmentId**. 
+    You can modify the environment name, identifier, color, and other configuration settings.`,
+  })
+  @ApiParam({ name: 'environmentId', description: 'The unique identifier of the environment', type: String })
+  @ApiResponse(EnvironmentResponseDto)
+  @SdkGroupName('Environments')
+  @SdkMethodName('update')
+  @ExternalApiAccessible()
+  @RequirePermissions(PermissionsEnum.ENVIRONMENT_WRITE)
+  async updateMyEnvironment(
+    @UserSession() user: UserSessionData,
+    @Param('environmentId') environmentId: string,
+    @Body() payload: UpdateEnvironmentRequestDto
+  ) {
+    return await this.updateEnvironmentUsecase.execute(
+      UpdateEnvironmentCommand.create({
+        environmentId,
+        organizationId: user.organizationId,
+        userId: user._id,
+        name: payload.name,
+        identifier: payload.identifier,
+        _parentId: payload.parentId,
+        color: payload.color,
+        dns: payload.dns,
+        bridge: payload.bridge,
+      })
+    );
   }
 
   @Delete('/:environmentId')

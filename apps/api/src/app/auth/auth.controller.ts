@@ -112,6 +112,7 @@ export class AuthController {
         domain: body.domain,
         productUseCases: body.productUseCases,
         wasInvited: !!body.invitationToken,
+        invitationToken: body.invitationToken,
       })
     );
   }

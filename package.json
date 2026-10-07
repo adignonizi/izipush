@@ -5,6 +5,7 @@
   "scripts": {
     "bootstrap": "npm run setup:dev",
     "build:api": "nx build @novu/api-service",
+    "build:crm-ingest": "nx build @novu/crm-ingest",
     "build:dashboard": "nx build @novu/dashboard",
     "build:inbound-mail": "nx build @novu/inbound-mail",
     "build:packages": "nx run-many --target=build --all --projects=tag:type:package",

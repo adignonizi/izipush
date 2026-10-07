@@ -25,6 +25,9 @@ const memberSchema = new Schema<MemberDBModel>(
       index: true,
     },
     roles: [Schema.Types.String],
+    // Pas de `default: []` : l'absence et le tableau vide signifient tous deux « toutes les
+    // sections », et poser un defaut reecrirait chaque document existant pour rien.
+    sections: [Schema.Types.String],
     _organizationId: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',

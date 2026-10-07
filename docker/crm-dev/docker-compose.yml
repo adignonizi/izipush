@@ -1,0 +1,70 @@
+# izipush-crm — environnement de développement local du CRM.
+#
+#   docker compose -f docker/crm-dev/docker-compose.yml up -d
+#   docker compose -f docker/crm-dev/docker-compose.yml down        (garde les données)
+#
+# Ports dédiés, liés à 127.0.0.1, pour ne pas gêner d'autres stacks locales.
+# Plafonds mémoire volontairement bas : le poste de dev a peu de RAM libre.
+# Détails et variables d'environnement : docker/crm-dev/README.md
+
+name: izipush-crm-dev
+
+services:
+  mongodb:
+    image: mongo:8.0.17
+    command: ['--wiredTigerCacheSizeGB', '0.25']
+    ports:
+      - '127.0.0.1:27018:27017'
+    volumes:
+      - crm-mongo:/data/db
+    mem_limit: 768m
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '127.0.0.1:6390:6379'
+    mem_limit: 128m
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Simule le RabbitMQ d'Izichange (exchange topic des événements).
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: izipush
+      RABBITMQ_DEFAULT_PASS: izipush
+    ports:
+      - '127.0.0.1:5673:5672'
+      - '127.0.0.1:15673:15672'
+    mem_limit: 384m
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # Deux faux fournisseurs email (SMTP + interface web) pour tester l'aiguillage.
+  mailpit-a:
+    image: axllent/mailpit:latest
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+    mem_limit: 64m
+
+  mailpit-b:
+    image: axllent/mailpit:latest
+    ports:
+      - '127.0.0.1:1026:1025'
+      - '127.0.0.1:8026:8025'
+    mem_limit: 64m
+
+volumes:
+  crm-mongo:

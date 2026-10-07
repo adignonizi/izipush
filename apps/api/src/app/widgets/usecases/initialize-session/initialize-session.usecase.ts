@@ -35,6 +35,25 @@ export class InitializeSession {
       throw new BadRequestException('Please provide a valid app identifier');
     }
 
+    /*
+     * Environnement migre vers Keycloak : cette route n'emet plus rien.
+     *
+     * **C'est ce qui ferme reellement la faille**, et pas seulement le controle pose sur
+     * `PUT /credentials`. Tant que cette route repond, elle delivre un JWT d'abonne au nom de
+     * N'IMPORTE QUEL subscriberId — l'identifiant Keycloak d'un client n'etant pas un secret — et
+     * ce JWT ouvre les 18 autres routes du widget : lire le flux de notifications d'un client,
+     * marquer ses messages comme lus, les SUPPRIMER. Restreindre l'enregistrement du jeton push
+     * sans fermer celle-ci ne protegeait donc qu'une porte sur dix-neuf.
+     *
+     * Le refus est lie a la configuration de l'environnement, comme la garde : un environnement
+     * qui n'a pas d'emetteur Keycloak garde le comportement d'avant, strictement.
+     */
+    if (environment.keycloakAuth?.issuer) {
+      throw new BadRequestException(
+        'This environment authenticates subscribers with Keycloak: send the Keycloak access token to PUT /v1/widgets/credentials instead'
+      );
+    }
+
     const inAppIntegration = await this.selectIntegration.execute(
       SelectIntegrationCommand.create({
         environmentId: environment._id,

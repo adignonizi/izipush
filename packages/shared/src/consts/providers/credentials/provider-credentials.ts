@@ -192,6 +192,16 @@ export const postmarkConfig: IConfigCredential[] = [
     type: 'string',
     required: true,
   },
+  {
+    key: CredentialsKeyEnum.MessageStream,
+    displayName: 'Message stream',
+    description:
+      'Postmark separates transactional and broadcast traffic, with distinct IP ranges and reputations. ' +
+      'Leave empty for the default transactional stream. For campaigns, create a Broadcast stream in ' +
+      'Postmark and put its ID here — otherwise campaign sends damage the reputation of your account emails.',
+    type: 'string',
+    required: false,
+  },
   ...mailConfigBase,
 ];
 
@@ -224,6 +234,16 @@ export const sendgridConfig: IConfigCredential[] = [
 ];
 
 export const resendConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiKey,
+    displayName: 'API Key',
+    type: 'string',
+    required: true,
+  },
+  ...mailConfigBase,
+];
+
+export const elasticEmailConfig: IConfigCredential[] = [
   {
     key: CredentialsKeyEnum.ApiKey,
     displayName: 'API Key',

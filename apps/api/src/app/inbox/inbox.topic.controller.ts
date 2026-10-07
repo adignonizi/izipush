@@ -35,6 +35,7 @@ import { DeleteTopicSubscriptionCommand } from './usecases/delete-subscription/d
 import { DeleteTopicSubscription } from './usecases/delete-subscription/delete-subscription.usecase';
 import { GetTopicSubscriptionsCommand } from './usecases/get-topic-subscriptions/get-topic-subscriptions.command';
 import { GetTopicSubscriptions } from './usecases/get-topic-subscriptions/get-topic-subscriptions.usecase';
+import { assertTopicKeyNotReserved } from './utils/reserved-topic-key';
 
 @ApiCommonResponses()
 @Controller('/inbox')
@@ -56,6 +57,9 @@ export class InboxTopicController {
     @SubscriberSession() subscriberSession: SubscriberSession,
     @Param('topicKey') topicKey: string
   ): Promise<SubscriptionDetailsResponseDto[]> {
+    // izipush-crm — segments et listes de campagne : jamais modifiables par un abonné.
+    assertTopicKeyNotReserved(topicKey);
+
     return await this.getTopicSubscriptionsUsecase.execute(
       GetTopicSubscriptionsCommand.create({
         environmentId: subscriberSession._environmentId,
@@ -78,6 +82,9 @@ export class InboxTopicController {
     @Query('workflowIds') workflowIds?: string | string[],
     @Query('tags') tags?: string | string[]
   ): Promise<SubscriptionDetailsResponseDto | void> {
+    // izipush-crm — segments et listes de campagne : jamais modifiables par un abonné.
+    assertTopicKeyNotReserved(topicKey);
+
     const normalizedWorkflowIds = workflowIds ? (Array.isArray(workflowIds) ? workflowIds : [workflowIds]) : undefined;
     const normalizedTags = tags ? (Array.isArray(tags) ? tags : [tags]) : undefined;
 
@@ -110,6 +117,9 @@ export class InboxTopicController {
     @Param('topicKey') topicKey: string,
     @Body() body: CreateTopicSubscriptionRequestDto
   ): Promise<SubscriptionDetailsResponseDto> {
+    // izipush-crm — segments et listes de campagne : jamais modifiables par un abonné.
+    assertTopicKeyNotReserved(topicKey);
+
     const result = await this.createSubscriptionsUsecase.execute(
       CreateSubscriptionsCommand.create({
         environmentId: subscriberSession._environmentId,
@@ -155,6 +165,9 @@ export class InboxTopicController {
     @Param('identifier') identifier: string,
     @Body() body: UpdateSubscriptionRequestDto
   ): Promise<SubscriptionDetailsResponseDto> {
+    // izipush-crm — segments et listes de campagne : jamais modifiables par un abonné.
+    assertTopicKeyNotReserved(topicKey);
+
     const subscription = await this.updateSubscriptionUsecase.execute(
       UpdateSubscriptionCommand.create({
         environmentId: subscriberSession._environmentId,
@@ -184,6 +197,9 @@ export class InboxTopicController {
     @Param('topicKey') topicKey: string,
     @Param('identifier') identifier: string
   ): Promise<{ success: boolean }> {
+    // izipush-crm — segments et listes de campagne : jamais modifiables par un abonné.
+    assertTopicKeyNotReserved(topicKey);
+
     return await this.deleteTopicSubscriptionUsecase.execute(
       DeleteTopicSubscriptionCommand.create({
         environmentId: subscriberSession._environmentId,

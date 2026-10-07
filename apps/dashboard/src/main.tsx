@@ -54,6 +54,21 @@ import { ContextsPage } from './pages/contexts';
 import { CreateContextPage } from './pages/create-context';
 import { CreateSubscriberPage } from './pages/create-subscriber';
 import { CreateTopicPage } from './pages/create-topic';
+// izipush-crm
+import { CrmCampaignDetailPage } from './pages/crm-campaign-detail';
+import { CrmCampaignRunPage } from './pages/crm-campaign-run';
+import { CrmCampaignEditorPage } from './pages/crm-campaign-editor';
+import { CrmCampaignsPage } from './pages/crm-campaigns';
+import { CrmMonitoringPage } from './pages/crm-monitoring';
+import { CrmProductDetailPage } from './pages/crm-product-detail';
+import { CrmProductsPage } from './pages/crm-products';
+import { CrmReportsPage } from './pages/crm-reports';
+import { CrmSegmentEditorPage } from './pages/crm-segment-editor';
+import { CrmSegmentsPage } from './pages/crm-segments';
+import { SelfHostedInvitationPage } from './pages/self-hosted-invitation';
+import { CrmTemplateEditorPage } from './pages/crm-template-editor';
+import { CrmTemplateNewPage } from './pages/crm-template-new';
+import { CrmTemplatesPage } from './pages/crm-templates';
 import { DomainDetailPage } from './pages/domain-detail';
 import { DomainsPage } from './pages/domains';
 import { DuplicateLayoutPage } from './pages/duplicate-layout-page';
@@ -154,6 +169,11 @@ const router = createBrowserRouter([
           {
             path: ROUTES.FORGOT_PASSWORD,
             element: <ForgotPasswordPage />,
+          },
+          {
+            // izipush : invitation par lien en auto-hébergé communautaire (page publique).
+            path: ROUTES.SELF_HOSTED_INVITATION,
+            element: <SelfHostedInvitationPage />,
           },
           {
             path: ROUTES.RESET_PASSWORD,
@@ -475,6 +495,118 @@ const router = createBrowserRouter([
                 ),
               },
               {
+                path: ROUTES.CRM_PRODUCTS,
+                element: (
+                  <ProtectedRoute>
+                    <CrmProductsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_PRODUCT_DETAIL,
+                element: (
+                  <ProtectedRoute>
+                    <CrmProductDetailPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_SEGMENTS,
+                element: (
+                  <ProtectedRoute>
+                    <CrmSegmentsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_SEGMENT_NEW,
+                element: (
+                  <ProtectedRoute>
+                    <CrmSegmentEditorPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGNS,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGN_NEW,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignEditorPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGN_DETAIL,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignDetailPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGN_RUN,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignRunPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_CAMPAIGN_EDIT,
+                element: (
+                  <ProtectedRoute>
+                    <CrmCampaignEditorPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_TEMPLATES,
+                element: (
+                  <ProtectedRoute>
+                    <CrmTemplatesPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_TEMPLATE_NEW,
+                element: (
+                  <ProtectedRoute>
+                    <CrmTemplateNewPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_TEMPLATE_EDIT,
+                element: (
+                  <ProtectedRoute>
+                    <CrmTemplateEditorPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_REPORTS,
+                element: (
+                  <ProtectedRoute>
+                    <CrmReportsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.CRM_MONITORING,
+                element: (
+                  <ProtectedRoute>
+                    <CrmMonitoringPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
                 path: ROUTES.ENVIRONMENTS,
                 element: <EnvironmentsPage />,
               },
@@ -760,21 +892,23 @@ const router = createBrowserRouter([
                 <Navigate to={ROUTES.ROOT} replace />
               ),
           },
+          // izipush : en auto-hébergé communautaire, seul l'onglet Équipe existe (compte et organisation
+          // reposent sur Clerk, remplacé par des bouchons vides) : les autres routes y mènent.
           {
             path: ROUTES.SETTINGS,
-            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.SETTINGS_TEAM} replace /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_ACCOUNT,
-            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.SETTINGS_TEAM} replace /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_ORGANIZATION,
-            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.SETTINGS_TEAM} replace /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_TEAM,
-            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_BILLING,

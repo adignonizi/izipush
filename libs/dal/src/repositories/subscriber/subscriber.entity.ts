@@ -23,6 +23,21 @@ export class SubscriberEntity implements ISubscriber {
   subscriberId: ExternalSubscriberId;
 
   /**
+   * Sujet Keycloak (`sub`) du premier jeton ayant enregistre un appareil pour cet abonne.
+   *
+   * **C'est ce qui empeche un client authentifie d'en usurper un autre.** Le `subscriberId`
+   * est fourni par l'appelant — c'est l'identifiant Izichange, celui du contrat d'evenements —
+   * et le jeton Keycloak ne prouve que son authentification. Sans liaison, n'importe quel
+   * client muni d'un jeton valide pourrait enregistrer son appareil sous l'identifiant d'un
+   * autre, et recevrait ses notifications sans que rien ne le signale, la route faisant
+   * l'union des jetons.
+   *
+   * Pose au premier enregistrement, compare ensuite. Absent : aucun enregistrement Keycloak
+   * n'a encore eu lieu pour cet abonne.
+   */
+  keycloakSubject?: string;
+
+  /**
    * @deprecated: use channelEndpoint instead
    */
   channels?: IChannelSettings[];

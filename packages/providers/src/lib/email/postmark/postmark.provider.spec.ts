@@ -168,3 +168,28 @@ test('should check provider integration correctly', async () => {
   expect(spy).toHaveBeenCalled();
   expect(response.success).toBe(true);
 });
+
+/* Postmark separe transactionnel et diffusion, avec des plages d'adresses IP et
+   des reputations distinctes. Le flux doit donc etre configurable, et surtout
+   ABSENT quand il ne l'est pas : une chaine vide serait rejetee. */
+test('omet MessageStream quand il n’est pas configuré', async () => {
+  const provider = new PostmarkEmailProvider({ apiKey: 'test', from: 'a@b.c' });
+  const spy = vi
+    .spyOn((provider as any).client, 'sendEmail')
+    .mockImplementation(async () => ({ MessageID: '1', SubmittedAt: '2026-01-01' }) as any);
+
+  await provider.sendMessage({ to: ['x@y.z'], subject: 's', html: '<p>h</p>' } as any);
+
+  expect(spy.mock.calls[0][0]).not.toHaveProperty('MessageStream');
+});
+
+test('pose le flux configuré, pour les campagnes', async () => {
+  const provider = new PostmarkEmailProvider({ apiKey: 'test', from: 'a@b.c', messageStream: 'broadcast' });
+  const spy = vi
+    .spyOn((provider as any).client, 'sendEmail')
+    .mockImplementation(async () => ({ MessageID: '1', SubmittedAt: '2026-01-01' }) as any);
+
+  await provider.sendMessage({ to: ['x@y.z'], subject: 's', html: '<p>h</p>' } as any);
+
+  expect((spy.mock.calls[0][0] as any).MessageStream).toEqual('broadcast');
+});

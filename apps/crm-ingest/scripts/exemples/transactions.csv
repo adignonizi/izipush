@@ -1,0 +1,3 @@
+id,user_id,amount_usd,status,productId,type,created_at
+tx_0001,usr_001,120.50,completed,crypto,buy,2024-03-15T09:20:00Z
+

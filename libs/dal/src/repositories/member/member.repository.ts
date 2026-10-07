@@ -1,5 +1,5 @@
 import { Inject } from '@nestjs/common';
-import { IMemberInvite, MemberRoleEnum, MemberStatusEnum } from '@novu/shared';
+import { IMemberInvite, MemberRoleEnum, MemberSectionEnum, MemberStatusEnum } from '@novu/shared';
 import { MemberEntity } from './member.entity';
 import { IMemberRepository } from './member-repository.interface';
 
@@ -8,6 +8,8 @@ export interface IAddMemberData {
   roles: MemberRoleEnum[];
   invite?: IMemberInvite;
   memberStatus: MemberStatusEnum;
+  /** Sections accordees. Absentes : toutes. */
+  sections?: MemberSectionEnum[];
 }
 
 export class MemberRepository implements IMemberRepository {
@@ -65,6 +67,10 @@ export class MemberRepository implements IMemberRepository {
 
   findInviteeByEmail(organizationId: string, email: string): Promise<MemberEntity | null> {
     return this.memberRepository.findInviteeByEmail(organizationId, email);
+  }
+
+  updateMemberSections(organizationId: string, memberId: string, sections: MemberSectionEnum[]) {
+    return this.memberRepository.updateMemberSections(organizationId, memberId, sections);
   }
 
   addMember(organizationId: string, member: IAddMemberData): Promise<void> {

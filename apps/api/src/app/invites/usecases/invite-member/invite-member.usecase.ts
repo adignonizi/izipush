@@ -51,6 +51,9 @@ export class InviteMember {
 
     const memberPayload: IAddMemberData = {
       roles: [command.role as MemberRoleEnum],
+      // Un tableau vide serait ambigu — il signifie « toutes les sections » — donc on ne pose
+      // le champ que s'il porte quelque chose.
+      ...(command.sections?.length ? { sections: command.sections } : {}),
       memberStatus: MemberStatusEnum.INVITED,
       invite: {
         token,
@@ -67,5 +70,8 @@ export class InviteMember {
       role: command.role,
       email: command.email,
     });
+
+    // izipush : sans email d'invitation en auto-hébergé, le dashboard affiche le lien à transmettre.
+    return { token };
   }
 }

@@ -23,6 +23,15 @@ export class PostmarkEmailProvider extends BaseProvider implements IEmailProvide
     private config: {
       apiKey: string;
       from: string;
+      /**
+       * Flux de messages Postmark. Vide = « outbound », le flux transactionnel.
+       *
+       * Postmark sépare transactionnel et diffusion, avec des plages d'adresses IP
+       * et des réputations distinctes. Envoyer des campagnes sur le flux
+       * transactionnel mélange les deux réputations — exactement ce que cette
+       * séparation existe pour éviter.
+       */
+      messageStream?: string;
     }
   ) {
     super();
@@ -85,6 +94,12 @@ export class PostmarkEmailProvider extends BaseProvider implements IEmailProvide
           new Models.Attachment(attachment.name, attachment.file.toString('base64'), attachment.mime, attachment.cid)
       ),
     };
+
+    // Omis quand il n'est pas configuré : Postmark applique alors son flux par
+    // défaut. Passer une chaîne vide serait rejeté.
+    if (this.config.messageStream) {
+      mailData.MessageStream = this.config.messageStream;
+    }
 
     if (options.replyTo) {
       mailData.ReplyTo = options.replyTo;

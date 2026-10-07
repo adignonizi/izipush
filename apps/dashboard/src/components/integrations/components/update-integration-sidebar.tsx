@@ -1,7 +1,9 @@
 import { ChannelTypeEnum, providers as novuProviders, PermissionsEnum } from '@novu/shared';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { CampaignSendingSection } from '@/components/crm/campaign-sending-settings';
 import { Button } from '@/components/primitives/button';
+import { useEnvironment } from '@/context/environment/hooks';
 import { useFetchIntegrations } from '@/hooks/use-fetch-integrations';
 import { useHasPermission } from '@/hooks/use-has-permission';
 import { useSetPrimaryIntegration } from '@/hooks/use-set-primary-integration';
@@ -59,6 +61,7 @@ export function UpdateIntegrationSidebar({ isOpened }: UpdateIntegrationSidebarP
   });
 
   const isReadOnly = !has({ permission: PermissionsEnum.INTEGRATION_WRITE });
+  const { environments } = useEnvironment();
 
   async function onSubmit(data: IntegrationFormData, skipPrimaryCheck?: boolean) {
     if (!integration) return;
@@ -171,6 +174,14 @@ export function UpdateIntegrationSidebar({ isOpened }: UpdateIntegrationSidebarP
             isReadOnly={isReadOnly}
             onFormStateChange={setFormState}
           />
+          {/* izipush-crm : réglages d'envoi des campagnes de cette intégration email. */}
+          {integration.channel === ChannelTypeEnum.EMAIL && (
+            <CampaignSendingSection
+              integrationId={integration._id}
+              environment={environments?.find((candidate) => candidate._id === integration._environmentId)}
+              disabled={isReadOnly}
+            />
+          )}
         </div>
 
         <div className="bg-background flex justify-between gap-2 border-t p-3">

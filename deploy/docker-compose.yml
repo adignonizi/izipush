@@ -1,0 +1,360 @@
+# izipush — déploiement sur une instance unique (2 vCPU / 8 Gio, type m6i.large ou m7g.large).
+#
+# Dérivé de la pile en service, pas écrit de mémoire. Différences assumées avec l'existant :
+#   · images tirées d'un registre (ECR) au lieu d'être construites sur place ;
+#   · nombre de processus PM2 borné (voir PM2_INSTANCES plus bas) ;
+#   · limites de mémoire déclarées, pour qu'un service emballé n'emporte pas les autres ;
+#   · courtier RabbitMQ optionnel, sous profil — inutile si Izichange fournit le sien ;
+#   · pas d'izinews : c'est un compagnon de test, il n'a rien a faire en production ;
+#   · aucun port publié hors du routeur.
+#
+# Le registre d'images est écrit en clair dans les six lignes `image:` ci-dessous,
+# et non tiré du .env : il ne change qu'au changement de compte AWS. Pour le
+# définir d'un coup :
+#
+#   sed -i 's|registre-a-definir|123456789012.dkr.ecr.eu-west-3.amazonaws.com|g' docker-compose.yml
+#
+# En MINUSCULES volontairement : Docker refuse les majuscules dans un nom d'image, et
+# `compose` valide TOUTES les images meme quand on ne demarre qu'un service. Un espace
+# reserve en majuscules faisait donc echouer `up mongodb` avec « repository name must be
+# lowercase », un message qui ne dit pas qu'il s'agit d'un espace reserve a remplacer.
+#
+#   docker compose --env-file .env up -d
+#
+# Le courtier local, si besoin :
+#   docker compose --profile broker-local up -d
+
+name: izipush
+
+# ── Fragments communs ────────────────────────────────────────────────────────
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+x-observability: &observability
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  NEW_RELIC_ENABLED: ${NEW_RELIC_ENABLED:-false}
+  NEW_RELIC_APP_NAME: ${NEW_RELIC_APP_NAME:-}
+  NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
+
+x-datastores: &datastores
+  MONGO_URL: ${MONGO_URL}
+  MONGO_MIN_POOL_SIZE: ${MONGO_MIN_POOL_SIZE:-10}
+  MONGO_MAX_POOL_SIZE: ${MONGO_MAX_POOL_SIZE:-100}
+  REDIS_HOST: ${REDIS_HOST:-redis}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  # Pas de REDIS_CACHE_SERVICE_* : en auto-hébergé non entreprise, le sélecteur
+  # de cache retombe sur le fournisseur REDIS, qui lit REDIS_HOST/REDIS_PORT.
+  # Cache et files partagent donc le même Redis, et ces variables ne sont lues
+  # par aucun chemin du code.
+
+x-storage: &storage
+  S3_LOCAL_STACK: ${S3_LOCAL_STACK:-}
+  S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+  S3_REGION: ${S3_REGION:-}
+  # Sur EC2 ou ECS, préférer un rôle d'instance et laisser ces deux variables vides.
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+
+services:
+
+  # ── Données ────────────────────────────────────────────────────────────────
+
+  mongodb:
+    image: mongo:8.0.17
+    container_name: mongodb
+    restart: unless-stopped
+    command: ["mongod", "--bind_ip_all"]
+    # ATTENTION — en autonome, les transactions multi-documents sont IMPOSSIBLES.
+    # Le code les tente puis rattrape l'erreur de jeu de réplication et poursuit
+    # sans atomicité : rien n'échoue, mais une écriture composite peut rester
+    # à moitié faite. Pour les rétablir, voir deploy/README.md, section
+    # « Jeu de réplication » — il faut un fichier de clé, ce n'est pas qu'un
+    # drapeau à ajouter.
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongodb:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --username
+        - ${MONGO_INITDB_ROOT_USERNAME}
+        - --password
+        - ${MONGO_INITDB_ROOT_PASSWORD}
+        - --eval
+        - db.adminCommand('ping').ok
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 1500M }
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    # Persistance activée : les files BullMQ en cours ne doivent pas disparaître
+    # à un redémarrage de l'hôte.
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: { memory: 384M }
+    logging: *logging
+
+  # Courtier de secours, sous profil. Si Izichange publie sur son propre RabbitMQ
+  # ou sur Amazon MQ, ne pas activer ce profil : renseigner AMQP_URL et c'est tout.
+  rabbitmq:
+    profiles: ["broker-local"]
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+    environment:
+      # Valeurs par défaut assumées : ce courtier ne publie aucun port et n'est
+      # joignable que depuis le réseau interne du compose. À changer si vous
+      # l'exposez, ce que rien ici ne fait.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-izipush}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-izipush-local}
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 512M }
+    logging: *logging
+
+  # ── Services applicatifs ───────────────────────────────────────────────────
+
+  api:
+    image: registre-a-definir/izipush-api:${IMAGE_TAG:-latest}
+    container_name: api
+    restart: unless-stopped
+    depends_on:
+      mongodb: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # PM2 lit le nombre de cœurs de l'HÔTE, pas la limite du conteneur : avec
+    # « -i max » il démarrerait autant de processus qu'il y a de cœurs, et la
+    # mémoire suivrait. On le borne explicitement.
+    entrypoint: ["sh", "-c", "pm2-runtime start dist/main.js -i ${PM2_INSTANCES:-2}"]
+    environment:
+      <<: [*datastores, *storage, *observability]
+      NODE_ENV: production
+      PORT: ${API_PORT:-3000}
+      API_ROOT_URL: ${API_ROOT_URL}
+      FRONT_BASE_URL: ${FRONT_BASE_URL}
+      API_CONTEXT_PATH: ${API_CONTEXT_PATH:-}
+      REDIS_DB_INDEX: 2
+      JWT_SECRET: ${JWT_SECRET}
+      STORE_ENCRYPTION_KEY: ${STORE_ENCRYPTION_KEY}
+      NOVU_SECRET_KEY: ${NOVU_SECRET_KEY}
+      SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME: ${SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME:-15 days}
+      MONGO_AUTO_CREATE_INDEXES: ${MONGO_AUTO_CREATE_INDEXES:-true}
+      IS_SELF_HOSTED: "true"
+      IS_V2_ENABLED: ${IS_V2_ENABLED:-true}
+      # Proxys que nous controlons devant l'API. 1 = le nginx de ce compose. Indispensable
+      # a la liste d'autorisation d'adresses : sans lui, chaque requete semble venir du
+      # proxy et la liste refuse tout le monde.
+      API_TRUSTED_PROXY_HOPS: ${API_TRUSTED_PROXY_HOPS:-1}
+      # Inscription libre FERMEE par defaut. Sans cette ligne, la valeur venait de
+      # .env.production embarque dans l'image : le reglage n'etait modifiable qu'en
+      # reconstruisant. Ici, un changement de .env et un redemarrage suffisent.
+      DISABLE_USER_REGISTRATION: ${DISABLE_USER_REGISTRATION:-true}
+      IS_API_IDEMPOTENCY_ENABLED: ${IS_API_IDEMPOTENCY_ENABLED:-true}
+      IS_API_RATE_LIMITING_ENABLED: ${IS_API_RATE_LIMITING_ENABLED:-true}
+      IS_NEW_MESSAGES_API_RESPONSE_ENABLED: ${IS_NEW_MESSAGES_API_RESPONSE_ENABLED:-true}
+      # izipush-crm — base des liens publics posés dans les emails :
+      # désinscription, pixel d'ouverture, liens suivis. Doit être l'URL PUBLIQUE.
+      CRM_PUBLIC_API_URL: ${CRM_PUBLIC_API_URL}
+      CRM_UNSUBSCRIBE_SECRET: ${CRM_UNSUBSCRIBE_SECRET}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:$${PORT}/v1/health-check || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits: { memory: 1500M }
+    logging: *logging
+
+  worker:
+    image: registre-a-definir/izipush-worker:${IMAGE_TAG:-latest}
+    container_name: worker
+    restart: unless-stopped
+    depends_on:
+      mongodb: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    entrypoint: ["sh", "-c", "pm2-runtime start dist/main.js -i ${PM2_INSTANCES:-2}"]
+    environment:
+      <<: [*datastores, *storage, *observability]
+      NODE_ENV: production
+      PORT: ${WORKER_PORT:-3004}
+      REDIS_DB_INDEX: 2
+      STORE_ENCRYPTION_KEY: ${STORE_ENCRYPTION_KEY}
+      SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME: ${SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME:-15 days}
+      # Interne : le worker joint l'api par le réseau du compose, pas par le routeur.
+      API_ROOT_URL: http://api:${API_PORT:-3000}
+      BROADCAST_QUEUE_CHUNK_SIZE: ${BROADCAST_QUEUE_CHUNK_SIZE:-100}
+      MULTICAST_QUEUE_CHUNK_SIZE: ${MULTICAST_QUEUE_CHUNK_SIZE:-100}
+      IS_EMAIL_INLINE_CSS_DISABLED: ${IS_EMAIL_INLINE_CSS_DISABLED:-false}
+      IS_USE_MERGED_DIGEST_ID_ENABLED: ${IS_USE_MERGED_DIGEST_ID_ENABLED:-false}
+      IS_V2_ENABLED: ${IS_V2_ENABLED:-true}
+      # izipush-crm — sans ces deux variables, les emails de campagne partent
+      # sans pixel d'ouverture ni liens suivis, silencieusement.
+      CRM_PUBLIC_API_URL: ${CRM_PUBLIC_API_URL}
+      CRM_UNSUBSCRIBE_SECRET: ${CRM_UNSUBSCRIBE_SECRET}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:$${PORT}/v1/health-check || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 1500M }
+    logging: *logging
+
+  ws:
+    image: registre-a-definir/izipush-ws:${IMAGE_TAG:-latest}
+    container_name: ws
+    restart: unless-stopped
+    depends_on:
+      mongodb: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    entrypoint: ["sh", "-c", "pm2-runtime start dist/main.js -i ${PM2_INSTANCES:-2}"]
+    environment:
+      <<: [*datastores, *observability]
+      NODE_ENV: production
+      PORT: ${WS_PORT:-3002}
+      WS_CONTEXT_PATH: ${WS_CONTEXT_PATH:-}
+      JWT_SECRET: ${JWT_SECRET}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:$${PORT}/v1/health-check || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits: { memory: 512M }
+    logging: *logging
+
+  # izipush-crm — consomme les événements d'Izichange, dérive les profils,
+  # exécute segments et campagnes.
+  crm-ingest:
+    image: registre-a-definir/izipush-crm-ingest:${IMAGE_TAG:-latest}
+    container_name: crm-ingest
+    restart: unless-stopped
+    depends_on:
+      mongodb: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      api: { condition: service_healthy }
+    # UNE SEULE INSTANCE, volontairement : ce service pose des verrous en base
+    # (lockedUntil) pour le figeage des segments et le lancement des campagnes.
+    # Ne pas répliquer sans avoir éprouvé la concurrence.
+    environment:
+      <<: [*datastores, *observability]
+      NODE_ENV: production
+      PORT: 3010
+      REDIS_DB_INDEX: 3
+      IS_SELF_HOSTED: "true"
+      NOVU_ENTERPRISE: "false"
+      STORE_ENCRYPTION_KEY: ${STORE_ENCRYPTION_KEY}
+      NOVU_API_URL: http://api:${API_PORT:-3000}/${API_CONTEXT_PATH:-}
+      CRM_PUBLIC_API_URL: ${CRM_PUBLIC_API_URL}
+      CRM_UNSUBSCRIBE_SECRET: ${CRM_UNSUBSCRIBE_SECRET}
+      CRM_ADMIN_TOKEN: ${CRM_ADMIN_TOKEN}
+      CRM_ENVIRONMENT_ID: ${CRM_ENVIRONMENT_ID}
+      CRM_ORGANIZATION_ID: ${CRM_ORGANIZATION_ID}
+      KEYCLOAK_WEBHOOK_SECRET: ${KEYCLOAK_WEBHOOK_SECRET}
+      AMQP_URL: ${AMQP_URL}
+      AMQP_EXCHANGE: ${AMQP_EXCHANGE:-mailwizz-topic}
+      # product.* doit figurer ici, sinon les activations de produit ne sont
+      # jamais reçues — la file n'y est tout simplement pas liée.
+      AMQP_BINDINGS: ${AMQP_BINDINGS:-account.*,kyc.*,transaction.*,product.*}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3010/v1/health-check || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits: { memory: 512M }
+    logging: *logging
+
+  dashboard:
+    image: registre-a-definir/izipush-dashboard:${IMAGE_TAG:-latest}
+    container_name: dashboard
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    # VITE_* sont figées DANS LE BUNDLE à la construction de l'image : les poser
+    # ici n'a aucun effet. Un changement de domaine impose de reconstruire.
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4000/ || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 256M }
+    logging: *logging
+
+  # ── Entrée ─────────────────────────────────────────────────────────────────
+
+  # Seul service à publier un port. Derrière un ALB ou un proxy, il reçoit le
+  # trafic en clair sur 80 ; le TLS se termine en amont.
+  router:
+    image: nginx:1.27-alpine
+    container_name: router
+    restart: unless-stopped
+    depends_on:
+      - api
+      - ws
+      - dashboard
+    volumes:
+      - ./router.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${ROUTER_BIND:-127.0.0.1}:${ROUTER_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { memory: 128M }
+    logging: *logging
+
+volumes:
+  mongodb:
+  redis:
+  rabbitmq:

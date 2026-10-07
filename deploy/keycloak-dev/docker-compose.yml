@@ -1,0 +1,27 @@
+# Keycloak de développement, pour éprouver l'authentification des abonnés sans toucher au
+# Keycloak d'Izichange.
+#
+#   docker compose -f deploy/keycloak-dev/docker-compose.yml up
+#
+# Le realm « izichange » est importé au démarrage avec deux clients et un utilisateur :
+#
+#   · izipay-mobile   le client légitime, celui qu'on déclarera dans izipush
+#   · outil-interne   un AUTRE client du même realm. Il sert à vérifier le contrôle qui compte :
+#                     tous les clients d'un realm sont signés par la même clé, donc un jeton émis
+#                     pour celui-ci doit être REFUSÉ par izipush
+#   · client-test / test   l'utilisateur dont le `sub` deviendra le subscriberId
+#
+# En mémoire, sans volume : un `down` efface tout, ce qui est voulu pour un bac à sable.
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ['start-dev', '--import-realm', '--http-port=8088']
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: 'true'
+    ports:
+      - '8088:8088'
+    volumes:
+      - ./realm-izichange.json:/opt/keycloak/data/import/realm-izichange.json:ro

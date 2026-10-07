@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flux izipush</title>
+<meta name="description" content="Comment Izichange/IzichangePay et izipush (le fork Novu) s'échangent l'enregistrement des abonnés, la création des listes de diffusion et le déclenchement des notifications." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#F5F6FA; --surface:#FFFFFF; --ink:#14171F; --steel:#5B6472; --line:#DCE0E6;
+  --public:#0E8A69; --public-wash:#E4F4EE;
+  --secret:#B4530A; --secret-wash:#FBF0E3;
+  --accent:#4338CA; --accent-wash:#ECEAFB;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --canvas:#10121A; --surface:#171A24; --ink:#EEF0F5; --steel:#9099AA; --line:#2A2E3B;
+    --public:#34C98F; --public-wash:rgba(52,201,143,.13);
+    --secret:#E39544; --secret-wash:rgba(227,149,68,.13);
+    --accent:#8A82F0; --accent-wash:rgba(138,130,240,.16);
+  }
+}
+:root[data-theme="dark"]{
+  --canvas:#10121A; --surface:#171A24; --ink:#EEF0F5; --steel:#9099AA; --line:#2A2E3B;
+  --public:#34C98F; --public-wash:rgba(52,201,143,.13);
+  --secret:#E39544; --secret-wash:rgba(227,149,68,.13);
+  --accent:#8A82F0; --accent-wash:rgba(138,130,240,.16);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--canvas); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:16px; line-height:1.6;
+}
+.wrap{max-width:1000px; margin:0 auto; padding:clamp(2rem,5vw,4rem) clamp(1.25rem,4vw,2.5rem) 5rem}
+
+code{font-family:"IBM Plex Mono",Menlo,Consolas,monospace; font-size:.86em; background:var(--accent-wash); color:var(--accent); padding:.08em .38em; border-radius:.3em}
+
+header.page{margin-bottom:2.6rem}
+.kicker{
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 .8rem; display:flex; align-items:center; gap:.55rem;
+}
+.kicker::before{content:""; width:7px; height:7px; border-radius:2px; background:var(--accent); display:inline-block}
+h1{
+  font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:clamp(1.5rem,3.4vw,2.15rem);
+  letter-spacing:-.01em; margin:0 0 .9rem; text-wrap:balance;
+}
+.lede{color:var(--steel); font-size:1.02rem; max-width:66ch; margin:0}
+.lede strong{color:var(--ink); font-weight:600}
+
+.legend{
+  display:flex; flex-wrap:wrap; gap:1.6rem; align-items:center; margin-top:1.6rem; padding:.9rem 1.1rem;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); font-size:.84rem;
+}
+.legend-item{display:flex; align-items:center; gap:.5rem; color:var(--steel)}
+.swatch{width:13px; height:13px; border-radius:3px; flex:none}
+.swatch.pub{background:var(--public-wash); border:1.5px solid var(--public)}
+.swatch.sec{background:var(--secret-wash); border:1.5px solid var(--secret)}
+
+section.flow{margin-top:3.4rem}
+.flow-head{display:flex; align-items:baseline; gap:.8rem; margin-bottom:.3rem}
+.flow-num{
+  font-family:"IBM Plex Mono",monospace; font-size:.78rem; font-weight:600; color:var(--accent);
+  background:var(--accent-wash); border-radius:.4rem; padding:.15rem .5rem; flex:none;
+}
+h2{font-family:"IBM Plex Mono",monospace; font-size:1.12rem; font-weight:600; margin:0; letter-spacing:-.005em}
+.flow-sub{color:var(--steel); font-size:.92rem; margin:.5rem 0 1.3rem; max-width:68ch}
+
+figure{margin:0}
+.diagram-frame{
+  background:var(--surface); border:1px solid var(--line); border-radius:calc(var(--radius) + 4px);
+  padding:1.1rem; overflow-x:auto;
+}
+svg{display:block; width:100%; height:auto; min-width:640px}
+figcaption{
+  color:var(--steel); font-size:.82rem; margin-top:.75rem; max-width:70ch; line-height:1.55;
+}
+
+.refs{
+  margin-top:3.6rem; padding-top:1.6rem; border-top:1px solid var(--line);
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1.4rem;
+}
+.refs h3{
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--steel); margin:0 0 .55rem;
+}
+.refs ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.4rem}
+.refs code{display:block; font-size:.8rem; white-space:nowrap; overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <p class="kicker">izipush · architecture</p>
+    <h1>Comment Izichange &amp; izipush s'échangent la donnée push</h1>
+    <p class="lede">
+      Trois flux, un seul principe qui les traverse : la clé secrète Novu ne quitte <strong>jamais</strong>
+      un backend. Tout ce qu'un client (app mobile, web, POS) peut faire, il le fait via des routes
+      publiques scopées à un JWT — jamais avec la clé elle-même.
+    </p>
+    <div class="legend">
+      <span class="legend-item"><span class="swatch pub"></span>Surface publique · JWT subscriber</span>
+      <span class="legend-item"><span class="swatch sec"></span>Surface secrète · clé API Novu</span>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <!-- FLOW 1 — ENREGISTREMENT                                       -->
+  <!-- ============================================================ -->
+  <section class="flow">
+    <div class="flow-head">
+      <span class="flow-num">1</span>
+      <h2>Enregistrement d'un abonné (token push)</h2>
+    </div>
+    <p class="flow-sub">
+      Le hash HMAC est la seule chose qui doit venir d'un serveur — tout le reste part du SDK,
+      côté client, sans jamais voir la clé Novu.
+    </p>
+
+    <figure>
+      <div class="diagram-frame">
+        <svg viewBox="0 0 880 400" role="img" aria-label="L'app authentifie l'utilisateur, le backend produit calcule un hash HMAC avec la clé secrète Novu et le renvoie à l'app ; le SDK échange ensuite ce hash contre un JWT auprès de izipush via session/initialize, puis utilise ce JWT pour enregistrer le token push via widgets/credentials, qui fusionne le nouveau token avec ceux déjà enregistrés pour d'autres appareils.">
+          <defs>
+            <marker id="a1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <polygon points="0,0 7,3 0,6" fill="currentColor"/>
+            </marker>
+            <marker id="a1d" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <polygon points="0,0 7,3 0,6" fill="currentColor" opacity=".55"/>
+            </marker>
+          </defs>
+
+          <!-- zone bands -->
+          <rect x="300" y="66" width="200" height="300" rx="8" fill="var(--secret-wash)"/>
+          <rect x="590" y="66" width="200" height="300" rx="8" fill="var(--public-wash)"/>
+
+          <!-- lifelines -->
+          <line x1="110" y1="66" x2="110" y2="366" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="3 4"/>
+          <line x1="400" y1="66" x2="400" y2="366" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="3 4"/>
+          <line x1="690" y1="66" x2="690" y2="366" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="3 4"/>
+
+          <!-- headers -->
+          <g font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" text-anchor="middle">
+            <rect x="20" y="26" width="180" height="34" rx="7" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="110" y="47" fill="var(--ink)">App cliente (SDK)</text>
+
+            <rect x="300" y="26" width="200" height="34" rx="7" fill="var(--surface)" stroke="var(--secret)"/>
+            <text x="400" y="47" fill="var(--secret)">Backend produit</text>
+
+            <rect x="600" y="26" width="180" height="34" rx="7" fill="var(--surface)" stroke="var(--public)"/>
+            <text x="690" y="47" fill="var(--public)">izipush · API publique</text>
+          </g>
+
+          <!-- step 1 -->
+          <line x1="112" y1="112" x2="396" y2="112" stroke="currentColor" marker-end="url(#a1)"/>
+          <text x="253" y="103" text-anchor="middle" font-size="12" fill="var(--ink)">Session ouverte (auth utilisateur / terminal)</text>
+
+          <!-- step 2 : self note on backend -->
+          <rect x="310" y="128" width="180" height="46" rx="6" fill="var(--surface)" stroke="var(--secret)" stroke-width="1.2"/>
+          <text x="400" y="146" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--secret)">hmacHash =</text>
+          <text x="400" y="160" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--secret)">HMAC-SHA256(subscriberId, cléNovu)</text>
+
+          <!-- step 3 return -->
+          <line x1="396" y1="196" x2="112" y2="196" stroke="currentColor" opacity=".7" stroke-dasharray="1 4" marker-end="url(#a1d)"/>
+          <text x="253" y="187" text-anchor="middle" font-size="11.5" fill="var(--steel)">{ applicationIdentifier, hmacHash }</text>
+
+          <!-- step 4 -->
+          <line x1="112" y1="244" x2="686" y2="244" stroke="var(--public)" stroke-width="1.4" marker-end="url(#a1)"/>
+          <text x="400" y="228" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--ink)">POST /v1/widgets/session/initialize</text>
+          <text x="400" y="257" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--steel)">{ subscriberId, applicationIdentifier, hmacHash }</text>
+
+          <!-- step 5 return -->
+          <line x1="686" y1="284" x2="112" y2="284" stroke="currentColor" opacity=".55" stroke-dasharray="1 4" marker-end="url(#a1d)"/>
+          <text x="400" y="277" text-anchor="middle" font-size="11.5" fill="var(--steel)">200 · JWT subscriber</text>
+
+          <!-- step 6 -->
+          <line x1="112" y1="324" x2="686" y2="324" stroke="var(--public)" stroke-width="1.4" marker-end="url(#a1)"/>
+          <text x="400" y="309" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--ink)">PUT /v1/widgets/credentials · Bearer JWT</text>
+          <text x="400" y="337" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--steel)">{ providerId:'fcm', deviceTokens:[token] }</text>
+
+          <!-- step 7 : self note on izipush -->
+          <rect x="590" y="352" width="200" height="0" fill="none"/>
+        </svg>
+      </div>
+      <figcaption>
+        Seul le calcul du hash touche la clé Novu, et il ne quitte jamais le backend produit. Le SDK
+        n'échange que des identifiants publics et des JWT. <code>PUT /v1/widgets/credentials</code>
+        <strong>fusionne</strong> le nouveau token avec ceux déjà présents (déduplication automatique
+        côté Novu) — un second appareil du même utilisateur s'ajoute, il ne remplace pas le premier.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FLOW 2 — LISTES DE DIFFUSION                                  -->
+  <!-- ============================================================ -->
+  <section class="flow">
+    <div class="flow-head">
+      <span class="flow-num">2</span>
+      <h2>Listes de diffusion (topics)</h2>
+    </div>
+    <p class="flow-sub">
+      Deux façons d'obtenir la même chose — un topic avec des abonnés dedans — selon qui doit
+      décider de son existence.
+    </p>
+
+    <figure>
+      <div class="diagram-frame">
+        <svg viewBox="0 0 880 260" role="img" aria-label="Deux chemins vers izipush pour peupler un topic : le backend produit, avec la clé secrète, crée le topic puis y ajoute des abonnés explicitement ; ou l'app cliente, avec son JWT subscriber, s'abonne directement à un topic qui est créé à la volée s'il n'existait pas encore.">
+          <defs>
+            <marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <polygon points="0,0 7,3 0,6" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <rect x="600" y="18" width="200" height="224" rx="8" fill="var(--canvas)" stroke="var(--line)"/>
+          <text x="700" y="42" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" fill="var(--ink)">izipush · API</text>
+
+          <!-- path A : secret -->
+          <rect x="20" y="66" width="220" height="34" rx="7" fill="var(--surface)" stroke="var(--secret)"/>
+          <text x="130" y="87" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" fill="var(--secret)">Backend produit</text>
+
+          <line x1="242" y1="83" x2="596" y2="83" stroke="var(--secret)" stroke-width="1.4" marker-end="url(#a2)"/>
+          <text x="420" y="72" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink)">POST /v1/topics  →  POST /v1/topics/:key/subscribers</text>
+
+          <rect x="600" y="94" width="200" height="42" rx="6" fill="var(--secret-wash)"/>
+          <text x="700" y="111" text-anchor="middle" font-size="10.5" fill="var(--secret)">Topic + liste d'abonnés</text>
+          <text x="700" y="125" text-anchor="middle" font-size="10.5" fill="var(--secret)">gérés explicitement</text>
+
+          <!-- path B : public -->
+          <rect x="20" y="168" width="220" height="34" rx="7" fill="var(--surface)" stroke="var(--public)"/>
+          <text x="130" y="189" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" fill="var(--public)">App cliente (JWT)</text>
+
+          <line x1="242" y1="185" x2="596" y2="185" stroke="var(--public)" stroke-width="1.4" marker-end="url(#a2)"/>
+          <text x="420" y="174" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink)">POST /v1/inbox/topics/:topicKey/subscriptions</text>
+
+          <rect x="600" y="196" width="200" height="42" rx="6" fill="var(--public-wash)"/>
+          <text x="700" y="213" text-anchor="middle" font-size="10.5" fill="var(--public)">Topic créé à la volée s'il</text>
+          <text x="700" y="227" text-anchor="middle" font-size="10.5" fill="var(--public)">n'existait pas + auto-abonnement</text>
+        </svg>
+      </div>
+      <figcaption>
+        Même destination, deux autorités différentes. Le chemin secret donne le contrôle total
+        (qui est dedans, quand) ; le chemin public laisse le client se rattacher lui-même à une liste
+        — utile pour un topic du type <code>merchant-&lt;id&gt;</code> qu'un terminal POS rejoint tout
+        seul, sans que le backend ait dû le créer d'avance.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FLOW 3 — DÉCLENCHEMENT & LIVRAISON                             -->
+  <!-- ============================================================ -->
+  <section class="flow">
+    <div class="flow-head">
+      <span class="flow-num">3</span>
+      <h2>Déclenchement &amp; livraison</h2>
+    </div>
+    <p class="flow-sub">
+      Un seul déclenchement, un fan-out vers tous les appareils accumulés à l'étape 1.
+    </p>
+
+    <figure>
+      <div class="diagram-frame">
+        <svg viewBox="0 0 880 320" role="img" aria-label="Un événement métier ou un déclenchement manuel depuis le dashboard envoie POST /v1/events/trigger vers izipush avec la clé secrète, ciblant un subscriber ou un topic ; le worker izipush résout le workflow et appelle l'intégration FCM, qui distribue la notification vers chacun des tokens enregistrés pour l'abonné visé, donc vers tous ses appareils à la fois.">
+          <defs>
+            <marker id="a3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <polygon points="0,0 7,3 0,6" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <rect x="30" y="66" width="230" height="220" rx="8" fill="var(--secret-wash)"/>
+
+          <!-- origin box -->
+          <rect x="46" y="82" width="198" height="46" rx="7" fill="var(--surface)" stroke="var(--secret)"/>
+          <text x="145" y="100" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="var(--secret)">Événement métier</text>
+          <text x="145" y="115" text-anchor="middle" font-size="10" fill="var(--steel)">(ex. paiement reçu)</text>
+
+          <text x="145" y="146" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--steel)">— ou —</text>
+
+          <rect x="46" y="156" width="198" height="46" rx="7" fill="var(--surface)" stroke="var(--secret)"/>
+          <text x="145" y="174" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="var(--secret)">Dashboard</text>
+          <text x="145" y="189" text-anchor="middle" font-size="10" fill="var(--steel)">déclenchement manuel · "Send to topic"</text>
+
+          <!-- trigger arrow -->
+          <line x1="262" y1="150" x2="396" y2="150" stroke="var(--secret)" stroke-width="1.4" marker-end="url(#a3)"/>
+          <text x="330" y="135" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink)">POST /v1/</text>
+          <text x="330" y="148" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink)">events/trigger</text>
+          <text x="330" y="168" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="var(--steel)">to: subscriberId</text>
+          <text x="330" y="180" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="var(--steel)">ou {type:'topic'}</text>
+
+          <!-- izipush worker box -->
+          <rect x="400" y="66" width="190" height="220" rx="8" fill="var(--accent-wash)"/>
+          <rect x="416" y="150" width="158" height="52" rx="7" fill="var(--surface)" stroke="var(--accent)"/>
+          <text x="495" y="169" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="var(--accent)">Worker izipush</text>
+          <text x="495" y="184" text-anchor="middle" font-size="9.5" fill="var(--steel)">résout le workflow →</text>
+          <text x="495" y="196" text-anchor="middle" font-size="9.5" fill="var(--steel)">intégration FCM</text>
+
+          <!-- worker -> fcm -->
+          <line x1="592" y1="150" x2="676" y2="106" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#a3)"/>
+
+          <rect x="680" y="66" width="170" height="46" rx="7" fill="var(--surface)" stroke="var(--accent)"/>
+          <text x="765" y="94" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" fill="var(--accent)">FCM</text>
+
+          <!-- fan out -->
+          <line x1="765" y1="112" x2="700" y2="230" stroke="currentColor" opacity=".55" marker-end="url(#a3)"/>
+          <line x1="765" y1="112" x2="765" y2="230" stroke="currentColor" opacity=".55" marker-end="url(#a3)"/>
+          <line x1="765" y1="112" x2="830" y2="230" stroke="currentColor" opacity=".55" marker-end="url(#a3)"/>
+          <text x="765" y="128" text-anchor="middle" font-size="10" fill="var(--steel)">un envoi par deviceToken enregistré</text>
+
+          <rect x="655" y="234" width="80" height="40" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+          <text x="695" y="249" text-anchor="middle" font-size="9.5" fill="var(--ink)">Mobile</text>
+          <text x="695" y="262" text-anchor="middle" font-size="9" fill="var(--steel)">(RN / notifee)</text>
+
+          <rect x="725" y="234" width="80" height="40" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+          <text x="765" y="249" text-anchor="middle" font-size="9.5" fill="var(--ink)">Web</text>
+          <text x="765" y="262" text-anchor="middle" font-size="9" fill="var(--steel)">(service worker)</text>
+
+          <rect x="795" y="234" width="80" height="40" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+          <text x="835" y="249" text-anchor="middle" font-size="9.5" fill="var(--ink)">…autre</text>
+          <text x="835" y="262" text-anchor="middle" font-size="9" fill="var(--steel)">appareil</text>
+        </svg>
+      </div>
+      <figcaption>
+        Un seul déclenchement ; le fan-out vers plusieurs appareils n'est pas un cas particulier —
+        c'est directement la conséquence de la fusion des tokens vue au flux 1. Cibler un topic plutôt
+        qu'un <code>subscriberId</code> répète simplement cette même livraison pour chaque abonné du
+        topic.
+      </figcaption>
+    </figure>
+  </section>
+
+  <div class="refs">
+    <div>
+      <h3>Surface publique (JWT)</h3>
+      <ul>
+        <li><code>POST /v1/widgets/session/initialize</code></li>
+        <li><code>PUT /v1/widgets/credentials</code></li>
+        <li><code>POST /v1/inbox/topics/:topicKey/subscriptions</code></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Surface secrète (clé API)</h3>
+      <ul>
+        <li><code>POST /v1/topics</code></li>
+        <li><code>POST /v1/topics/:topicKey/subscribers</code></li>
+        <li><code>POST /v1/events/trigger</code></li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

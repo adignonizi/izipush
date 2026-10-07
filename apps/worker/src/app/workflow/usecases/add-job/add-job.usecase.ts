@@ -30,6 +30,7 @@ import {
   WorkflowRunStatusEnum,
 } from '@novu/application-generic';
 import {
+  CRM_EMAIL_MAX_ATTEMPTS,
   JobEntity,
   JobRepository,
   JobStatusEnum,
@@ -172,8 +173,8 @@ export class AddJob {
     }
 
     const result = isJobDeferredType(job.type)
-      ? await this.executeDeferredJob(command)
-      : await this.executeNoneDeferredJob(command);
+      ? await this.executeDeferredJob(command, notification?.critical)
+      : await this.executeNoneDeferredJob(command, notification?.critical);
 
     return result;
   }
@@ -197,7 +198,7 @@ export class AddJob {
     };
   }
 
-  private async executeDeferredJob(command: AddJobCommand): Promise<AddJobResult> {
+  private async executeDeferredJob(command: AddJobCommand, critical?: boolean): Promise<AddJobResult> {
     const { job } = command;
 
     let digestAmount: number | undefined;
@@ -368,7 +369,7 @@ export class AddJob {
       status: JobStatusEnum.DELAYED,
     });
 
-    await this.queueJob({ job, delay, untilDate: bridgeDelayAmountDate, timezone: subscriber?.timezone });
+    await this.queueJob({ job, delay, untilDate: bridgeDelayAmountDate, timezone: subscriber?.timezone, critical });
 
     return {
       workflowStatus: null,
@@ -413,7 +414,7 @@ export class AddJob {
     return true;
   }
 
-  private async executeNoneDeferredJob(command: AddJobCommand): Promise<AddJobResult> {
+  private async executeNoneDeferredJob(command: AddJobCommand, critical?: boolean): Promise<AddJobResult> {
     const { job } = command;
 
     this.logger.trace(`Updating status to queued for job ${job._id}`);
@@ -423,7 +424,7 @@ export class AddJob {
       status: JobStatusEnum.QUEUED,
     });
 
-    await this.queueJob({ job, delay: 0, untilDate: null });
+    await this.queueJob({ job, delay: 0, untilDate: null, critical });
 
     return {
       workflowStatus: null,
@@ -1069,20 +1070,33 @@ export class AddJob {
     delay,
     untilDate,
     timezone,
+    critical,
   }: {
     job: JobEntity;
     delay: number;
     untilDate: Date | null;
     timezone?: string;
+    critical?: boolean;
   }) {
     const stepContainsWebhookFilter = this.stepContainsFilter(job, 'webhook');
     const options: JobsOptions = { delay };
+
+    // izipush-crm — workflows critiques (OTP, reçus) en tête de file, même derrière une campagne d'un million de jobs.
+    // BullMQ 3.x : un job avec priorité est inséré devant tous ceux qui n'en ont pas (l'inverse à partir de BullMQ 4 :
+    // à revoir si Novu met à jour BullMQ).
+    if (critical) options.priority = 1;
 
     if (stepContainsWebhookFilter) {
       options.backoff = {
         type: BackoffStrategiesEnum.WEBHOOK_FILTER_BACKOFF,
       };
       options.attempts = this.standardQueueService.DEFAULT_ATTEMPTS;
+    }
+
+    // izipush-crm — un email de campagne attend qu'un fournisseur ait de la place (voir CrmEmailRouter).
+    if (job.type === StepTypeEnum.EMAIL && job.payload?.__crm) {
+      options.attempts = CRM_EMAIL_MAX_ATTEMPTS;
+      options.backoff = { type: BackoffStrategiesEnum.WEBHOOK_FILTER_BACKOFF };
     }
 
     await this.standardQueueService.add({

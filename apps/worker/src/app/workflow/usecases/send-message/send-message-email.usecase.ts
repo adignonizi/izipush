@@ -19,6 +19,8 @@ import {
   SendWebhookMessage,
 } from '@novu/application-generic';
 import {
+  applyEmailTracking,
+  CrmProviderUsageRepository,
   EnvironmentEntity,
   EnvironmentRepository,
   IntegrationEntity,
@@ -47,6 +49,7 @@ import {
 import inlineCss from 'inline-css';
 
 import { PlatformException } from '../../../shared/utils';
+import { CrmEmailRouter } from '../../services/crm-email-router.service';
 import { SendMessageBase } from './send-message.base';
 import { SendMessageChannelCommand } from './send-message-channel.command';
 import { SendMessageResult, SendMessageStatus } from './send-message-type.usecase';
@@ -70,7 +73,9 @@ export class SendMessageEmail extends SendMessageBase {
     protected moduleRef: ModuleRef,
     private featureFlagService: FeatureFlagsService,
     private getLayoutUseCaseV0: GetLayoutUseCaseV0,
-    private sendWebhookMessage: SendWebhookMessage
+    private sendWebhookMessage: SendWebhookMessage,
+    private crmEmailRouter: CrmEmailRouter,
+    private crmProviderUsage: CrmProviderUsageRepository
   ) {
     super(
       messageRepository,
@@ -90,6 +95,14 @@ export class SendMessageEmail extends SendMessageBase {
     const email: string | undefined = command.overrides?.email?.toRecipient || subscriber?.email;
 
     const overrideSelectedIntegration = command.overrides?.email?.integrationIdentifier;
+
+    // izipush-crm — emails de campagne répartis entre les fournisseurs selon leurs limites d'envoi.
+    // Hors du try : « tous les fournisseurs sont pleins » doit remonter pour que le job soit relancé plus tard.
+    const crmRoute =
+      command.payload?.__crm && !overrideSelectedIntegration
+        ? await this.crmEmailRouter.pick(command.environmentId, command.organizationId)
+        : undefined;
+
     try {
       integration = await this.getIntegration({
         organizationId: command.organizationId,
@@ -97,7 +110,7 @@ export class SendMessageEmail extends SendMessageBase {
         channelType: ChannelTypeEnum.EMAIL,
         userId: command.userId,
         recipientEmail: email,
-        identifier: overrideSelectedIntegration as string,
+        identifier: (overrideSelectedIntegration ?? crmRoute?.identifier) as string,
         filterData: {
           tenant: command.job.tenant,
         },
@@ -381,7 +394,51 @@ export class SendMessageEmail extends SendMessageBase {
         : payload;
     }
 
+    // izipush-crm — emails de campagne : adresse exclue (bounce, plainte), désinscription en un clic,
+    // et suivi des ouvertures et des clics.
+    const crmData = (subscriber?.data ?? {}) as Record<string, unknown>;
+    if (command.payload?.__crm) {
+      if (crmData.email_suppressed === true) return await this.skipSuppressedEmail(message, command);
+
+      const unsubscribeUrl = typeof crmData.unsubscribe_url === 'string' ? crmData.unsubscribe_url : undefined;
+      if (unsubscribeUrl) {
+        mailData.headers = {
+          ...mailData.headers,
+          'List-Unsubscribe': `<${unsubscribeUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        };
+      }
+
+      const tracked = this.withCrmTracking(mailData.html, message, command.environmentId, unsubscribeUrl);
+      if (tracked !== undefined) mailData.html = tracked;
+    }
+
     return await this.sendMessage(integration, mailData, message, command);
+  }
+
+  /**
+   * izipush-crm — pixel d'ouverture et liens réécrits, pour les seuls emails de campagne.
+   *
+   * Sans secret ni URL publique configurés, l'email part inchangé : le suivi est une statistique,
+   * jamais une raison de ne pas livrer un message.
+   */
+  private withCrmTracking(
+    html: string | undefined,
+    message: MessageEntity,
+    environmentId: string,
+    unsubscribeUrl?: string
+  ): string | undefined {
+    const secret = process.env.CRM_UNSUBSCRIBE_SECRET;
+    const publicApiUrl = process.env.CRM_PUBLIC_API_URL;
+    if (!html || !secret || !publicApiUrl) return html;
+
+    return applyEmailTracking(html, {
+      publicApiUrl,
+      secret,
+      environmentId,
+      messageId: String(message._id),
+      unsubscribeUrl,
+    });
   }
 
   private async getReplyTo(command: SendMessageChannelCommand, messageId: string): Promise<string | null> {
@@ -498,6 +555,39 @@ export class SendMessageEmail extends SendMessageBase {
   }
 
   @Instrument()
+  /** izipush-crm — adresse marquée « exclue » par le CRM après un bounce ou une plainte : pas d'email de campagne. */
+  private async skipSuppressedEmail(
+    message: MessageEntity,
+    command: SendMessageChannelCommand
+  ): Promise<SendMessageResult> {
+    await this.sendErrorStatus(
+      message,
+      'warning',
+      'crm_email_suppressed',
+      'Adresse email exclue par le CRM (bounce ou plainte)',
+      command
+    );
+    await this.createExecutionDetails.execute(
+      CreateExecutionDetailsCommand.create({
+        ...CreateExecutionDetailsCommand.getDetailsFromJob(command.job),
+        messageId: message._id,
+        detail: DetailEnum.MESSAGE_BLOCKED,
+        source: ExecutionDetailsSourceEnum.INTERNAL,
+        status: ExecutionDetailsStatusEnum.FAILED,
+        isTest: false,
+        isRetry: false,
+      })
+    );
+
+    return {
+      status: SendMessageStatus.SKIPPED,
+      deliveryLifecycleState: {
+        status: DeliveryLifecycleStatusEnum.SKIPPED,
+        detail: DeliveryLifecycleDetail.SUBSCRIBER_PREFERENCE,
+      },
+    };
+  }
+
   private async sendMessage(
     integration: IntegrationEntity,
     mailData: IEmailOptions,
@@ -563,10 +653,14 @@ export class SendMessageEmail extends SendMessageBase {
         }
       );
 
+      this.countProviderUsage(command, integration, 'sent');
+
       return {
         status: SendMessageStatus.SUCCESS,
       };
     } catch (error) {
+      this.countProviderUsage(command, integration, 'failed');
+
       await this.sendErrorStatus(
         message,
         'error',
@@ -616,6 +710,17 @@ export class SendMessageEmail extends SendMessageBase {
         errorMessage: DetailEnum.PROVIDER_ERROR,
       };
     }
+  }
+
+  /** izipush-crm — compteurs quotidiens par fournisseur (page de suivi) ; ne doit jamais bloquer un envoi. */
+  private countProviderUsage(
+    command: SendMessageChannelCommand,
+    integration: IntegrationEntity,
+    counter: 'sent' | 'failed'
+  ): void {
+    this.crmProviderUsage
+      .increment(command.environmentId, String(integration._id), counter, integration.providerId)
+      .catch((error) => Logger.warn({ err: error }, 'Compteur fournisseur email non mis à jour', LOG_CONTEXT));
   }
 
   @Instrument()

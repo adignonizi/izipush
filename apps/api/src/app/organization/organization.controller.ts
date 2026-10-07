@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   ClassSerializerInterceptor,
   Controller,
@@ -12,8 +13,8 @@ import {
 } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ApiExcludeController } from '@nestjs/swagger/dist/decorators/api-exclude-controller.decorator';
-import { OrganizationEntity } from '@novu/dal';
-import { MemberRoleEnum, UserSessionData } from '@novu/shared';
+import { MemberRepository, OrganizationEntity } from '@novu/dal';
+import { MemberRoleEnum, MemberSectionEnum, UserSessionData } from '@novu/shared';
 import { RequireAuthentication } from '../auth/framework/auth.decorator';
 import { ExternalApiAccessible } from '../auth/framework/external-api.decorator';
 import { ApiCommonResponses, ApiResponse } from '../shared/framework/response.decorator';
@@ -26,6 +27,7 @@ import { OrganizationBrandingResponseDto, OrganizationResponseDto } from './dtos
 import { RenameOrganizationDto } from './dtos/rename-organization.dto';
 import { UpdateBrandingDetailsDto } from './dtos/update-branding-details.dto';
 import { UpdateMemberRolesDto } from './dtos/update-member-roles.dto';
+import { UpdateMemberSectionsDto } from './dtos/update-member-sections.dto';
 import { CreateOrganizationCommand } from './usecases/create-organization/create-organization.command';
 import { CreateOrganization } from './usecases/create-organization/create-organization.usecase';
 import { GetMyOrganizationCommand } from './usecases/get-my-organization/get-my-organization.command';
@@ -58,7 +60,8 @@ export class OrganizationController {
     private updateBrandingDetailsUsecase: UpdateBrandingDetails,
     private getOrganizationsUsecase: GetOrganizations,
     private getMyOrganizationUsecase: GetMyOrganization,
-    private renameOrganizationUsecase: RenameOrganization
+    private renameOrganizationUsecase: RenameOrganization,
+    private memberRepository: MemberRepository
   ) {}
 
   @Post('/')
@@ -152,6 +155,61 @@ export class OrganizationController {
         organizationId: user.organizationId,
       })
     );
+  }
+
+  /**
+   * Sections du membre courant, pour que le tableau de bord masque ce qu'il ne peut pas atteindre.
+   *
+   * **Volontairement NON restreinte** : chacun doit pouvoir lire ses propres accès, sinon le
+   * menu ne peut pas se construire. Elle ne révèle rien — l'appelant apprend ce qu'il a déjà.
+   *
+   * Déclarée avant `/members/:memberId/sections` : un chemin littéral placé après un paramètre
+   * de route se fait capter par lui, et `me` serait pris pour un identifiant.
+   */
+  @Get('/members/me/sections')
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Dashboard sections the current member may reach' })
+  async getMySections(@UserSession() user: UserSessionData): Promise<{ sections: MemberSectionEnum[] }> {
+    const membre = await this.memberRepository.findMemberByUserId(user.organizationId, user._id);
+
+    // Vide = aucune restriction. Le tableau de bord l'interprète comme « tout afficher ».
+    return { sections: membre?.sections ?? [] };
+  }
+
+  /**
+   * Attribue les sections d'un membre.
+   *
+   * **Pas `@ExternalApiAccessible()`** : seule une session de tableau de bord peut appeler
+   * cette route. Une cle API capable d'elargir les acces d'un membre viderait le controle de
+   * son sens — il suffirait de la deober pour s'ouvrir toutes les sections.
+   */
+  @Put('/members/:memberId/sections')
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Set the dashboard sections a member may reach' })
+  @ApiParam({ name: 'memberId', type: String, required: true })
+  async updateMemberSections(
+    @UserSession() user: UserSessionData,
+    @Param('memberId') memberId: string,
+    @Body() body: UpdateMemberSectionsDto
+  ) {
+    const membre = await this.memberRepository.findMemberByUserId(user.organizationId, user._id);
+
+    /*
+     * On ne modifie pas ses propres sections. Sans ce garde-fou, on se retire la section
+     * DEVELOPERS en deux clics — et plus personne ne peut la rendre, puisque la route qui le
+     * permettrait est justement dans cette section. Ca ne se repare qu'en base.
+     */
+    if (membre && String(membre._id) === String(memberId)) {
+      throw new BadRequestException('You cannot change your own section access');
+    }
+
+    await this.memberRepository.updateMemberSections(user.organizationId, memberId, body.sections);
+
+    /*
+     * L'intercepteur garde les sections en memoire une demi-minute : le changement prend donc
+     * effet au plus tard dans ce delai, et l'interface le dit.
+     */
+    return { sections: body.sections as MemberSectionEnum[] };
   }
 
   @Get('/members')

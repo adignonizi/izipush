@@ -1,3 +1,4 @@
+import { normalizeEmail } from '@novu/shared';
 import { BadRequestException, Injectable, NotFoundException, Scope } from '@nestjs/common';
 import { Novu } from '@novu/api';
 import { capitalize, PinoLogger } from '@novu/application-generic';
@@ -36,6 +37,11 @@ export class AcceptInvite {
     this.organizationId = organization._id;
 
     if (member.memberStatus !== MemberStatusEnum.INVITED) throw new BadRequestException('Token expired');
+
+    // izipush : le lien d'invitation est copié à la main ; il ne sert qu'à l'adresse invitée.
+    if (normalizeEmail(user.email ?? '') !== normalizeEmail(member.invite.email)) {
+      throw new BadRequestException('This invitation belongs to another email address');
+    }
 
     const inviter = await this.userRepository.findById(member.invite._inviterId);
     if (!inviter) throw new NotFoundException('No inviter entity found');
