@@ -12,7 +12,12 @@
 # et non tiré du .env : il ne change qu'au changement de compte AWS. Pour le
 # définir d'un coup :
 #
-#   sed -i 's|REGISTRE_A_DEFINIR|123456789012.dkr.ecr.eu-west-3.amazonaws.com|g' docker-compose.yml
+#   sed -i 's|registre-a-definir|123456789012.dkr.ecr.eu-west-3.amazonaws.com|g' docker-compose.yml
+#
+# En MINUSCULES volontairement : Docker refuse les majuscules dans un nom d'image, et
+# `compose` valide TOUTES les images meme quand on ne demarre qu'un service. Un espace
+# reserve en majuscules faisait donc echouer `up mongodb` avec « repository name must be
+# lowercase », un message qui ne dit pas qu'il s'agit d'un espace reserve a remplacer.
 #
 #   docker compose --env-file .env up -d
 #
@@ -147,7 +152,7 @@ services:
   # ── Services applicatifs ───────────────────────────────────────────────────
 
   api:
-    image: REGISTRE_A_DEFINIR/izipush-api:${IMAGE_TAG:-latest}
+    image: registre-a-definir/izipush-api:${IMAGE_TAG:-latest}
     container_name: api
     restart: unless-stopped
     depends_on:
@@ -199,7 +204,7 @@ services:
     logging: *logging
 
   worker:
-    image: REGISTRE_A_DEFINIR/izipush-worker:${IMAGE_TAG:-latest}
+    image: registre-a-definir/izipush-worker:${IMAGE_TAG:-latest}
     container_name: worker
     restart: unless-stopped
     depends_on:
@@ -236,7 +241,7 @@ services:
     logging: *logging
 
   ws:
-    image: REGISTRE_A_DEFINIR/izipush-ws:${IMAGE_TAG:-latest}
+    image: registre-a-definir/izipush-ws:${IMAGE_TAG:-latest}
     container_name: ws
     restart: unless-stopped
     depends_on:
@@ -263,7 +268,7 @@ services:
   # izipush-crm — consomme les événements d'Izichange, dérive les profils,
   # exécute segments et campagnes.
   crm-ingest:
-    image: REGISTRE_A_DEFINIR/izipush-crm-ingest:${IMAGE_TAG:-latest}
+    image: registre-a-definir/izipush-crm-ingest:${IMAGE_TAG:-latest}
     container_name: crm-ingest
     restart: unless-stopped
     depends_on:
@@ -305,7 +310,7 @@ services:
     logging: *logging
 
   dashboard:
-    image: REGISTRE_A_DEFINIR/izipush-dashboard:${IMAGE_TAG:-latest}
+    image: registre-a-definir/izipush-dashboard:${IMAGE_TAG:-latest}
     container_name: dashboard
     restart: unless-stopped
     depends_on:

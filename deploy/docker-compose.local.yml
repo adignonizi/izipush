@@ -1,0 +1,21 @@
+# Appoint pour le développement local, à superposer au compose principal :
+#
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml \
+#     --env-file deploy/.env up -d mongodb redis
+#
+# Le compose principal ne publie AUCUN port pour la base et le cache — volontairement : en
+# production ils ne doivent être joignables que depuis le réseau interne. Mais pour lancer l'API
+# depuis sa source, sur la machine, il faut bien les atteindre. D'où ce fichier, séparé : on ne
+# déploie jamais un compose qui expose sa base par accident.
+#
+# L'authentification reste celle de deploy/.env, pour que l'API lancée en local utilise la même
+# chaîne de connexion qu'en conteneur.
+
+services:
+  mongodb:
+    ports:
+      - '127.0.0.1:27017:27017'
+
+  redis:
+    ports:
+      - '127.0.0.1:6379:6379'
