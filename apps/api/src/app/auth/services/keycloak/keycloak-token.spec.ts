@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { createSign, generateKeyPairSync, KeyObject } from 'crypto';
 
-import { cleDepuisJwk, KeycloakTokenError, lireEntete, verifierJeton } from './keycloak-token';
+import { cleDepuisJwk, KeycloakTokenError, lireEntete, profilDepuisClaims, verifierJeton } from './keycloak-token';
 
 const ISSUER = 'https://keycloak.exemple.com/realms/izichange';
 const CLIENT = 'izipay-mobile';
@@ -69,7 +69,7 @@ describe('jeton Keycloak — en-tête', () => {
 
 describe('jeton Keycloak — vérification', () => {
   it('accepte un jeton normal et rend le sub', () => {
-    expect(verifierJeton(forger(valide()), cle(), attendu)).to.equal('usr_8H2K9LM');
+    expect(verifierJeton(forger(valide()), cle(), attendu).subscriberId).to.equal('usr_8H2K9LM');
   });
 
   /* Le contrôle qui porte tout le reste. */
@@ -107,13 +107,13 @@ describe('jeton Keycloak — vérification', () => {
   it('accepte le client trouvé dans aud plutôt que dans azp', () => {
     const jeton = forger(valide({ azp: undefined, aud: ['account', CLIENT] }));
 
-    expect(verifierJeton(jeton, cle(), attendu)).to.equal('usr_8H2K9LM');
+    expect(verifierJeton(jeton, cle(), attendu).subscriberId).to.equal('usr_8H2K9LM');
   });
 
   it('sans audience configurée, ne contrôle pas le client', () => {
     const jeton = forger(valide({ azp: 'nimporte-quoi' }));
 
-    expect(verifierJeton(jeton, cle(), { issuer: ISSUER })).to.equal('usr_8H2K9LM');
+    expect(verifierJeton(jeton, cle(), { issuer: ISSUER }).subscriberId).to.equal('usr_8H2K9LM');
   });
 
   it('refuse un jeton expiré, et tolère une dérive d’horloge', () => {
@@ -122,7 +122,7 @@ describe('jeton Keycloak — vérification', () => {
       /expiré/
     );
     // Expiré de 10 s : accepté, deux machines ne sont jamais à la même heure.
-    expect(verifierJeton(forger(valide({ exp: dans(-10) })), cle(), attendu)).to.equal('usr_8H2K9LM');
+    expect(verifierJeton(forger(valide({ exp: dans(-10) })), cle(), attendu).subscriberId).to.equal('usr_8H2K9LM');
   });
 
   it('refuse un jeton sans exp — un jeton sans expiration n’en est pas un', () => {
@@ -151,7 +151,38 @@ describe('jeton Keycloak — vérification', () => {
   it('lit un autre claim quand la configuration le demande', () => {
     const jeton = forger(valide({ preferred_username: 'izi-42' }));
 
-    expect(verifierJeton(jeton, cle(), { ...attendu, subjectClaim: 'preferred_username' })).to.equal('izi-42');
+    expect(verifierJeton(jeton, cle(), { ...attendu, subjectClaim: 'preferred_username' }).subscriberId).to.equal('izi-42');
+  });
+});
+
+describe('jeton Keycloak — profil', () => {
+  /* Ces claims servent à CRÉER l'abonné : ils viennent d'une source vérifiée, alors que
+     `session/initialize` les prenait dans le corps de la requête, donc chez le client. */
+  it('lit les claims standard d’OpenID Connect', () => {
+    const jeton = forger(
+      valide({ email: 'a@izichange.test', given_name: 'Ada', family_name: 'Lovelace', phone_number: '+22890000000' })
+    );
+    const { charge } = verifierJeton(jeton, cle(), attendu);
+
+    expect(profilDepuisClaims(charge)).to.deep.equal({
+      email: 'a@izichange.test',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      phone: '+22890000000',
+    });
+  });
+
+  /* Les claims dépendent des scopes accordés au client : un claim absent doit laisser le champ
+     tel quel, jamais l'effacer. D'où `undefined` et non chaîne vide. */
+  it('rend undefined pour un claim absent, vide ou non textuel', () => {
+    const { charge } = verifierJeton(forger(valide({ email: '   ', given_name: 42 })), cle(), attendu);
+
+    expect(profilDepuisClaims(charge)).to.deep.equal({
+      email: undefined,
+      firstName: undefined,
+      lastName: undefined,
+      phone: undefined,
+    });
   });
 });
 
@@ -159,9 +190,9 @@ describe('jeton Keycloak — JWK', () => {
   it('construit une clé vérifiable depuis un JWK RSA', () => {
     const jeton = forger(valide());
 
-    expect(verifierJeton(jeton, cleDepuisJwk(realm.publicKey.export({ format: 'jwk' }) as never), attendu)).to.equal(
-      'usr_8H2K9LM'
-    );
+    expect(
+      verifierJeton(jeton, cleDepuisJwk(realm.publicKey.export({ format: 'jwk' }) as never), attendu).subscriberId
+    ).to.equal('usr_8H2K9LM');
   });
 
   it('refuse un JWK qui n’est pas RSA ou qui est incomplet', () => {

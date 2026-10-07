@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 
+import { CreateOrUpdateSubscriberUseCase } from '@novu/application-generic';
 import { CommunityOrganizationRepository } from '@novu/dal';
 import { AuthModule } from '../auth/auth.module';
 import { IntegrationModule } from '../integrations/integrations.module';
@@ -21,7 +22,7 @@ import { WidgetsController } from './widgets.controller';
   ],
   // JwksService est fourni ici et non globalement : son cache de cles n'a de sens que pour
   // cette garde, et le garder local evite un singleton partage dont personne ne se sert.
-  providers: [...USE_CASES, CommunityOrganizationRepository, JwksService, WidgetSubscriberGuard],
+  providers: [...USE_CASES, CommunityOrganizationRepository, JwksService, WidgetSubscriberGuard, CreateOrUpdateSubscriberUseCase],
   exports: [...USE_CASES],
   controllers: [WidgetsController],
 })

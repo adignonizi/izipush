@@ -95,7 +95,7 @@ describe('JwksService — dialogue avec un realm', () => {
     signeur.update(`${entete}.${charge}`);
     const jeton = `${entete}.${charge}.${signeur.sign(paire1.privateKey).toString('base64url')}`;
 
-    expect(verifierJeton(jeton, cle, { issuer: realm.url })).to.equal('usr_1');
+    expect(verifierJeton(jeton, cle, { issuer: realm.url }).subscriberId).to.equal('usr_1');
   });
 
   it('met le jeu de clés en cache : une seule requête pour deux lectures', async () => {

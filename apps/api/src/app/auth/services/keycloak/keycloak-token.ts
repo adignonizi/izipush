@@ -21,6 +21,19 @@ export type KeycloakExpectation = {
 
 export class KeycloakTokenError extends Error {}
 
+/**
+ * Ce qu'un jeton vérifié nous apprend.
+ *
+ * On rend la charge entière, et pas seulement le sujet : les claims standard de Keycloak —
+ * `email`, `given_name`, `family_name`, `phone_number` — permettent de créer le profil de l'abonné
+ * depuis une source VÉRIFIÉE. C'est strictement mieux que ce que faisait
+ * `session/initialize`, qui prenait ces champs dans le corps de la requête, donc chez le client.
+ */
+export type JetonVerifie = {
+  subscriberId: string;
+  charge: Record<string, unknown>;
+};
+
 /** Un JWK tel que Keycloak le publie, réduit à ce dont on a besoin. */
 export type Jwk = { kid?: string; kty?: string; alg?: string; use?: string; n?: string; e?: string };
 
@@ -89,7 +102,12 @@ export function cleDepuisJwk(jwk: Jwk): KeyObject {
  *  4. **`exp` / `nbf`** ;
  *  5. **le claim de sujet**, non vide.
  */
-export function verifierJeton(jeton: string, cle: KeyObject, attendu: KeycloakExpectation, maintenant = Date.now()): string {
+export function verifierJeton(
+  jeton: string,
+  cle: KeyObject,
+  attendu: KeycloakExpectation,
+  maintenant = Date.now()
+): JetonVerifie {
   const segments = jeton.split('.');
   if (segments.length !== 3) throw new KeycloakTokenError('jeton malformé');
 
@@ -130,5 +148,33 @@ export function verifierJeton(jeton: string, cle: KeyObject, attendu: KeycloakEx
     throw new KeycloakTokenError(`claim « ${claim} » absent ou vide`);
   }
 
-  return sujet;
+  return { subscriberId: sujet, charge };
+}
+
+/** Chaîne non vide d'un claim, ou `undefined`. Les claims absents ne doivent pas écraser un profil. */
+function texte(charge: Record<string, unknown>, cle: string): string | undefined {
+  const valeur = charge[cle];
+
+  return typeof valeur === 'string' && valeur.trim() ? valeur.trim() : undefined;
+}
+
+/**
+ * Profil de l'abonné, tiré des claims standard d'un jeton DÉJÀ vérifié.
+ *
+ * Les noms sont ceux d'OpenID Connect, que Keycloak respecte : `given_name`, `family_name`,
+ * `email`, `phone_number`. Chacun est facultatif — ils dépendent des scopes accordés au client, et
+ * un claim absent doit laisser le champ tel quel plutôt que de l'effacer.
+ */
+export function profilDepuisClaims(charge: Record<string, unknown>): {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+} {
+  return {
+    email: texte(charge, 'email'),
+    firstName: texte(charge, 'given_name'),
+    lastName: texte(charge, 'family_name'),
+    phone: texte(charge, 'phone_number'),
+  };
 }

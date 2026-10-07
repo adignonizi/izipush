@@ -1,12 +1,22 @@
 import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { PinoLogger } from '@novu/application-generic';
-import { EnvironmentEntity, EnvironmentRepository, SubscriberRepository } from '@novu/dal';
+import {
+  CreateOrUpdateSubscriberCommand,
+  CreateOrUpdateSubscriberUseCase,
+  PinoLogger,
+} from '@novu/application-generic';
+import { EnvironmentEntity, EnvironmentRepository } from '@novu/dal';
 import { ApiAuthSchemeEnum } from '@novu/shared';
 
 import { SubscriberSession } from '../../../shared/framework/user.decorator';
 import { JwksService } from './jwks.service';
-import { KeycloakExpectation, KeycloakTokenError, lireEntete, verifierJeton } from './keycloak-token';
+import {
+  KeycloakExpectation,
+  KeycloakTokenError,
+  lireEntete,
+  profilDepuisClaims,
+  verifierJeton,
+} from './keycloak-token';
 
 /**
  * En-tête qui désigne l'environnement visé.
@@ -46,8 +56,8 @@ const EN_TETE_ENVIRONNEMENT = 'novu-application-identifier';
 export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
   constructor(
     private readonly environmentRepository: EnvironmentRepository,
-    private readonly subscriberRepository: SubscriberRepository,
     private readonly jwksService: JwksService,
+    private readonly createOrUpdateSubscriber: CreateOrUpdateSubscriberUseCase,
     private readonly logger: PinoLogger
   ) {
     super();
@@ -83,12 +93,12 @@ export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
       subjectClaim: reglages.subjectClaim,
     };
 
-    let subscriberId: string;
+    let verifie: { subscriberId: string; charge: Record<string, unknown> };
     try {
       const jeton = this.jetonPorteur(request);
       const { kid } = lireEntete(jeton);
       const cle = await this.jwksService.cle(issuer, kid);
-      subscriberId = verifierJeton(jeton, cle, attendu);
+      verifie = verifierJeton(jeton, cle, attendu);
     } catch (erreur) {
       if (erreur instanceof KeycloakTokenError) {
         this.logger.warn({ raison: erreur.message, environmentId: environnement._id }, 'jeton Keycloak refusé');
@@ -99,16 +109,31 @@ export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
       throw erreur;
     }
 
-    const subscriber = await this.subscriberRepository.findBySubscriberId(String(environnement._id), subscriberId);
-
     /*
-     * `session/initialize` créait l'abonné au passage ; ce chemin ne le fait pas. Chez Izichange
-     * le webhook Keycloak et l'ingestion CRM le créent, mais un inscrit de la minute précédente
-     * peut arriver avant son événement. Message explicite, pour que l'appelant sache qu'il s'agit
-     * d'un cas à réessayer et non d'un jeton invalide.
+     * **On crée l'abonné s'il n'existe pas**, exactement comme le faisait `session/initialize`.
+     *
+     * C'est indispensable : cette route étant refusée sur un environnement migré, il n'y aurait
+     * plus AUCUN endroit où un nouvel utilisateur pourrait apparaître. Il resterait bloqué, sans
+     * notification, jusqu'à ce que l'ingestion CRM le crée — un délai qu'on ne maîtrise pas.
+     *
+     * Et le profil est meilleur qu'avant : `email`, `given_name`, `family_name` et `phone_number`
+     * viennent d'un jeton dont la signature est VÉRIFIÉE, là où `session/initialize` les prenait
+     * dans le corps de la requête, donc chez le client. D'où `allowUpdate: true` — l'ancienne route
+     * le conditionnait à la détention du HMAC, précisément parce qu'elle ne pouvait pas savoir si
+     * les champs étaient dignes de foi. Ici, elle le sait.
      */
+    const subscriber = await this.createOrUpdateSubscriber.execute(
+      CreateOrUpdateSubscriberCommand.create({
+        environmentId: String(environnement._id),
+        organizationId: String(environnement._organizationId),
+        subscriberId: verifie.subscriberId,
+        ...profilDepuisClaims(verifie.charge),
+        allowUpdate: true,
+      })
+    );
+
     if (!subscriber) {
-      throw new UnauthorizedException(`Subscriber ${subscriberId} does not exist yet in this environment`);
+      throw new UnauthorizedException(`Subscriber ${verifie.subscriberId} could not be resolved`);
     }
 
     return {
