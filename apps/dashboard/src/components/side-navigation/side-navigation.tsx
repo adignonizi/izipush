@@ -1,4 +1,10 @@
-import { ApiServiceLevelEnum, FeatureFlagsKeysEnum, GetSubscriptionDto, PermissionsEnum } from '@novu/shared';
+import {
+  ApiServiceLevelEnum,
+  FeatureFlagsKeysEnum,
+  GetSubscriptionDto,
+  MemberSectionEnum,
+  PermissionsEnum,
+} from '@novu/shared';
 import { SVGProps } from 'react';
 import {
   RiBarChartBoxLine,
@@ -41,6 +47,7 @@ import { ChangelogStack } from './changelog-cards';
 import { EnvironmentDropdown, LOCAL_ENVIRONMENT_VALUE } from './environment-dropdown';
 import { FreeTrialCard } from './free-trial-card';
 import { HomeMenuItem } from './getting-started-menu-item';
+import { useMySections } from '@/hooks/use-my-sections';
 import { NavigationGroup } from './navigation-group';
 import { NavigationLink } from './navigation-link';
 import { OrganizationDropdown } from './organization-dropdown';
@@ -112,6 +119,12 @@ export const LegacySideNavigation = () => {
   const isHttpLogsPageEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_HTTP_LOGS_PAGE_ENABLED, false);
   const isAnalyticsPageEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_ANALYTICS_PAGE_ENABLED, false);
   const showAgents = useAreConversationalAgentsAvailable();
+  /*
+   * Masquage SEULEMENT : l'API refuse de son cote, par intercepteur. Pendant le chargement et
+   * pour un membre sans restriction, `peutVoir` rend vrai — on affiche le menu complet puis on
+   * le reduit, ce qui est moins deroutant que l'inverse.
+   */
+  const { peutVoir } = useMySections();
 
   const { currentEnvironment, environments, switchEnvironment } = useEnvironment();
   const localMode = useLocalMode();
@@ -159,7 +172,7 @@ export const LegacySideNavigation = () => {
         />
         <nav className="flex h-full flex-1 flex-col overflow-auto">
           <div className="flex flex-col gap-4">
-            {showAgents && (
+            {showAgents && peutVoir(MemberSectionEnum.AGENTS) && (
               <NavigationGroup label="Agents">
                 <NavigationLink
                   to={
@@ -174,6 +187,7 @@ export const LegacySideNavigation = () => {
               </NavigationGroup>
             )}
 
+            {peutVoir(MemberSectionEnum.NOTIFICATIONS) && (
             <NavigationGroup label="Notifications">
               <Protect permission={PermissionsEnum.WORKFLOW_READ}>
                 <NavigationLink
@@ -216,6 +230,8 @@ export const LegacySideNavigation = () => {
                 <span>Translations</span>
               </NavigationLink>
             </NavigationGroup>
+            )}
+            {peutVoir(MemberSectionEnum.DATA) && (
             <NavigationGroup label="Data">
               <Protect permission={PermissionsEnum.SUBSCRIBER_READ}>
                 <NavigationLink
@@ -254,6 +270,8 @@ export const LegacySideNavigation = () => {
                 </NavigationLink>
               </Protect>
             </NavigationGroup>
+            )}
+            {peutVoir(MemberSectionEnum.MONITOR) && (
             <Protect permission={PermissionsEnum.NOTIFICATION_READ}>
               <NavigationGroup label="Monitor">
                 <Protect permission={PermissionsEnum.NOTIFICATION_READ}>
@@ -296,7 +314,9 @@ export const LegacySideNavigation = () => {
                 )}
               </NavigationGroup>
             </Protect>
+            )}
             {/* izipush-crm */}
+            {peutVoir(MemberSectionEnum.CRM) && (
             <NavigationGroup label="CRM">
               <NavigationLink
                 to={
@@ -359,6 +379,8 @@ export const LegacySideNavigation = () => {
                 <span>{t('nav.monitoring')}</span>
               </NavigationLink>
             </NavigationGroup>
+            )}
+            {peutVoir(MemberSectionEnum.DEVELOPERS) && (
             <Protect
               condition={(has) =>
                 has({ permission: PermissionsEnum.API_KEY_READ }) ||
@@ -442,6 +464,7 @@ export const LegacySideNavigation = () => {
                 </NavigationLink>
               </NavigationGroup>
             </Protect>
+            )}
             <Protect condition={(has) => has({ permission: PermissionsEnum.INTEGRATION_READ }) || !IS_SELF_HOSTED_CE}>
               <NavigationGroup label="Platform">
                 <Protect permission={PermissionsEnum.INTEGRATION_READ}>

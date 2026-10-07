@@ -1,5 +1,6 @@
 import { API_HOSTNAME } from '@/config';
-import { del, get, post } from './api.client';
+import type { MemberSectionEnum } from '@novu/shared';
+import { del, get, post, put } from './api.client';
 
 // izipush — équipe en auto-hébergé communautaire : membres, invitations par lien, changement d'organisation.
 // Les routes existent déjà dans l'API Novu (/v1/organizations/members, /v1/invites, /v1/auth/organizations/:id/switch).
@@ -11,6 +12,8 @@ export type TeamMember = {
   _userId?: string | null;
   user?: { _id: string; firstName?: string; lastName?: string; email?: string } | null;
   roles: string[];
+  /** Sections accordées. Absentes ou vides : toutes. */
+  sections?: MemberSectionEnum[];
   memberStatus: 'active' | 'invited';
   invite?: { email: string; token?: string; invitationDate?: string };
   createdAt?: string;
@@ -33,8 +36,27 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
   return (await get<{ data: TeamMember[] }>('/organizations/members')).data;
 }
 
-export async function inviteTeamMember(email: string): Promise<{ token?: string }> {
-  return (await post<{ data: { success: boolean; token?: string } }>('/invites', { body: { email } })).data;
+export async function inviteTeamMember(
+  email: string,
+  sections?: MemberSectionEnum[]
+): Promise<{ token?: string }> {
+  /*
+   * `sections` omis ou vide = toutes les sections, ce qui est le comportement d'avant. On ne
+   * transmet donc le champ que s'il restreint réellement quelque chose.
+   */
+  const body = sections?.length ? { email, sections } : { email };
+
+  return (await post<{ data: { success: boolean; token?: string } }>('/invites', { body })).data;
+}
+
+/**
+ * Remplace les sections d'un membre.
+ *
+ * Un tableau vide retire la restriction et redonne accès à tout — c'est ainsi qu'on repasse un
+ * membre en accès complet, et non en décochant tout.
+ */
+export async function updateMemberSections(memberId: string, sections: MemberSectionEnum[]): Promise<void> {
+  await put(`/organizations/members/${memberId}/sections`, { body: { sections } });
 }
 
 /** Remplace le jeton de l'invitation : l'ancien lien ne fonctionne plus. */

@@ -1,4 +1,4 @@
-import { IMemberInvite, MemberRoleEnum, MemberStatusEnum } from '@novu/shared';
+import { IMemberInvite, MemberRoleEnum, MemberSectionEnum, MemberStatusEnum } from '@novu/shared';
 import { Types } from 'mongoose';
 import { MemberEntity } from './member.entity';
 import { IAddMemberData } from './member.repository';
@@ -44,6 +44,7 @@ export interface IMemberRepository extends IMemberRepositoryMongo {
   ): Promise<void>;
   findByInviteToken(token: string): Promise<MemberEntity | null>;
   findInviteeByEmail(organizationId: string, email: string): Promise<MemberEntity | null>;
+  updateMemberSections(organizationId: string, memberId: string, sections: MemberSectionEnum[]): Promise<unknown>;
   addMember(organizationId: string, member: IAddMemberData): Promise<void>;
   isMemberOfOrganization(organizationId: string, userId: string): Promise<boolean>;
   findMemberByUserId(organizationId: string, userId: string): Promise<MemberEntity | null>;

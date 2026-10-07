@@ -51,6 +51,7 @@ import { RateLimitingModule } from './app/rate-limiting/rate-limiting.module';
 import { AnalyticsLogsGuard } from './app/shared/framework/analytics-logs.guard';
 import { AnalyticsLogsInterceptor } from './app/shared/framework/analytics-logs.interceptor';
 import { ApiIpAllowListInterceptor } from './app/shared/framework/api-ip-allow-list.interceptor';
+import { SectionAccessInterceptor } from './app/shared/framework/section-access.interceptor';
 import { IdempotencyInterceptor } from './app/shared/framework/idempotency.interceptor';
 import { ProductFeatureInterceptor } from './app/shared/interceptors/product-feature.interceptor';
 import { SharedModule } from './app/shared/shared.module';
@@ -206,6 +207,12 @@ const providers: Provider[] = [
   {
     provide: APP_INTERCEPTOR,
     useClass: ApiIpAllowListInterceptor,
+  },
+  // Avant l'idempotence lui aussi : une requête refusée faute de section n'a aucune raison
+  // d'occuper une entrée du cache d'idempotence.
+  {
+    provide: APP_INTERCEPTOR,
+    useClass: SectionAccessInterceptor,
   },
   {
     provide: APP_INTERCEPTOR,

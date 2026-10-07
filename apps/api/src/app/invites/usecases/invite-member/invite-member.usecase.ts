@@ -51,6 +51,9 @@ export class InviteMember {
 
     const memberPayload: IAddMemberData = {
       roles: [command.role as MemberRoleEnum],
+      // Un tableau vide serait ambigu — il signifie « toutes les sections » — donc on ne pose
+      // le champ que s'il porte quelque chose.
+      ...(command.sections?.length ? { sections: command.sections } : {}),
       memberStatus: MemberStatusEnum.INVITED,
       invite: {
         token,

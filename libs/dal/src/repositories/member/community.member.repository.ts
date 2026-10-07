@@ -1,4 +1,4 @@
-import { MemberRoleEnum, MemberStatusEnum } from '@novu/shared';
+import { MemberRoleEnum, MemberSectionEnum, MemberStatusEnum } from '@novu/shared';
 import { FilterQuery } from 'mongoose';
 import type { EnforceOrgId } from '../../types/enforce';
 import { BaseRepository } from '../base-repository';
@@ -30,6 +30,17 @@ export class CommunityMemberRepository
       _id: memberId,
       _organizationId: organizationId,
     });
+  }
+
+  /**
+   * Remplace les sections d'un membre.
+   *
+   * Un tableau vide est une valeur LEGITIME et signifie « toutes les sections » : c'est ainsi
+   * qu'on retire une restriction, et il ne faut donc pas le confondre avec une absence de
+   * valeur ni le rejeter.
+   */
+  async updateMemberSections(organizationId: string, memberId: string, sections: MemberSectionEnum[]) {
+    return this.update({ _id: memberId, _organizationId: organizationId }, { sections });
   }
 
   async updateMemberRoles(organizationId: string, memberId: string, roles: MemberRoleEnum[]) {

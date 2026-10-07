@@ -1,14 +1,17 @@
+import { MemberSectionEnum } from '@novu/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { RiFileCopyLine, RiLinkM, RiLogoutBoxRLine, RiRefreshLine, RiUserAddLine } from 'react-icons/ri';
+import { RiFileCopyLine, RiLinkM, RiLockUnlockLine, RiLogoutBoxRLine, RiRefreshLine, RiUserAddLine } from 'react-icons/ri';
 import {
   getTeamMembers,
   invitationLink,
   inviteTeamMember,
   removeTeamMember,
   renewTeamInvite,
+  updateMemberSections,
   type TeamMember,
 } from '@/api/team';
+import { MemberAccessDialog, type MemberAccessSubmit } from '@/components/member-access-dialog';
 import { ConfirmationModal } from '@/components/confirmation-modal';
 import { formatDay, t } from '@/components/crm/crm-i18n';
 import { CrmRowMenu, CrmSection } from '@/components/crm/crm-page';
@@ -54,18 +57,30 @@ export function SelfHostedTeamMembers() {
   const { data: members = [], isLoading } = useQuery({ queryKey: TEAM_QUERY_KEY, queryFn: getTeamMembers });
   const refresh = () => queryClient.invalidateQueries({ queryKey: TEAM_QUERY_KEY });
 
-  const [email, setEmail] = useState('');
   const [created, setCreated] = useState<{ email: string; link: string }>();
   const [toRemove, setToRemove] = useState<TeamMember>();
+  /** `null` : on invite. Un membre : on modifie ses accès. `undefined` : fermé. */
+  const [accesOuvert, setAccesOuvert] = useState<TeamMember | null>();
 
   const invite = useMutation({
-    mutationFn: inviteTeamMember,
-    onSuccess: async (data, invitedEmail) => {
+    mutationFn: ({ email, sections }: MemberAccessSubmit) => inviteTeamMember(email, sections),
+    onSuccess: async (data, { email: invitedEmail }) => {
       const fresh = await queryClient.fetchQuery({ queryKey: TEAM_QUERY_KEY, queryFn: getTeamMembers });
       const token =
         data.token ?? fresh.find((member) => member.invite?.email === invitedEmail.trim().toLowerCase())?.invite?.token;
       if (token) setCreated({ email: invitedEmail, link: invitationLink(token) });
-      setEmail('');
+      setAccesOuvert(undefined);
+    },
+    onError: (error) => showErrorToast((error as Error).message, t('team.toast.failed')),
+  });
+
+  const acces = useMutation({
+    mutationFn: ({ memberId, sections }: { memberId: string; sections: MemberSectionEnum[] }) =>
+      updateMemberSections(memberId, sections),
+    onSuccess: async () => {
+      setAccesOuvert(undefined);
+      await refresh();
+      showSuccessToast(t('team.access.saved'));
     },
     onError: (error) => showErrorToast((error as Error).message, t('team.toast.failed')),
   });
@@ -95,29 +110,19 @@ export function SelfHostedTeamMembers() {
   return (
     <div className="flex flex-col gap-8">
       <CrmSection title={t('team.title')} description={t('team.description', { org: orgName })}>
-        <form
-          className="flex flex-wrap items-end gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (email.trim()) invite.mutate(email.trim());
-          }}
-        >
-          <div className="flex min-w-[260px] flex-1 flex-col gap-1.5">
-            <Label htmlFor="team-invite-email" className="text-label-sm text-text-strong">
-              {t('team.invite.label')}
-            </Label>
-            <Input
-              id="team-invite-email"
-              type="email"
-              value={email}
-              placeholder={t('team.invite.placeholder')}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
-          <Button type="submit" variant="primary" size="xs" leadingIcon={RiUserAddLine} isLoading={invite.isPending}>
-            {t('team.invite.submit')}
+        {/* L'adresse et les accès sont demandés ensemble, dans le dialogue : choisir les
+            sections APRÈS avoir invité laisserait une fenêtre où le membre a tout. */}
+        <div>
+          <Button
+            type="button"
+            variant="primary"
+            size="xs"
+            leadingIcon={RiUserAddLine}
+            onClick={() => setAccesOuvert(null)}
+          >
+            {t('team.access.inviteTitle')}
           </Button>
-        </form>
+        </div>
 
         {created && (
           <div className="bg-bg-weak flex flex-col gap-2 rounded-lg p-3" aria-live="polite">
@@ -140,6 +145,7 @@ export function SelfHostedTeamMembers() {
           <TableRow>
             <TableHead>{t('team.col.member')}</TableHead>
             <TableHead>{t('team.col.status')}</TableHead>
+            <TableHead>{t('team.col.access')}</TableHead>
             <TableHead>{t('team.col.since')}</TableHead>
             <TableHead className="w-1">
               <span className="sr-only">{t('common.actions')}</span>
@@ -168,6 +174,21 @@ export function SelfHostedTeamMembers() {
                     {isInvited ? t('team.status.invited') : t('team.status.active')}
                   </Badge>
                 </TableCell>
+                <TableCell>
+                  {/* Sans sections, le membre a TOUT : on l'écrit, plutôt que de laisser une
+                      cellule vide qu'on lirait comme « aucun accès ». */}
+                  {member.sections?.length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {member.sections.map((section) => (
+                        <Badge key={section} variant="lighter" color="gray" size="md">
+                          {t(`team.section.${section}` as never)}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-text-soft text-paragraph-xs">{t('team.access.allShort')}</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-text-sub font-code text-code-xs whitespace-nowrap">
                   {formatDay(isInvited ? member.invite?.invitationDate : member.createdAt)}
                 </TableCell>
@@ -188,6 +209,11 @@ export function SelfHostedTeamMembers() {
                           isInvited
                             ? [
                                 {
+                                  label: t('team.action.access'),
+                                  icon: RiLockUnlockLine,
+                                  onSelect: () => setAccesOuvert(member),
+                                },
+                                {
                                   label: t('team.action.newLink'),
                                   icon: RiRefreshLine,
                                   onSelect: () => renew.mutate(member._id),
@@ -202,9 +228,15 @@ export function SelfHostedTeamMembers() {
                               ]
                             : [
                                 {
+                                  label: t('team.action.access'),
+                                  icon: RiLockUnlockLine,
+                                  onSelect: () => setAccesOuvert(member),
+                                },
+                                {
                                   label: t('team.action.remove'),
                                   icon: RiLogoutBoxRLine,
                                   destructive: true,
+                                  separatorBefore: true,
                                   onSelect: () => setToRemove(member),
                                 },
                               ]
@@ -219,6 +251,18 @@ export function SelfHostedTeamMembers() {
         </TableBody>
       </Table>
       {!isLoading && members.length <= 1 && <p className="text-text-soft text-paragraph-sm">{t('team.empty')}</p>}
+
+      <MemberAccessDialog
+        open={accesOuvert !== undefined}
+        onOpenChange={(ouvert) => !ouvert && setAccesOuvert(undefined)}
+        membre={accesOuvert ? { nom: memberName(accesOuvert), sections: accesOuvert.sections } : undefined}
+        isLoading={invite.isPending || acces.isPending}
+        onSubmit={({ email, sections }) =>
+          accesOuvert
+            ? acces.mutate({ memberId: accesOuvert._id, sections })
+            : invite.mutate({ email, sections })
+        }
+      />
 
       <ConfirmationModal
         open={!!toRemove}

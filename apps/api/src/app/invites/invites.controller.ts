@@ -82,6 +82,7 @@ export class InvitesController {
       organizationId: user.organizationId,
       email: body.email,
       role: MemberRoleEnum.OSS_ADMIN,
+      sections: body.sections,
     });
 
     const { token } = await this.inviteMemberUsecase.execute(command);

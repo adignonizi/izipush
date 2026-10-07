@@ -686,6 +686,28 @@ const fr = {
   'editor.excludeProductUsers.hint':
     'Vérifié au lancement : un client qui a adopté le produit depuis le figeage du segment est écarté.',
   'segEditor.products.choose': 'Choisir un ou plusieurs produits',
+  // ── Accès par section ────────────────────────────────────────────────────
+  'team.access.inviteTitle': 'Inviter un collègue',
+  'team.access.editTitle': 'Accès de {name}',
+  'team.access.description':
+    'Les sections non cochées sont masquées dans le menu ET refusées par l’API. Masquer sans refuser ne protégerait de rien.',
+  'team.access.sections': 'Sections accessibles',
+  'team.access.all': 'Tout cocher',
+  'team.access.none': 'Tout décocher',
+  'team.access.allHint': 'Accès complet : aucune restriction n’est enregistrée.',
+  'team.access.noneHint': 'Cochez au moins une section — un membre sans aucun accès n’aurait rien à faire ici.',
+  'team.access.delayHint': 'Le changement prend effet en moins d’une minute.',
+  'team.access.save': 'Enregistrer les accès',
+  'team.access.saved': 'Accès mis à jour.',
+  'team.action.access': 'Modifier les accès',
+  'team.col.access': 'Accès',
+  'team.access.allShort': 'Tout',
+  'team.section.agents': 'Agents',
+  'team.section.notifications': 'Notifications',
+  'team.section.data': 'Data',
+  'team.section.monitor': 'Monitor',
+  'team.section.crm': 'CRM',
+  'team.section.developers': 'Développeurs — clés API, adresses autorisées',
 } as const;
 
 export type CrmMessageKey = keyof typeof fr;
@@ -1340,6 +1362,28 @@ const en: Record<CrmMessageKey, string> = {
   'editor.excludeProductUsers.hint':
     'Checked at launch: a customer who adopted the product since the segment was frozen is left out.',
   'segEditor.products.choose': 'Choose one or more products',
+  // ── Section access ───────────────────────────────────────────────────────
+  'team.access.inviteTitle': 'Invite a colleague',
+  'team.access.editTitle': 'Access for {name}',
+  'team.access.description':
+    'Unchecked sections are hidden from the menu AND refused by the API. Hiding without refusing would protect nothing.',
+  'team.access.sections': 'Accessible sections',
+  'team.access.all': 'Check all',
+  'team.access.none': 'Uncheck all',
+  'team.access.allHint': 'Full access: no restriction is stored.',
+  'team.access.noneHint': 'Check at least one section — a member with no access would have nothing to do here.',
+  'team.access.delayHint': 'The change takes effect within a minute.',
+  'team.access.save': 'Save access',
+  'team.access.saved': 'Access updated.',
+  'team.action.access': 'Manage access',
+  'team.col.access': 'Access',
+  'team.access.allShort': 'All',
+  'team.section.agents': 'Agents',
+  'team.section.notifications': 'Notifications',
+  'team.section.data': 'Data',
+  'team.section.monitor': 'Monitor',
+  'team.section.crm': 'CRM',
+  'team.section.developers': 'Developers — API keys, allowed addresses',
 };
 
 const MESSAGES: Record<CrmLocale, Record<CrmMessageKey, string>> = { fr, en };
