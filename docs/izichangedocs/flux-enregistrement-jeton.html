@@ -662,16 +662,26 @@ sequenceDiagram
       <code>given_name</code>, <code>family_name</code> — en vient aussi : il alimente les campagnes
       du CRM, il n'a donc rien à faire dans un corps de requête.
       <br><br>
-      <b>L'identifiant, lui, vient de l'appelant</b>, et c'est nécessaire : relevé sur un vrai jeton
-      de production, <code>sub</code> est un UUID et <code>preferred_username</code> une adresse
-      e-mail. Ni l'un ni l'autre n'est l'identifiant Izichange, qu'aucun claim ne porte.
+      <b>L'identifiant vient du corps de la requête</b> — c'est le <code>userId</code> que l'app
+      passe au SDK, l'identifiant Izichange, celui du <code>user_id</code> des événements métier et
+      des liens de souscription.
       <br><br>
-      <b>D'où la liaison, qui ferme le détournement du flux D.</b> « Authentifié » et « autorisé à
-      agir au nom de cet abonné » sont deux choses différentes : un jeton valide ne dit rien du
-      <code>subscriberId</code> réclamé. izipush retient donc le <code>sub</code> du premier jeton
-      qui enregistre un appareil — champ <code>keycloakSubject</code> — et refuse ensuite tout autre
-      porteur. Le résidu est la toute première inscription, avant qu'aucun appareil n'existe : étroite,
-      et d'autant plus que l'ingestion CRM crée les abonnés en amont sur <code>account.*</code>.
+      <b>Mais il doit correspondre au claim du jeton</b>, et c'est ce qui ferme le détournement du
+      flux D. L'identifiant d'un client Izichange <em>est</em> son identifiant Keycloak : le corps
+      reste la source, lisible et explicite, mais il ne peut pas désigner quelqu'un d'autre. Sans ce
+      contrôle, « authentifié » suffirait — n'importe quel client muni de SON jeton enregistrerait
+      son appareil sous l'identifiant d'un autre, recevrait ses notifications, et la victime
+      continuerait de tout recevoir puisque la route fait l'union des jetons. Rien ne le signalerait.
+      <br><br>
+      <b>La liaison reste, en seconde barrière.</b> Le <code>sub</code> du premier jeton qui
+      enregistre un appareil est retenu sur l'abonné — champ <code>keycloakSubject</code> — et tout
+      autre porteur est refusé ensuite. Elle couvre le cas où <code>subjectClaim</code> serait un
+      jour pointé sur un autre claim, et rend explicite en base quel sujet Keycloak possède cet
+      abonné.
+      <br><br>
+      <b>Et si un déploiement avait besoin que les deux diffèrent</b>, <code>subjectClaim</code> le
+      règle : on pointe le claim qui porte réellement l'identifiant attendu, et le contrôle
+      d'égalité s'applique à cette valeur. Ce n'est donc pas une impasse.
     </div>
 
     <h3 style="margin-top:28px">Les cinq contrôles sur le jeton</h3>

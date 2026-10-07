@@ -126,17 +126,35 @@ export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
     const subscriberId = demande || verifie.subscriberId;
 
     /*
-     * **La liaison est ce qui empêche un client authentifié d'en usurper un autre.**
+     * **L'identifiant demandé doit être celui du jeton.** C'est le contrôle qui ferme l'usurpation,
+     * et il la ferme ENTIÈREMENT — y compris à la toute première inscription, que la seule liaison
+     * laissait ouverte.
      *
-     * « Authentifié » et « autorisé à agir au nom de cet abonné » sont deux choses différentes : un
-     * jeton valide ne dit rien du `subscriberId` qu'on réclame. Sans ce contrôle, n'importe quel
-     * client muni de SON jeton pourrait enregistrer son appareil sous l'identifiant d'un autre et
-     * recevoir ses notifications — et la victime continuerait de tout recevoir, la route faisant
-     * l'union des jetons, donc rien ne le signalerait.
+     * Il repose sur une propriété du système d'Izichange : l'identifiant d'un client EST son
+     * identifiant Keycloak, donc le claim de sujet. Le corps de la requête reste la source — c'est
+     * lisible, et c'est ce que le SDK transmet — mais il ne peut plus désigner quelqu'un d'autre.
      *
-     * On lie donc l'abonné au porteur du premier jeton, et on refuse ensuite tout autre porteur. Le
-     * résidu est la toute première inscription, avant qu'aucun appareil n'ait été enregistré —
-     * fenêtre étroite, et d'autant plus que l'ingestion CRM crée les abonnés en amont.
+     * Sans ce contrôle, « authentifié » suffirait : n'importe quel client muni de SON jeton
+     * enregistrerait son appareil sous l'identifiant d'un autre, recevrait ses notifications, et la
+     * victime continuerait de tout recevoir — la route faisant l'union des jetons — donc rien ne le
+     * signalerait.
+     *
+     * **Si un déploiement a besoin que les deux diffèrent**, c'est `subjectClaim` qui le règle :
+     * pointer le claim qui porte réellement l'identifiant attendu. Le contrôle reste alors en place,
+     * sur la bonne valeur. Ce n'est donc pas une impasse.
+     */
+    if (demande && demande !== verifie.subscriberId) {
+      this.logger.error(
+        { demande, porteur: verifie.subscriberId, environmentId: environnement._id },
+        'subscriberId demandé différent du claim du jeton : refusé'
+      );
+
+      throw new UnauthorizedException('The requested subscriberId does not match the authenticated identity');
+    }
+
+    /*
+     * La liaison reste, en seconde barrière : elle couvre le cas où `subjectClaim` serait un jour
+     * pointé ailleurs, et rend explicite en base quel sujet Keycloak possède cet abonné.
      */
     const existant = await this.subscriberRepository.findBySubscriberId(String(environnement._id), subscriberId);
 
