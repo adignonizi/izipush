@@ -24,7 +24,23 @@ export class EmetteurKeycloakConstraint implements ValidatorConstraintInterface 
 
     try {
       // L'URL réellement appelée porte ce suffixe : on valide ce qui partira, pas l'approximation.
-      verifierUrlSortante(`${valeur.trim().replace(/\/+$/, '')}/protocol/openid-connect/certs`);
+      const propre = valeur.trim().replace(/\/+$/, '');
+      verifierUrlSortante(`${propre}/protocol/openid-connect/certs`);
+
+      /*
+       * Un emetteur Keycloak finit toujours par `/realms/<nom>`. Ce controle n'est pas de la
+       * securite — un emetteur erronne echoue de toute facon a la verification du jeton — mais il
+       * attrape la faute de frappe au moment de la saisie, au lieu de la laisser se manifester
+       * plus tard par un « emetteur inattendu » que personne ne relie au champ.
+       *
+       * Il vit ici ET dans la carte du tableau de bord : deux validations qui divergeraient
+       * produiraient un reglage accepte par l'une et refuse par l'autre.
+       */
+      if (!/\/realms\/[^/]+$/.test(new URL(propre).pathname)) {
+        this.raison = 'a Keycloak issuer ends with /realms/<realm>';
+
+        return false;
+      }
 
       return true;
     } catch (erreur) {
