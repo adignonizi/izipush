@@ -15,6 +15,7 @@ import {
   KeycloakTokenError,
   lireEntete,
   profilDepuisClaims,
+  verifierEmetteurAnnonce,
   verifierJeton,
 } from './keycloak-token';
 
@@ -97,6 +98,9 @@ export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
     try {
       const jeton = this.jetonPorteur(request);
       const { kid } = lireEntete(jeton);
+      // Avant d'aller chercher les clés : un émetteur mal saisi doit dire « émetteur inattendu »
+      // et non « realm injoignable », qui enverrait chercher une panne réseau inexistante.
+      verifierEmetteurAnnonce(jeton, issuer);
       const cle = await this.jwksService.cle(issuer, kid);
       verifie = verifierJeton(jeton, cle, attendu);
     } catch (erreur) {

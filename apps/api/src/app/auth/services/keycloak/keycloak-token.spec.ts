@@ -1,7 +1,14 @@
 import { expect } from 'chai';
 import { createSign, generateKeyPairSync, KeyObject } from 'crypto';
 
-import { cleDepuisJwk, KeycloakTokenError, lireEntete, profilDepuisClaims, verifierJeton } from './keycloak-token';
+import {
+  cleDepuisJwk,
+  KeycloakTokenError,
+  lireEntete,
+  profilDepuisClaims,
+  verifierEmetteurAnnonce,
+  verifierJeton,
+} from './keycloak-token';
 
 const ISSUER = 'https://keycloak.exemple.com/realms/izichange';
 const CLIENT = 'izipay-mobile';
@@ -29,12 +36,18 @@ function forger(
 
 const dans = (secondes: number) => Math.floor(Date.now() / 1000) + secondes;
 
-/** Charge d'un jeton Keycloak normal. */
+/**
+ * Charge d'un jeton Keycloak normal, relevée sur un realm RÉEL.
+ *
+ * **`aud` est volontairement absent.** C'est la forme qu'un Keycloak 26 produit pour un client
+ * public : seul `azp` porte le client. Un test qui supposerait `aud: 'account'` passerait tout en
+ * validant une forme qui n'existe pas — et le contrôle du client ne serait éprouvé que sur la
+ * branche qui ne sert jamais.
+ */
 const valide = (extra: Record<string, unknown> = {}) => ({
   iss: ISSUER,
   sub: 'usr_8H2K9LM',
   azp: CLIENT,
-  aud: 'account',
   exp: dans(300),
   ...extra,
 });
@@ -99,7 +112,7 @@ describe('jeton Keycloak — vérification', () => {
   /* Tous les clients d'un realm partagent la même clé de signature : un jeton émis pour un
      outil interne serait sinon accepté pour enregistrer un appareil. */
   it('refuse un jeton émis pour un autre client du même realm', () => {
-    const jeton = forger(valide({ azp: 'outil-interne', aud: 'account' }));
+    const jeton = forger(valide({ azp: 'outil-interne' }));
 
     expect(() => verifierJeton(jeton, cle(), attendu)).to.throw(KeycloakTokenError, /client inattendu/);
   });
@@ -152,6 +165,35 @@ describe('jeton Keycloak — vérification', () => {
     const jeton = forger(valide({ preferred_username: 'izi-42' }));
 
     expect(verifierJeton(jeton, cle(), { ...attendu, subjectClaim: 'preferred_username' }).subscriberId).to.equal('izi-42');
+  });
+});
+
+describe('jeton Keycloak — émetteur annoncé', () => {
+  /* Sans ce filtre, un émetteur mal saisi fait d'abord échouer la récupération des clés — vers un
+     realm inexistant — et l'on répond « realm injoignable ». Constaté contre un vrai Keycloak :
+     celui qui débogue cherche alors un pare-feu, alors qu'il s'agit d'une faute de frappe. */
+  it('refuse d’emblée un émetteur qui ne correspond pas', () => {
+    expect(() => verifierEmetteurAnnonce(forger(valide()), 'https://autre/realms/x')).to.throw(
+      KeycloakTokenError,
+      /émetteur inattendu/
+    );
+  });
+
+  it('laisse passer l’émetteur attendu', () => {
+    expect(() => verifierEmetteurAnnonce(forger(valide()), ISSUER)).to.not.throw();
+  });
+
+  /* Il ne vérifie AUCUNE signature — c'est volontaire, il ne sert qu'à refuser — donc un jeton
+     non signé doit quand même être filtré sur son émetteur, puis échouer plus loin. */
+  it('ne prétend pas vérifier la signature', () => {
+    const forge = forger(valide(), { cle: autre.privateKey });
+
+    expect(() => verifierEmetteurAnnonce(forge, ISSUER)).to.not.throw();
+    expect(() => verifierJeton(forge, cle(), attendu)).to.throw(KeycloakTokenError, /signature invalide/);
+  });
+
+  it('refuse un jeton malformé', () => {
+    expect(() => verifierEmetteurAnnonce('a.b', ISSUER)).to.throw(KeycloakTokenError);
   });
 });
 

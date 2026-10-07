@@ -76,6 +76,25 @@ export function lireEntete(jeton: string): { alg: string; kid: string } {
   return { alg, kid };
 }
 
+/**
+ * Rejette d'emblée un jeton qui n'annonce pas l'émetteur attendu.
+ *
+ * **Lu SANS vérifier la signature**, et c'est sans danger : on ne s'en sert que pour REFUSER. Un
+ * jeton qui passe ce filtre est ensuite vérifié normalement, et son `iss` recomparé après coup.
+ *
+ * Son intérêt est le message d'erreur. Sans ce filtre, un émetteur mal saisi dans le tableau de
+ * bord fait d'abord échouer la récupération des clés — vers un realm qui n'existe pas — et l'on
+ * répond « realm injoignable ». Celui qui débogue cherche alors un pare-feu ou une panne réseau,
+ * alors qu'il s'agit d'une faute de frappe. Il évite au passage une requête vouée à l'échec.
+ */
+export function verifierEmetteurAnnonce(jeton: string, issuerAttendu: string): void {
+  const segments = jeton.split('.');
+  if (segments.length !== 3) throw new KeycloakTokenError('jeton malformé');
+
+  const annonce = decoderSegment(segments[1]).iss;
+  if (annonce !== issuerAttendu) throw new KeycloakTokenError('émetteur inattendu');
+}
+
 /** Construit une clé publique vérifiable à partir d'un JWK publié par le realm. */
 export function cleDepuisJwk(jwk: Jwk): KeyObject {
   if (jwk.kty !== 'RSA' || !jwk.n || !jwk.e) throw new KeycloakTokenError('JWK RSA attendu');
