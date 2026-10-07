@@ -176,6 +176,10 @@ services:
       # a la liste d'autorisation d'adresses : sans lui, chaque requete semble venir du
       # proxy et la liste refuse tout le monde.
       API_TRUSTED_PROXY_HOPS: ${API_TRUSTED_PROXY_HOPS:-1}
+      # Inscription libre FERMEE par defaut. Sans cette ligne, la valeur venait de
+      # .env.production embarque dans l'image : le reglage n'etait modifiable qu'en
+      # reconstruisant. Ici, un changement de .env et un redemarrage suffisent.
+      DISABLE_USER_REGISTRATION: ${DISABLE_USER_REGISTRATION:-true}
       IS_API_IDEMPOTENCY_ENABLED: ${IS_API_IDEMPOTENCY_ENABLED:-true}
       IS_API_RATE_LIMITING_ENABLED: ${IS_API_RATE_LIMITING_ENABLED:-true}
       IS_NEW_MESSAGES_API_RESPONSE_ENABLED: ${IS_NEW_MESSAGES_API_RESPONSE_ENABLED:-true}
