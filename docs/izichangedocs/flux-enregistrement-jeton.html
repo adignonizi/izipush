@@ -623,6 +623,115 @@ sequenceDiagram
 
   <section>
     <div class="sec-head">
+      <h2>Flux E — jeton Keycloak, celui qui est retenu</h2>
+      <p>
+        L'application s'authentifie déjà par Keycloak, sur mobile comme sur web. izipush vérifie
+        ce jeton et lit l'abonné dans son claim <code>sub</code>. Plus de session à ouvrir, plus de
+        HMAC, et <b>rien à écrire côté passerelle</b> — c'est ce dernier point qui le rend meilleur
+        que les flux B et C.
+      </p>
+    </div>
+
+    <div class="sheet">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as App cliente — SDK
+  participant K as Keycloak
+  participant F as Firebase FCM
+  participant N as izipush
+
+  C->>K: connexion
+  K-->>C: jeton d'accès — 5 minutes
+  C->>F: getToken
+  F-->>C: jeton FCM
+  C->>N: PUT /v1/widgets/credentials<br/>Authorization Bearer jeton Keycloak<br/>Novu-Application-Identifier
+  N->>K: GET /protocol/openid-connect/certs<br/>clés du realm — en cache 10 min
+  K-->>N: JWKS
+  Note over N: signature · iss · azp · exp<br/>subscriberId = claim sub, vérifié
+  N-->>C: 200
+</pre>
+    </div>
+
+    <div class="note">
+      <b>L'identité ne vient plus de la requête.</b> <code>applicationIdentifier</code> reste
+      nécessaire — un jeton Keycloak ne sait rien d'izipush, il faut bien dire contre quel realm le
+      vérifier — mais il ne sert qu'à l'aiguillage. Le <code>subscriberId</code> est lu dans un
+      jeton dont la signature a été vérifiée, jamais dans le corps. Le détournement du flux D est
+      donc fermé.
+      <br><br>
+      <b>Les identifiants s'alignent déjà.</b> Le webhook Keycloak crée les profils avec son
+      <code>userId</code>, qui est exactement la valeur du claim <code>sub</code> :
+      <code>token.sub = webhook.userId = subscriberId = user_id du contrat</code>. Aucune
+      correspondance à établir, aucun risque de produire deux profils.
+    </div>
+
+    <h3 style="margin-top:28px">Les cinq contrôles sur le jeton</h3>
+
+    <div class="tablewrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Contrôle</th><th>Ce qu'il empêche</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="d">Signature contre le <b>JWKS du realm</b></td>
+            <td class="d">Tout. C'est le seul qui prouve quelque chose — le reste n'a de sens
+                qu'après lui.</td>
+          </tr>
+          <tr>
+            <td class="d"><code>alg</code> épinglé à <b>RS256</b></td>
+            <td class="d">La faille classique des JWT : <code>alg: none</code> passerait sans
+                signature, et HS256 ferait vérifier une signature symétrique avec la clé
+                <em>publique</em> du realm — publique, donc forgeable par quiconque.</td>
+          </tr>
+          <tr>
+            <td class="d"><code>iss</code> exactement l'émetteur réglé</td>
+            <td class="d">Qu'un attaquant monte son propre Keycloak, y émette un jeton portant le
+                <code>sub</code> de sa victime, et le fasse valider.</td>
+          </tr>
+          <tr>
+            <td class="d"><code>azp</code> ou <code>aud</code> contre le client attendu</td>
+            <td class="d">Le contrôle qu'on oublie. Tous les clients d'un realm sont signés par la
+                <b>même clé</b> : sans lui, un jeton émis pour un outil interne enregistre un
+                appareil. Keycloak met le client dans <code>azp</code>, <code>aud</code> valant
+                souvent <code>account</code>.</td>
+          </tr>
+          <tr>
+            <td class="d"><code>exp</code> et <code>nbf</code>, 30 s de tolérance</td>
+            <td class="d">Le rejeu d'un vieux jeton. La tolérance existe parce que deux machines ne
+                sont jamais exactement à la même heure.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" style="margin-top:16px">
+      <b>Vérification locale, pas introspection.</b> Les clés du realm sont gardées dix minutes, et
+      rechargées quand un <code>kid</code> inconnu apparaît — c'est ainsi qu'une rotation se
+      manifeste. Appeler <code>/token/introspect</code> à chaque requête serait plus court à écrire
+      mais ajouterait un aller-retour réseau par enregistrement, et rendrait izipush indisponible
+      dès que Keycloak tousse. Avec les clés en cache, une panne Keycloak n'empêche pas les
+      enregistrements.
+      <br><br>
+      <b>L'émetteur commande un appel sortant.</b> Il détermine l'URL que l'API va chercher, et il
+      se règle depuis le tableau de bord : <code>https</code> est donc exigé sauf vers un hôte
+      local, et les adresses IP littérales sont refusées. Sans ça, le champ servirait à faire
+      émettre à izipush des requêtes vers l'intérieur du réseau.
+      <br><br>
+      <b>Deux réserves.</b> L'abonné doit préexister — ce chemin ne le crée pas, contrairement à
+      <code>session/initialize</code>. Et un jeton d'accès vit cinq minutes : le SDK doit en
+      redemander un frais à chaque enregistrement, d'où un <code>keycloakToken</code> qui est une
+      fonction et non une chaîne.
+    </div>
+
+    <div class="note" style="margin-top:14px">
+      <b>La bascule se pilote par environnement.</b> Un émetteur réglé → le jeton Keycloak est
+      exigé. Champ vide → retour au JWT d'abonné, inchangé. Il n'existe donc aucune journée où les
+      deux mondes doivent être prêts ensemble, et le retour arrière tient en un champ qu'on vide.
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
       <h2>Flux D — l'<code>applicationIdentifier</code> seul</h2>
       <p>
         Techniquement faisable en modifiant le fork — une quinzaine de lignes. Voici ce que ça autorise,
@@ -710,9 +819,13 @@ sequenceDiagram
     </div>
 
     <div class="note">
-      <b>Le vrai arbitrage.</b> D est la seule option qui ne demande <em>rien</em> à la passerelle — c'est
-      son unique avantage. B et C demandent le même genre de travail, donc autant prendre C, qui supprime
-      le JWT pour de bon.
+      <b>L'arbitrage est tranché : E.</b> C'est la seule ligne qui ne demande rien à la passerelle
+      <em>et</em> ne laisse rien détourner. D y arrivait au prix d'une interception silencieuse ;
+      B et C demandaient tous deux du travail côté passerelle. E n'a aucun des deux défauts, parce
+      qu'il repose sur une identité qu'Izichange possède déjà des deux côtés.
+      <br><br>
+      A reste en service, et c'est volontaire : la bascule se règle environnement par environnement,
+      donc A et E coexistent le temps de la migration.
     </div>
   </section>
 

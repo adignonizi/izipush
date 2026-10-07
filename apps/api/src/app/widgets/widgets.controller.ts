@@ -16,6 +16,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { WidgetSubscriberGuard } from '../auth/services/keycloak/widget-subscriber.guard';
 import { ApiExcludeController, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import {
   AnalyticsService,
@@ -138,7 +139,13 @@ export class WidgetsController {
   // appareil enregistre ecraserait ceux des precedents — l'usecase Novu fait
   // l'union (dedupliquee) des tokens existants avec le nouveau quand ce flag
   // est a false, voir update-subscriber-channel.usecase.ts.
-  @UseGuards(AuthGuard('subscriberJwt'))
+  /*
+   * WidgetSubscriberGuard et non AuthGuard('subscriberJwt') : si l'environnement vise declare un
+   * emetteur Keycloak, la garde exige un jeton Keycloak et lit le subscriberId dans son claim
+   * `sub`, verifie. Sinon elle delegue au JWT d'abonne, strictement comme avant. La bascule se
+   * fait donc par configuration, environnement par environnement.
+   */
+  @UseGuards(WidgetSubscriberGuard)
   @Put('/credentials')
   @ExcludeFromIdempotency()
   async updateCredentials(

@@ -40,6 +40,7 @@ import { isEnvironmentScopedAuthScheme } from '../shared/utils/auth.utils';
 import { CreateEnvironmentRequestDto } from './dtos/create-environment-request.dto';
 import { EnvironmentResponseDto } from './dtos/environment-response.dto';
 import { ApiIpAllowListResponseDto, UpdateApiIpAllowListRequestDto } from './dtos/api-ip-allow-list.dto';
+import { KeycloakAuthResponseDto, UpdateKeycloakAuthRequestDto } from './dtos/keycloak-auth.dto';
 import { UpdateEnvironmentRequestDto } from './dtos/update-environment-request.dto';
 import { CreateApiKey } from './usecases/create-api-key/create-api-key.usecase';
 import { CreateEnvironmentCommand } from './usecases/create-environment/create-environment.command';
@@ -329,6 +330,65 @@ export class EnvironmentsControllerV1 {
      * pas encore » ne conduise pas à élargir la liste au hasard.
      */
     return { ipAllowList };
+  }
+
+  /*
+   * Authentification des abonnes par jeton Keycloak, pour cet environnement.
+   *
+   * **Pas `@ExternalApiAccessible()`**, comme la liste d'adresses : une cle API ne doit pas
+   * pouvoir redefinir son propre emetteur de confiance. Et declarees avant
+   * `DELETE /:environmentId`, sinon le parametre de route capte le chemin litteral.
+   */
+  @Get('/keycloak-auth')
+  @ApiOperation({ summary: 'Get the Keycloak subscriber authentication settings' })
+  @ApiResponse(KeycloakAuthResponseDto)
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.API_KEY_READ)
+  async getKeycloakAuth(@UserSession() user: UserSessionData): Promise<KeycloakAuthResponseDto> {
+    const environment = await this.environmentRepository.findOne({ _id: user.environmentId }, 'keycloakAuth');
+
+    return {
+      issuer: environment?.keycloakAuth?.issuer ?? '',
+      audience: environment?.keycloakAuth?.audience ?? '',
+      subjectClaim: environment?.keycloakAuth?.subjectClaim ?? '',
+    };
+  }
+
+  @Put('/keycloak-auth')
+  @ApiOperation({
+    summary: 'Set the Keycloak subscriber authentication settings',
+    description:
+      'An empty issuer removes Keycloak authentication for this environment, which falls back to the subscriber JWT.',
+  })
+  @ApiResponse(KeycloakAuthResponseDto)
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.API_KEY_WRITE)
+  async updateKeycloakAuth(
+    @UserSession() user: UserSessionData,
+    @Body() body: UpdateKeycloakAuthRequestDto
+  ): Promise<KeycloakAuthResponseDto> {
+    const issuer = body.issuer?.trim().replace(/\/+$/, '') ?? '';
+
+    /*
+     * Emetteur vide : on retire le sous-document entier plutot que d'enregistrer des champs
+     * vides. C'est son ABSENCE qui fait retomber la garde sur le JWT d'abonne, et un objet
+     * present avec un `issuer` vide serait une troisieme situation a raisonner pour rien.
+     */
+    if (!issuer) {
+      await this.environmentRepository.update({ _id: user.environmentId }, { $unset: { keycloakAuth: '' } });
+
+      return { issuer: '', audience: '', subjectClaim: '' };
+    }
+
+    const keycloakAuth = {
+      issuer,
+      ...(body.audience?.trim() ? { audience: body.audience.trim() } : {}),
+      ...(body.subjectClaim?.trim() ? { subjectClaim: body.subjectClaim.trim() } : {}),
+    };
+
+    await this.environmentRepository.update({ _id: user.environmentId }, { $set: { keycloakAuth } });
+
+    return { issuer, audience: keycloakAuth.audience ?? '', subjectClaim: keycloakAuth.subjectClaim ?? '' };
   }
 
   @Delete('/:environmentId')

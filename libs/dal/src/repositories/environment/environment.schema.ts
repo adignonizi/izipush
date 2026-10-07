@@ -37,6 +37,13 @@ const environmentSchema = new Schema<EnvironmentDBModel>(
     // « aucune restriction », et poser un defaut reecrirait chaque document existant
     // sans rien apporter.
     apiIpAllowList: [Schema.Types.String],
+    // Pas de sous-document par defaut : son ABSENCE est ce qui distingue un environnement
+    // encore sur le JWT d'abonne d'un environnement migre vers Keycloak.
+    keycloakAuth: {
+      issuer: Schema.Types.String,
+      audience: Schema.Types.String,
+      subjectClaim: Schema.Types.String,
+    },
     widget: {
       notificationCenterEncryption: {
         type: Schema.Types.Boolean,

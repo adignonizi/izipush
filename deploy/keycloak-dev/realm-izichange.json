@@ -1,0 +1,38 @@
+{
+  "realm": "izichange",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "izipay-mobile",
+      "name": "izipay mobile et web",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "attributes": { "post.logout.redirect.uris": "*" }
+    },
+    {
+      "clientId": "outil-interne",
+      "name": "Autre client du realm — sert a verifier le controle de azp",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "client-test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "client-test@izichange.test",
+      "firstName": "Client",
+      "lastName": "Test",
+      "credentials": [{ "type": "password", "value": "test", "temporary": false }]
+    }
+  ]
+}

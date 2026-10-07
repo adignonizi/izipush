@@ -156,6 +156,32 @@ export async function getApiIpAllowList({
   return get<{ data: { ipAllowList: string[] } }>(`/environments/api-ip-allow-list`, { environment });
 }
 
+export type KeycloakAuthSettings = { issuer: string; audience: string; subjectClaim: string };
+
+/**
+ * Authentification des abonnés par jeton Keycloak, pour l'environnement courant.
+ *
+ * Non accessibles par clé API, comme la liste d'adresses : une clé ne doit pas pouvoir
+ * redéfinir son propre émetteur de confiance.
+ */
+export async function getKeycloakAuth({
+  environment,
+}: {
+  environment: IEnvironment;
+}): Promise<{ data: KeycloakAuthSettings }> {
+  return get<{ data: KeycloakAuthSettings }>(`/environments/keycloak-auth`, { environment });
+}
+
+export async function updateKeycloakAuth({
+  environment,
+  settings,
+}: {
+  environment: IEnvironment;
+  settings: KeycloakAuthSettings;
+}): Promise<{ data: KeycloakAuthSettings }> {
+  return put<{ data: KeycloakAuthSettings }>(`/environments/keycloak-auth`, { environment, body: settings });
+}
+
 export async function updateApiIpAllowList({
   environment,
   ipAllowList,
