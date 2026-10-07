@@ -176,37 +176,6 @@ export class EnvironmentsControllerV1 {
     );
   }
 
-  @Put('/:environmentId')
-  @ApiOperation({
-    summary: 'Update an environment',
-    description: `Update an environment by its unique identifier **environmentId**. 
-    You can modify the environment name, identifier, color, and other configuration settings.`,
-  })
-  @ApiParam({ name: 'environmentId', description: 'The unique identifier of the environment', type: String })
-  @ApiResponse(EnvironmentResponseDto)
-  @SdkGroupName('Environments')
-  @SdkMethodName('update')
-  @ExternalApiAccessible()
-  @RequirePermissions(PermissionsEnum.ENVIRONMENT_WRITE)
-  async updateMyEnvironment(
-    @UserSession() user: UserSessionData,
-    @Param('environmentId') environmentId: string,
-    @Body() payload: UpdateEnvironmentRequestDto
-  ) {
-    return await this.updateEnvironmentUsecase.execute(
-      UpdateEnvironmentCommand.create({
-        environmentId,
-        organizationId: user.organizationId,
-        userId: user._id,
-        name: payload.name,
-        identifier: payload.identifier,
-        _parentId: payload.parentId,
-        color: payload.color,
-        dns: payload.dns,
-        bridge: payload.bridge,
-      })
-    );
-  }
 
   @Get('/api-keys')
   @ApiOperation({
@@ -389,6 +358,44 @@ export class EnvironmentsControllerV1 {
     await this.environmentRepository.update({ _id: user.environmentId }, { $set: { keycloakAuth } });
 
     return { issuer, audience: keycloakAuth.audience ?? '', subjectClaim: keycloakAuth.subjectClaim ?? '' };
+  }
+
+  /*
+   * ROUTES PARAMÉTRÉES EN DERNIER, et ce n'est pas cosmétique : Express apparie dans l'ordre de
+   * déclaration. Placée plus haut, `@Put('/:environmentId')` captait `PUT /api-ip-allow-list` et
+   * `PUT /keycloak-auth` — qui devenaient INJOIGNABLES, avec un 422 « environmentId must be a
+   * mongodb id » pour seul indice. Toute nouvelle route littérale doit donc rester au-dessus.
+   */
+  @Put('/:environmentId')
+  @ApiOperation({
+    summary: 'Update an environment',
+    description: `Update an environment by its unique identifier **environmentId**. 
+    You can modify the environment name, identifier, color, and other configuration settings.`,
+  })
+  @ApiParam({ name: 'environmentId', description: 'The unique identifier of the environment', type: String })
+  @ApiResponse(EnvironmentResponseDto)
+  @SdkGroupName('Environments')
+  @SdkMethodName('update')
+  @ExternalApiAccessible()
+  @RequirePermissions(PermissionsEnum.ENVIRONMENT_WRITE)
+  async updateMyEnvironment(
+    @UserSession() user: UserSessionData,
+    @Param('environmentId') environmentId: string,
+    @Body() payload: UpdateEnvironmentRequestDto
+  ) {
+    return await this.updateEnvironmentUsecase.execute(
+      UpdateEnvironmentCommand.create({
+        environmentId,
+        organizationId: user.organizationId,
+        userId: user._id,
+        name: payload.name,
+        identifier: payload.identifier,
+        _parentId: payload.parentId,
+        color: payload.color,
+        dns: payload.dns,
+        bridge: payload.bridge,
+      })
+    );
   }
 
   @Delete('/:environmentId')
