@@ -5,7 +5,7 @@ import {
   CreateOrUpdateSubscriberUseCase,
   PinoLogger,
 } from '@novu/application-generic';
-import { EnvironmentEntity, EnvironmentRepository } from '@novu/dal';
+import { EnvironmentEntity, EnvironmentRepository, SubscriberRepository } from '@novu/dal';
 import { ApiAuthSchemeEnum } from '@novu/shared';
 
 import { SubscriberSession } from '../../../shared/framework/user.decorator';
@@ -57,6 +57,7 @@ const EN_TETE_ENVIRONNEMENT = 'novu-application-identifier';
 export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
   constructor(
     private readonly environmentRepository: EnvironmentRepository,
+    private readonly subscriberRepository: SubscriberRepository,
     private readonly jwksService: JwksService,
     private readonly createOrUpdateSubscriber: CreateOrUpdateSubscriberUseCase,
     private readonly logger: PinoLogger
@@ -82,7 +83,7 @@ export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
   }
 
   private async sessionDepuisKeycloak(
-    request: { headers: Record<string, unknown> },
+    request: { headers: Record<string, unknown>; body?: Record<string, unknown> },
     environnement: EnvironmentEntity
   ): Promise<SubscriberSession> {
     const reglages = environnement.keycloakAuth!;
@@ -114,6 +115,41 @@ export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
     }
 
     /*
+     * L'abonné est celui que l'APPELANT désigne — l'identifiant Izichange, celui du `user_id` des
+     * événements métier et des liens de souscription. Le jeton Keycloak, lui, prouve que l'appelant
+     * est un client authentifié.
+     *
+     * Le claim ne sert donc que de repli, quand le corps ne porte rien : un appelant plus ancien,
+     * ou un essai à la main.
+     */
+    const demande = typeof request.body?.subscriberId === 'string' ? request.body.subscriberId.trim() : '';
+    const subscriberId = demande || verifie.subscriberId;
+
+    /*
+     * **La liaison est ce qui empêche un client authentifié d'en usurper un autre.**
+     *
+     * « Authentifié » et « autorisé à agir au nom de cet abonné » sont deux choses différentes : un
+     * jeton valide ne dit rien du `subscriberId` qu'on réclame. Sans ce contrôle, n'importe quel
+     * client muni de SON jeton pourrait enregistrer son appareil sous l'identifiant d'un autre et
+     * recevoir ses notifications — et la victime continuerait de tout recevoir, la route faisant
+     * l'union des jetons, donc rien ne le signalerait.
+     *
+     * On lie donc l'abonné au porteur du premier jeton, et on refuse ensuite tout autre porteur. Le
+     * résidu est la toute première inscription, avant qu'aucun appareil n'ait été enregistré —
+     * fenêtre étroite, et d'autant plus que l'ingestion CRM crée les abonnés en amont.
+     */
+    const existant = await this.subscriberRepository.findBySubscriberId(String(environnement._id), subscriberId);
+
+    if (existant?.keycloakSubject && existant.keycloakSubject !== verifie.subscriberId) {
+      this.logger.error(
+        { subscriberId, porteur: verifie.subscriberId, environmentId: environnement._id },
+        'tentative d’enregistrement sur un abonné lié à un autre sujet Keycloak'
+      );
+
+      throw new UnauthorizedException('This subscriber is bound to a different Keycloak identity');
+    }
+
+    /*
      * **On crée l'abonné s'il n'existe pas**, exactement comme le faisait `session/initialize`.
      *
      * C'est indispensable : cette route étant refusée sur un environnement migré, il n'y aurait
@@ -130,14 +166,22 @@ export class WidgetSubscriberGuard extends AuthGuard('subscriberJwt') {
       CreateOrUpdateSubscriberCommand.create({
         environmentId: String(environnement._id),
         organizationId: String(environnement._organizationId),
-        subscriberId: verifie.subscriberId,
+        subscriberId,
         ...profilDepuisClaims(verifie.charge),
         allowUpdate: true,
       })
     );
 
     if (!subscriber) {
-      throw new UnauthorizedException(`Subscriber ${verifie.subscriberId} could not be resolved`);
+      throw new UnauthorizedException(`Subscriber ${subscriberId} could not be resolved`);
+    }
+
+    // Première liaison : on la pose. Les suivantes ont déjà été vérifiées plus haut.
+    if (!existant?.keycloakSubject) {
+      await this.subscriberRepository.update(
+        { _environmentId: String(environnement._id), subscriberId },
+        { $set: { keycloakSubject: verifie.subscriberId } }
+      );
     }
 
     return {

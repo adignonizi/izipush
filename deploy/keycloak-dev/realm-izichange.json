@@ -12,9 +12,15 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "redirectUris": ["*"],
-      "webOrigins": ["*"],
-      "attributes": { "post.logout.redirect.uris": "*" }
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "*"
+      }
     },
     {
       "clientId": "outil-interne",
@@ -32,7 +38,28 @@
       "email": "client-test@izichange.test",
       "firstName": "Client",
       "lastName": "Test",
-      "credentials": [{ "type": "password", "value": "test", "temporary": false }]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "autre-client",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "autre@izichange.test",
+      "firstName": "Autre",
+      "lastName": "Client",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ]
     }
   ]
 }

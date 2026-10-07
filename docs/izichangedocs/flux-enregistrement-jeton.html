@@ -626,9 +626,10 @@ sequenceDiagram
       <h2>Flux E — jeton Keycloak, celui qui est retenu</h2>
       <p>
         L'application s'authentifie déjà par Keycloak, sur mobile comme sur web. izipush vérifie
-        ce jeton et lit l'abonné dans son claim <code>sub</code>. Plus de session à ouvrir, plus de
-        HMAC, et <b>rien à écrire côté passerelle</b> — c'est ce dernier point qui le rend meilleur
-        que les flux B et C.
+        ce jeton — il prouve que l'appelant est un client authentifié — et enregistre l'abonné que
+        l'appelant désigne : <b>l'identifiant Izichange</b>, celui du <code>user_id</code> des
+        événements métier. Plus de session à ouvrir, plus de HMAC, et <b>rien à écrire côté
+        passerelle</b> — c'est ce dernier point qui le rend meilleur que les flux B et C.
       </p>
     </div>
 
@@ -657,13 +658,20 @@ sequenceDiagram
       <b>L'identité ne vient plus de la requête.</b> <code>applicationIdentifier</code> reste
       nécessaire — un jeton Keycloak ne sait rien d'izipush, il faut bien dire contre quel realm le
       vérifier — mais il ne sert qu'à l'aiguillage. Le <code>subscriberId</code> est lu dans un
-      jeton dont la signature a été vérifiée, jamais dans le corps. Le détournement du flux D est
-      donc fermé.
+      jeton dont la signature a été vérifiée. Le <b>profil</b> — <code>email</code>,
+      <code>given_name</code>, <code>family_name</code> — en vient aussi : il alimente les campagnes
+      du CRM, il n'a donc rien à faire dans un corps de requête.
       <br><br>
-      <b>Les identifiants s'alignent déjà.</b> Le webhook Keycloak crée les profils avec son
-      <code>userId</code>, qui est exactement la valeur du claim <code>sub</code> :
-      <code>token.sub = webhook.userId = subscriberId = user_id du contrat</code>. Aucune
-      correspondance à établir, aucun risque de produire deux profils.
+      <b>L'identifiant, lui, vient de l'appelant</b>, et c'est nécessaire : relevé sur un vrai jeton
+      de production, <code>sub</code> est un UUID et <code>preferred_username</code> une adresse
+      e-mail. Ni l'un ni l'autre n'est l'identifiant Izichange, qu'aucun claim ne porte.
+      <br><br>
+      <b>D'où la liaison, qui ferme le détournement du flux D.</b> « Authentifié » et « autorisé à
+      agir au nom de cet abonné » sont deux choses différentes : un jeton valide ne dit rien du
+      <code>subscriberId</code> réclamé. izipush retient donc le <code>sub</code> du premier jeton
+      qui enregistre un appareil — champ <code>keycloakSubject</code> — et refuse ensuite tout autre
+      porteur. Le résidu est la toute première inscription, avant qu'aucun appareil n'existe : étroite,
+      et d'autant plus que l'ingestion CRM crée les abonnés en amont sur <code>account.*</code>.
     </div>
 
     <h3 style="margin-top:28px">Les cinq contrôles sur le jeton</h3>
@@ -692,8 +700,9 @@ sequenceDiagram
             <td class="d"><code>azp</code> ou <code>aud</code> contre le client attendu</td>
             <td class="d">Le contrôle qu'on oublie. Tous les clients d'un realm sont signés par la
                 <b>même clé</b> : sans lui, un jeton émis pour un outil interne enregistre un
-                appareil. Keycloak met le client dans <code>azp</code>, <code>aud</code> valant
-                souvent <code>account</code>.</td>
+                appareil. <b>La valeur à régler est le <code>azp</code></b> — <code>izi-client</code>
+                chez Izichange — et jamais celle d'<code>aud</code>, qui vaut <code>account</code>
+                sur tous les jetons du realm et ne protégerait donc rien.</td>
           </tr>
           <tr>
             <td class="d"><code>exp</code> et <code>nbf</code>, 30 s de tolérance</td>
@@ -718,9 +727,11 @@ sequenceDiagram
       émettre à izipush des requêtes vers l'intérieur du réseau.
       <br><br>
       <b>Deux réserves.</b> L'abonné doit préexister — ce chemin ne le crée pas, contrairement à
-      <code>session/initialize</code>. Et un jeton d'accès vit cinq minutes : le SDK doit en
-      redemander un frais à chaque enregistrement, d'où un <code>keycloakToken</code> qui est une
-      fonction et non une chaîne.
+      <code>session/initialize</code>. Et un jeton d'accès a une durée de vie bornée — <b>quatre
+      heures</b> sur le realm d'Izichange, cinq minutes sur un Keycloak laissé par défaut — alors
+      qu'une application installée vit bien plus longtemps : le SDK doit en redemander un frais à
+      chaque enregistrement, d'où un <code>keycloakToken</code> qui est une fonction et non une
+      chaîne.
     </div>
 
     <div class="note" style="margin-top:14px">

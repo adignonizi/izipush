@@ -19,6 +19,7 @@ const subscriberSchema = new Schema<SubscriberDBModel>(
     lastName: Schema.Types.String,
     phone: Schema.Types.String,
     subscriberId: Schema.Types.String,
+    keycloakSubject: Schema.Types.String,
     email: Schema.Types.String,
     avatar: Schema.Types.String,
     locale: Schema.Types.String,

@@ -25,8 +25,8 @@ const CLIENT = 'izipay-mobile';
 
 const journal = { setContext: () => undefined, warn: () => undefined, error: () => undefined } as never;
 
-function contexte(headers: Record<string, string>) {
-  const request: Record<string, unknown> = { headers, url: '/v1/widgets/credentials' };
+function contexte(headers: Record<string, string>, body: Record<string, unknown> = {}) {
+  const request: Record<string, unknown> = { headers, body, url: '/v1/widgets/credentials' };
 
   return {
     requete: request,
@@ -103,7 +103,16 @@ async function refus(garde: WidgetSubscriberGuard, ctx: never): Promise<string> 
     },
   };
 
-  const garde = new WidgetSubscriberGuard(environnements, new JwksService(journal), creation as never, journal);
+  const { SubscriberRepository } = require('@novu/dal');
+  const abonnes = new SubscriberRepository();
+
+  const garde = new WidgetSubscriberGuard(
+    environnements,
+    abonnes,
+    new JwksService(journal),
+    creation as never,
+    journal
+  );
 
   const identifiant = `essai-${Date.now()}`;
   const env = await environnements.create({
